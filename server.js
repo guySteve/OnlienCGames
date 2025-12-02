@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
+const APP_VERSION = '1.3.0';
 
 const app = express();
 app.set('trust proxy', 1);

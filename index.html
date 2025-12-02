@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Play WAR</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>PlayWar - Casino Card Game</title>
+  <link rel="stylesheet" href="styles.css?v=1.3">
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">PLAYWAR.GAMES</div>
+    <div class="brand">PLAYWAR</div>
     <div class="auth">
-      <a id="loginBtn" class="btn btn-primary" href="/auth/google">Login with Google</a>
+      <a id="loginBtn" class="btn btn-gold" href="/auth/google">Login with Google</a>
       <div id="profile" class="profile" style="display:none;">
         <img src="" alt="avatar" class="avatar" />
         <span></span>
@@ -24,13 +24,18 @@
     <section id="lobbyScreen" class="screen">
       <div class="lobby">
         <div class="left">
-          <h2>Lobby</h2>
-          <div class="controls">
-            <label>Starting chips</label>
-            <input type="number" id="startingChips" min="100" value="1000" />
-            <button class="btn btn-success" onclick="createRoom()">Create Room</button>
+          <div class="casino-section">
+            <h2>🎰 Open a New Table</h2>
+            <div class="new-table-controls">
+              <label>Starting Chips</label>
+              <input type="number" id="startingChips" min="100" value="1000" />
+              <button class="btn btn-gold btn-large" onclick="createRoom()">Start Table</button>
+            </div>
           </div>
-          <div id="rooms" class="rooms"></div>
+          <div class="casino-section">
+            <h2>🃏 Casino Floor</h2>
+            <div id="rooms" class="rooms"></div>
+          </div>
         </div>
         <div class="right chat">
           <h3>Lobby Chat</h3>
@@ -87,6 +92,6 @@
     </section>
   </main>
 
-  <script src="client.js"></script>
+  <script src="client.js?v=1.3"></script>
 </body>
 </html>

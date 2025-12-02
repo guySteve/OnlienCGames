@@ -48,11 +48,11 @@ function renderAuth() {
 function renderRooms(list) {
   const el = document.getElementById('rooms');
   el.innerHTML = '';
-  if (!list || list.length === 0) { el.innerHTML = '<div class="empty">No rooms yet. Create one!</div>'; return; }
+  if (!list || list.length === 0) { el.innerHTML = '<div class="empty">No active tables. Start the first War!</div>'; return; }
   list.forEach(r => {
     const div = document.createElement('div');
     div.className = 'room-card';
-    div.innerHTML = `<div class="room-id">#${r.roomId}</div><div>${r.playerCount}/2</div><button ${r.hasRoom ? '' : 'disabled'} class="btn btn-success">Join</button>`;
+    div.innerHTML = `<div><div class="room-id">Table ${r.roomId}</div><div style="font-size:.9em;opacity:.8">${r.playerCount}/2 Players</div></div><button ${r.hasRoom ? '' : 'disabled'} class="btn btn-success">Join Table</button>`;
     div.querySelector('button').onclick = () => joinRoom(r.roomId);
     el.appendChild(div);
   });
