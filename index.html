@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PlayWar - Casino Card Game</title>
-  <link rel="stylesheet" href="styles.css?v=2.0">
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <link rel="stylesheet" href="styles.css?v=3.0">
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">PLAYWAR</div>
+    <div class="brand">♠ CASINO WAR ♠</div>
     <div class="auth">
       <button id="editProfileBtn" class="btn" style="display:none;" onclick="openProfileModal()">Edit Profile</button>
       <a id="loginBtn" class="btn btn-gold" href="/auth/google">Login with Google</a>
@@ -42,7 +42,7 @@
           <h3>Lobby Chat</h3>
           <div id="lobbyChatBox" class="chat-box"></div>
           <div class="chat-input">
-            <input id="lobbyChatInput" placeholder="Say hi..." />
+            <input id="lobbyChatInput" placeholder="Say hi..." onkeypress="if(event.key==='Enter')sendLobbyChat()" />
             <button class="btn" onclick="sendLobbyChat()">Send</button>
           </div>
         </div>
@@ -55,8 +55,22 @@
         <!-- Visual Casino Table -->
         <div class="table-container">
           <div id="casinoTable" class="casino-table">
-            <!-- House/Dealer Area -->
+            <!-- Table Text Overlays -->
+            <div class="table-title">CASINO WAR</div>
+            <div class="table-subtitle">TIE BETS PAY 10 TO 1</div>
+            
+            <!-- House/Dealer Area with Chip Tray -->
             <div id="houseArea" class="house-area">
+              <div class="chip-tray">
+                <div class="tray-chip red"></div>
+                <div class="tray-chip red"></div>
+                <div class="tray-chip green"></div>
+                <div class="tray-chip green"></div>
+                <div class="tray-chip black"></div>
+                <div class="tray-chip black"></div>
+                <div class="tray-chip blue"></div>
+                <div class="tray-chip gold"></div>
+              </div>
               <div class="house-label">DEALER</div>
               <div class="house-card">
                 <div class="card card-back"><span class="dealer-icon">D</span></div>
@@ -70,7 +84,7 @@
               <div id="roundResult" class="round-result" style="display:none;"></div>
             </div>
             
-            <!-- 5 Seats arranged in semi-circle -->
+            <!-- 5 Seats arranged in semi-circle arc -->
             <div class="seats-container">
               <div id="seat0" class="seat empty"></div>
               <div id="seat1" class="seat empty"></div>
@@ -80,10 +94,16 @@
             </div>
           </div>
           
+          <!-- Multi-Seat Info -->
+          <div id="multiSeatInfo" class="multi-seat-info" style="display:none;">
+            You are playing <span id="seatCount">0</span> hand(s)
+          </div>
+          
           <!-- Betting Controls -->
           <div id="bettingControls" class="betting-controls" style="display:none;">
             <input id="betAmount" type="number" min="1" value="10" />
             <button class="btn btn-success btn-large" onclick="placeBet()">Place Bet</button>
+            <button id="betAllBtn" class="btn bet-all-btn btn-large" style="display:none;" onclick="placeBetAll()">Bet All Seats</button>
           </div>
           
           <!-- Observer Info -->
@@ -98,7 +118,7 @@
             <h3>Room Chat</h3>
             <div id="roomChatBox" class="chat-box"></div>
             <div class="chat-input">
-              <input id="roomChatInput" placeholder="Message" />
+              <input id="roomChatInput" placeholder="Message" onkeypress="if(event.key==='Enter')sendRoomChat()" />
               <button class="btn" onclick="sendRoomChat()">Send</button>
             </div>
           </div>
@@ -127,6 +147,6 @@
     </div>
   </div>
 
-  <script src="client.js?v=2.0"></script>
+  <script src="client.js?v=3.0"></script>
 </body>
 </html>

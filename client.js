@@ -1,10 +1,11 @@
-// Client for lobby, chat, auth, visual table, and auto-dealer War
+// Client for lobby, chat, auth, visual table, multi-seat War, and auto-dealer
 let socket;
 let gameState = null;
 let roomId = null;
 let startingChips = 1000;
 let auth = { authenticated: false, user: null };
-let mySeatIndex = -1; // -1 means observer
+// Multi-seat support: array of seat indices the user occupies
+let mySeats = []; // Array of seat indices
 
 async function fetchMe() {
   try { const r = await fetch('/me'); auth = await r.json(); } catch { auth = { authenticated: false }; }
@@ -23,7 +24,7 @@ function initSocket() {
     roomId = data.roomId; 
     gameState = data.gameState; 
     startingChips = data.startingChips || 1000;
-    mySeatIndex = -1; // Start as observer
+    mySeats = []; // Start as observer
     showGame(); 
     renderTable(); 
   });
@@ -33,23 +34,15 @@ function initSocket() {
   });
   socket.on('seat_taken', (data) => { 
     gameState = data.gameState;
-    // Check if it's our seat using findIndex for early exit
-    const mySocketId = socket.id;
-    const foundSeatIndex = gameState.seats.findIndex(seat => !seat.empty && seat.socketId === mySocketId);
-    if (foundSeatIndex !== -1) {
-      mySeatIndex = foundSeatIndex;
-    }
+    updateMySeats();
     renderTable(); 
   });
   socket.on('seat_left', (data) => { 
     gameState = data.gameState;
-    // Check if we're still seated using findIndex
-    const mySocketId = socket.id;
-    const foundSeatIndex = gameState.seats.findIndex(seat => !seat.empty && seat.socketId === mySocketId);
-    if (foundSeatIndex === -1) mySeatIndex = -1;
+    updateMySeats();
     renderTable(); 
   });
-  socket.on('game_state', (data) => { gameState = data.gameState; renderTable(); });
+  socket.on('game_state', (data) => { gameState = data.gameState; updateMySeats(); renderTable(); });
   socket.on('bet_placed', (data) => { gameState = data.gameState; renderTable(); });
   socket.on('bets_locked', (data) => { gameState = data.gameState; log("Bets locked"); renderTable(); });
   socket.on('cards_dealt', (data) => { gameState = data.gameState; renderTable(); });
@@ -58,8 +51,20 @@ function initSocket() {
   socket.on('round_reset', (data) => { gameState = data.gameState; resetRoundUI(); renderTable(); });
   socket.on('game_over', (data) => { gameState = data.finalState; showGameOver(data.standings); });
   socket.on('room_message', addRoomMessage);
-  socket.on('player_disconnected', (data) => { gameState = data.gameState; renderTable(); addRoomMessage({from:'System', msg:'A player disconnected', at:Date.now()}); });
+  socket.on('player_disconnected', (data) => { gameState = data.gameState; updateMySeats(); renderTable(); addRoomMessage({from:'System', msg:'A player disconnected', at:Date.now()}); });
   socket.on('error', (e) => alert(e.message));
+}
+
+// Update mySeats array based on current gameState
+function updateMySeats() {
+  if (!gameState || !socket) return;
+  const mySocketId = socket.id;
+  mySeats = [];
+  gameState.seats.forEach((seat, i) => {
+    if (!seat.empty && seat.socketId === mySocketId) {
+      mySeats.push(i);
+    }
+  });
 }
 
 function renderAuth() {
@@ -163,24 +168,65 @@ function addRoomMessage(m) {
   box.appendChild(row); box.scrollTop = box.scrollHeight;
 }
 
-// Sit at seat
+// Sit at seat - now supports multi-seat
 function sitAtSeat(seatIndex) {
-  if (!socket || mySeatIndex !== -1) return;
+  if (!socket) return;
   socket.emit('sit_at_seat', { seatIndex, chips: startingChips });
 }
 
-// Leave seat
-function leaveSeat() {
-  if (!socket || mySeatIndex === -1) return;
-  socket.emit('leave_seat');
+// Leave a specific seat
+function leaveSeat(seatIndex) {
+  if (!socket) return;
+  socket.emit('leave_seat', { seatIndex });
 }
 
-function placeBet() {
+// Place bet for a specific seat
+function placeBet(seatIndex) {
   const amt = Number(document.getElementById('betAmount').value);
   if (!gameState) return; 
-  if (mySeatIndex === -1) { alert('Please sit at a seat first'); return; }
+  if (mySeats.length === 0) { alert('Please sit at a seat first'); return; }
   if (isNaN(amt) || amt < gameState.minBet) { alert(`Min bet ${gameState.minBet}`); return; }
-  socket.emit('place_bet', { betAmount: amt });
+  
+  // If seatIndex provided, bet for that seat; otherwise bet for first unready seat
+  const targetSeat = seatIndex !== undefined ? seatIndex : getFirstUnreadySeat();
+  if (targetSeat === -1) { alert('All your seats have bets placed'); return; }
+  
+  socket.emit('place_bet', { betAmount: amt, seatIndex: targetSeat });
+}
+
+// Place bet for all seats at once
+function placeBetAll() {
+  const amt = Number(document.getElementById('betAmount').value);
+  if (!gameState) return;
+  if (mySeats.length === 0) { alert('Please sit at a seat first'); return; }
+  if (isNaN(amt) || amt < gameState.minBet) { alert(`Min bet ${gameState.minBet}`); return; }
+  
+  // Place bet for each unready seat
+  mySeats.forEach(seatIndex => {
+    const seat = gameState.seats[seatIndex];
+    if (seat && !seat.empty && !seat.ready) {
+      socket.emit('place_bet', { betAmount: amt, seatIndex });
+    }
+  });
+}
+
+// Get first seat that hasn't placed a bet yet
+function getFirstUnreadySeat() {
+  for (const seatIndex of mySeats) {
+    const seat = gameState.seats[seatIndex];
+    if (seat && !seat.empty && !seat.ready) {
+      return seatIndex;
+    }
+  }
+  return -1;
+}
+
+// Check if any of my seats need to bet
+function hasUnreadySeats() {
+  return mySeats.some(seatIndex => {
+    const seat = gameState.seats[seatIndex];
+    return seat && !seat.empty && !seat.ready;
+  });
 }
 
 // Visual Table Rendering
@@ -210,15 +256,27 @@ function renderTable() {
     renderSeat(i);
   }
   
+  // Update multi-seat info
+  const multiSeatInfo = document.getElementById('multiSeatInfo');
+  const seatCountEl = document.getElementById('seatCount');
+  if (multiSeatInfo && seatCountEl) {
+    if (mySeats.length > 1) {
+      multiSeatInfo.style.display = 'block';
+      seatCountEl.textContent = mySeats.length;
+    } else {
+      multiSeatInfo.style.display = 'none';
+    }
+  }
+  
   // Update betting controls visibility
   const bettingControls = document.getElementById('bettingControls');
+  const betAllBtn = document.getElementById('betAllBtn');
   if (bettingControls) {
-    if (mySeatIndex >= 0 && gameState.bettingPhase) {
-      const mySeat = gameState.seats[mySeatIndex];
-      if (mySeat && !mySeat.empty && !mySeat.ready) {
-        bettingControls.style.display = 'flex';
-      } else {
-        bettingControls.style.display = 'none';
+    if (mySeats.length > 0 && gameState.bettingPhase && hasUnreadySeats()) {
+      bettingControls.style.display = 'flex';
+      // Show "Bet All" button if multiple seats
+      if (betAllBtn) {
+        betAllBtn.style.display = mySeats.length > 1 ? 'inline-block' : 'none';
       }
     } else {
       bettingControls.style.display = 'none';
@@ -241,16 +299,67 @@ function renderHouse() {
   
   if (houseCard) {
     const isRed = houseCard.suit === '♥' || houseCard.suit === '♦';
-    cardHtml = `<div class="card ${isRed ? 'red' : 'black'}">
+    cardHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
       <span class="card-rank">${houseCard.rank}</span>
       <span class="card-suit">${houseCard.suit}</span>
     </div>`;
   }
   
   houseEl.innerHTML = `
+    <div class="chip-tray">
+      <div class="tray-chip red"></div>
+      <div class="tray-chip red"></div>
+      <div class="tray-chip green"></div>
+      <div class="tray-chip green"></div>
+      <div class="tray-chip black"></div>
+      <div class="tray-chip black"></div>
+      <div class="tray-chip blue"></div>
+      <div class="tray-chip gold"></div>
+    </div>
     <div class="house-label">DEALER</div>
     <div class="house-card">${cardHtml}</div>
   `;
+}
+
+// Generate chip stack HTML based on bet amount
+function renderChipStack(amount) {
+  if (!amount || amount <= 0) return '';
+  
+  // Chip values: Black=100, Green=25, Red=5
+  const chips = [];
+  let remaining = amount;
+  
+  // Calculate chip breakdown
+  const black = Math.floor(remaining / 100);
+  remaining %= 100;
+  const green = Math.floor(remaining / 25);
+  remaining %= 25;
+  const red = Math.ceil(remaining / 5);
+  
+  // Create chip elements (limit to 8 chips for display)
+  let chipCount = 0;
+  const maxChips = 8;
+  
+  for (let i = 0; i < Math.min(black, maxChips - chipCount); i++) {
+    chips.push({ color: 'chip-black', offset: chipCount * 4 });
+    chipCount++;
+  }
+  for (let i = 0; i < Math.min(green, maxChips - chipCount); i++) {
+    chips.push({ color: 'chip-green', offset: chipCount * 4 });
+    chipCount++;
+  }
+  for (let i = 0; i < Math.min(red, maxChips - chipCount); i++) {
+    chips.push({ color: 'chip-red', offset: chipCount * 4 });
+    chipCount++;
+  }
+  
+  if (chips.length === 0) return '';
+  
+  const chipHtml = chips.map((c, i) => 
+    `<div class="chip ${c.color}" style="bottom:${c.offset}px;z-index:${i}"></div>`
+  ).join('');
+  
+  return `<div class="chip-stack">${chipHtml}</div>`;
 }
 
 function renderSeat(seatIndex) {
@@ -258,25 +367,25 @@ function renderSeat(seatIndex) {
   if (!seatEl) return;
   
   const seat = gameState.seats[seatIndex];
-  const isMe = mySeatIndex === seatIndex;
+  const isMySeat = mySeats.includes(seatIndex);
   
-  seatEl.className = `seat ${isMe ? 'my-seat' : ''} ${!seat.empty ? 'occupied' : 'empty'}`;
+  seatEl.className = `seat ${isMySeat ? 'my-seat' : ''} ${!seat.empty ? 'occupied' : 'empty'}`;
   
   if (seat.empty) {
     // Empty seat - show "Sit Here" button
     seatEl.innerHTML = `
       <button class="sit-btn" onclick="sitAtSeat(${seatIndex})">
         <span class="sit-icon">+</span>
-        <span>Sit Here</span>
+        <span>Sit</span>
       </button>
     `;
   } else {
-    // Occupied seat - show player info
+    // Occupied seat - show player info with chip stack
     let cardHtml = '<div class="card card-back"><span>?</span></div>';
     
     if (seat.card) {
       const isRed = seat.card.suit === '♥' || seat.card.suit === '♦';
-      cardHtml = `<div class="card ${isRed ? 'red' : 'black'}">
+      cardHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
         <span class="card-rank">${seat.card.rank}</span>
         <span class="card-suit">${seat.card.suit}</span>
       </div>`;
@@ -284,19 +393,21 @@ function renderSeat(seatIndex) {
     
     const statusClass = seat.ready ? 'ready' : '';
     const disconnectedClass = !seat.connected ? 'disconnected' : '';
+    const chipStackHtml = renderChipStack(seat.currentBet);
     
     seatEl.innerHTML = `
+      ${seat.currentBet > 0 ? `<div class="betting-circle">${chipStackHtml}</div>` : ''}
       <div class="player-card ${statusClass} ${disconnectedClass}">
         ${cardHtml}
       </div>
       <div class="player-info">
-        ${seat.photo ? `<img class="player-avatar" src="${seat.photo}" alt="">` : '<div class="player-avatar-placeholder">P</div>'}
+        ${seat.photo ? `<img class="player-avatar" src="${seat.photo}" alt="">` : `<div class="player-avatar-placeholder">${seat.name.charAt(0).toUpperCase()}</div>`}
         <div class="player-name">${escapeHtml(seat.name)}</div>
-        <div class="player-chips">$ ${seat.chips}</div>
-        ${seat.currentBet > 0 ? `<div class="player-bet">Bet: ${seat.currentBet}</div>` : ''}
+        <div class="player-chips">$${seat.chips}</div>
+        ${seat.currentBet > 0 ? `<div class="player-bet">Bet: $${seat.currentBet}</div>` : ''}
         ${!seat.connected ? '<div class="disconnected-label">Disconnected</div>' : ''}
       </div>
-      ${isMe ? '<button class="leave-btn" onclick="leaveSeat()">Leave Seat</button>' : ''}
+      ${isMySeat ? `<button class="leave-btn" onclick="leaveSeat(${seatIndex})">Leave</button>` : ''}
     `;
   }
 }
@@ -309,13 +420,13 @@ function showRoundResult(res) {
   if (res.type === 'win') {
     const winner = res.winners[0];
     if (winner.isHouse) {
-      div.innerHTML = `<span class="result-loss">House wins! Pot lost: ${res.pot}</span>`;
+      div.innerHTML = `<span class="result-loss">House wins! Pot lost: $${res.pot}</span>`;
     } else {
-      div.innerHTML = `<span class="result-win">${escapeHtml(winner.name)} wins ${res.pot}!</span>`;
+      div.innerHTML = `<span class="result-win">${escapeHtml(winner.name)} wins $${res.pot}!</span>`;
     }
   } else {
     const names = res.winners.map(w => w.isHouse ? 'House' : escapeHtml(w.name)).join(', ');
-    div.innerHTML = `<span class="result-tie">Tie between ${names}. Split pot ${res.pot}</span>`;
+    div.innerHTML = `<span class="result-tie">Tie between ${names}. Split pot $${res.pot}</span>`;
   }
   log(div.textContent);
 }
@@ -329,14 +440,14 @@ function showGameOver(standings) {
   const div = document.getElementById('roundResult');
   if (!div) return;
   div.style.display = 'block';
-  div.innerHTML = `<span class="game-over">Game Over! Final standings: ${standings.map(s => `${escapeHtml(s.name)}: ${s.chips}`).join(', ')}</span>`;
+  div.innerHTML = `<span class="game-over">Game Over! Final standings: ${standings.map(s => `${escapeHtml(s.name)}: $${s.chips}`).join(', ')}</span>`;
   log('Game Over');
 }
 
 function showLobby() {
   document.getElementById('lobbyScreen').style.display = 'block';
   document.getElementById('gameScreen').style.display = 'none';
-  mySeatIndex = -1;
+  mySeats = [];
   gameState = null;
   roomId = null;
   initSocket(); socket.emit('get_rooms');
