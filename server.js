@@ -35,23 +35,29 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
-// Passport: Google
-passport.use(new GoogleStrategy({
-  clientID: process.env.GOOGLE_CLIENT_ID || '',
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-  callbackURL: '/auth/google/callback'
-}, (accessToken, refreshToken, profile, done) => {
-  const user = {
-    id: profile.id,
-    displayName: profile.displayName,
-    photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null
-  };
-  return done(null, user);
-}));
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
-app.use(passport.initialize());
-app.use(passport.session());
+// Passport: Google (optional - skip if credentials not provided)
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+if (googleClientId && googleClientSecret) {
+  passport.use(new GoogleStrategy({
+    clientID: googleClientId,
+    clientSecret: googleClientSecret,
+    callbackURL: '/auth/google/callback'
+  }, (accessToken, refreshToken, profile, done) => {
+    const user = {
+      id: profile.id,
+      displayName: profile.displayName,
+      photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null
+    };
+    return done(null, user);
+  }));
+  passport.serializeUser((user, done) => done(null, user));
+  passport.deserializeUser((obj, done) => done(null, obj));
+  app.use(passport.initialize());
+  app.use(passport.session());
+} else {
+  console.log('Google OAuth not configured - running without authentication');
+}
 
 app.use(cors());
 app.use(express.json());
@@ -170,13 +176,32 @@ class GameRoom {
     if (seatIndex < 0 || seatIndex > 4) return { success: false, error: 'Invalid seat' };
     if (this.seats[seatIndex] !== null) return { success: false, error: 'Seat taken' };
     
-    // Check if already seated elsewhere
+    // Multi-seat support: Allow same user to sit at multiple seats
+    // Check if user is already seated somewhere to get their info
+    let existingPlayer = null;
     for (let i = 0; i < 5; i++) {
       if (this.seats[i] && this.seats[i].socketId === socketId) {
-        return { success: false, error: 'Already seated' };
+        existingPlayer = this.seats[i];
+        break;
       }
     }
     
+    // If already seated, use existing player info for new seat
+    if (existingPlayer) {
+      this.seats[seatIndex] = {
+        socketId,
+        name: existingPlayer.name,
+        photo: existingPlayer.photo,
+        chips, // New seat gets fresh chips
+        currentBet: 0,
+        card: null,
+        ready: false,
+        connected: true
+      };
+      return { success: true, seatIndex };
+    }
+    
+    // First time sitting - must be an observer
     const observer = this.observers.get(socketId);
     if (!observer) return { success: false, error: 'Not in room' };
     
@@ -194,17 +219,49 @@ class GameRoom {
     return { success: true, seatIndex };
   }
   
-  leaveSeat(socketId) {
+  leaveSeat(socketId, specificSeatIndex = null) {
+    // If specific seat provided, leave only that seat
+    if (specificSeatIndex !== null) {
+      if (this.seats[specificSeatIndex] && this.seats[specificSeatIndex].socketId === socketId) {
+        const player = this.seats[specificSeatIndex];
+        this.seats[specificSeatIndex] = null;
+        
+        // Check if player still has other seats
+        const stillSeated = this.seats.some(s => s !== null && s.socketId === socketId);
+        if (!stillSeated) {
+          // Return to observers if no more seats
+          this.observers.set(socketId, { socketId, name: player.name, photo: player.photo });
+        }
+        return { success: true, seatIndex: specificSeatIndex };
+      }
+      return { success: false, error: 'Not your seat' };
+    }
+    
+    // Legacy: leave first found seat
     for (let i = 0; i < 5; i++) {
       if (this.seats[i] && this.seats[i].socketId === socketId) {
         const player = this.seats[i];
         this.seats[i] = null;
-        // Return to observers
-        this.observers.set(socketId, { socketId, name: player.name, photo: player.photo });
+        // Check if player still has other seats
+        const stillSeated = this.seats.some(s => s !== null && s.socketId === socketId);
+        if (!stillSeated) {
+          this.observers.set(socketId, { socketId, name: player.name, photo: player.photo });
+        }
         return { success: true, seatIndex: i };
       }
     }
     return { success: false, error: 'Not seated' };
+  }
+  
+  // Get all seats for a specific socket
+  getSeatsBySocket(socketId) {
+    const seats = [];
+    for (let i = 0; i < 5; i++) {
+      if (this.seats[i] && this.seats[i].socketId === socketId) {
+        seats.push(i);
+      }
+    }
+    return seats;
   }
   
   getPlayerBySeat(seatIndex) {
@@ -507,13 +564,14 @@ io.on('connection', (socket) => {
     io.to('lobby').emit('rooms_update', getRoomsSummary());
   });
 
-  // Leave seat (become observer again)
-  socket.on('leave_seat', () => {
+  // Leave seat (become observer again) - supports specific seat for multi-seat
+  socket.on('leave_seat', (data = {}) => {
     const roomId = playerToGame.get(socket.id);
     const game = games.get(roomId);
     if (!game) return;
 
-    const result = game.leaveSeat(socket.id);
+    const specificSeatIndex = data.seatIndex !== undefined ? Number(data.seatIndex) : null;
+    const result = game.leaveSeat(socket.id, specificSeatIndex);
     if (result.success) {
       io.to(roomId).emit('seat_left', { seatIndex: result.seatIndex, gameState: game.getState() });
       io.to('lobby').emit('rooms_update', getRoomsSummary());
@@ -531,17 +589,30 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('room_message', { from: name, photo, msg, at: Date.now() });
   });
 
-  // Betting
+  // Betting - supports specific seat for multi-seat
   socket.on('place_bet', (data = {}) => {
     const roomId = playerToGame.get(socket.id);
     const game = games.get(roomId);
     if (!game) return;
 
-    const playerInfo = game.getPlayerBySocket(socket.id);
-    if (!playerInfo) return io.to(socket.id).emit('error', { message: 'Not seated' });
+    // Check if seatIndex is specified for multi-seat betting
+    let seatIndex;
+    if (data.seatIndex !== undefined) {
+      seatIndex = Number(data.seatIndex);
+      // Verify the seat belongs to this socket
+      const seat = game.getPlayerBySeat(seatIndex);
+      if (!seat || seat.socketId !== socket.id) {
+        return io.to(socket.id).emit('error', { message: 'Not your seat' });
+      }
+    } else {
+      // Legacy: find first seat for this socket
+      const playerInfo = game.getPlayerBySocket(socket.id);
+      if (!playerInfo) return io.to(socket.id).emit('error', { message: 'Not seated' });
+      seatIndex = playerInfo.seatIndex;
+    }
 
     const amount = Number(data.betAmount || 0);
-    const result = game.placeBet(playerInfo.seatIndex, amount);
+    const result = game.placeBet(seatIndex, amount);
     if (!result.success) return io.to(socket.id).emit('error', { message: result.error });
 
     io.to(roomId).emit('bet_placed', { gameState: game.getState() });
