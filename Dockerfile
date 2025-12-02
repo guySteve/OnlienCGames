@@ -7,6 +7,10 @@ COPY package*.json ./
 
 RUN npm ci --only=production
 
+COPY prisma ./prisma
+
+RUN npx prisma generate
+
 # Stage 2: Runtime
 FROM node:18-alpine
 
