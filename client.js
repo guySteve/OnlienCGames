@@ -367,9 +367,9 @@ function renderSeat(seatIndex) {
   if (!seatEl) return;
   
   const seat = gameState.seats[seatIndex];
-  const isMySeeat = mySeats.includes(seatIndex);
+  const isMySeat = mySeats.includes(seatIndex);
   
-  seatEl.className = `seat ${isMySeeat ? 'my-seat' : ''} ${!seat.empty ? 'occupied' : 'empty'}`;
+  seatEl.className = `seat ${isMySeat ? 'my-seat' : ''} ${!seat.empty ? 'occupied' : 'empty'}`;
   
   if (seat.empty) {
     // Empty seat - show "Sit Here" button
@@ -407,7 +407,7 @@ function renderSeat(seatIndex) {
         ${seat.currentBet > 0 ? `<div class="player-bet">Bet: $${seat.currentBet}</div>` : ''}
         ${!seat.connected ? '<div class="disconnected-label">Disconnected</div>' : ''}
       </div>
-      ${isMySeeat ? `<button class="leave-btn" onclick="leaveSeat(${seatIndex})">Leave</button>` : ''}
+      ${isMySeat ? `<button class="leave-btn" onclick="leaveSeat(${seatIndex})">Leave</button>` : ''}
     `;
   }
 }
