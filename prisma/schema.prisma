@@ -1,192 +1,143 @@
-// VegasCore Database Schema - "The Vault"
-// Audit-ready, retention-optimized schema for Real-Money Gaming
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// ============================================================================
-// CORE USER MODEL - The Player Profile
-// ============================================================================
+model Achievement {
+  id              String            @id
+  key             String            @unique
+  name            String
+  description     String
+  iconUrl         String?
+  chipReward      Int               @default(0)
+  xpReward        Int               @default(0)
+  UserAchievement UserAchievement[]
+}
+
+model GameSession {
+  id              String        @id
+  createdAt       DateTime      @default(now())
+  completedAt     DateTime?
+  gameType        GameType
+  roomId          String
+  hostUserId      String
+  initialDeckSeed String?
+  finalState      Json
+  totalPot        Int
+  winners         Json
+  User            User          @relation(fields: [hostUserId], references: [id])
+  Hand            Hand[]
+  Transaction     Transaction[]
+
+  @@index([gameType, createdAt])
+  @@index([hostUserId])
+}
+
+model Hand {
+  id          String      @id
+  createdAt   DateTime    @default(now())
+  sessionId   String
+  handNumber  Int
+  playerCards Json
+  dealerCards Json
+  result      HandResult
+  payouts     Json
+  GameSession GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, handNumber])
+}
+
+model HappyHour {
+  id         String   @id
+  startTime  DateTime
+  endTime    DateTime
+  multiplier Float    @default(1.5)
+  active     Boolean  @default(true)
+
+  @@index([active, startTime, endTime])
+}
+
+model Transaction {
+  id            String          @id
+  createdAt     DateTime        @default(now())
+  userId        String
+  amount        Int
+  type          TransactionType
+  balanceBefore BigInt
+  balanceAfter  BigInt
+  gameSessionId String?
+  description   String?
+  metadata      Json?
+  GameSession   GameSession?    @relation(fields: [gameSessionId], references: [id])
+  User          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gameSessionId])
+  @@index([type])
+  @@index([userId, createdAt])
+}
+
 model User {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String            @id
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime
+  googleId              String?           @unique
+  email                 String?           @unique
+  displayName           String
+  avatarUrl             String?
+  nickname              String?           @db.VarChar(30)
+  customAvatar          String?           @db.VarChar(500)
+  chipBalance           BigInt            @default(1000)
+  totalWagered          BigInt            @default(0)
+  totalWon              BigInt            @default(0)
+  xpPoints              Int               @default(0)
+  xpLevel               Int               @default(1)
+  vipStatus             VipTier           @default(BRONZE)
+  lastLogin             DateTime?
+  currentStreak         Int               @default(0)
+  bestStreak            Int               @default(0)
+  nextStreakReward      DateTime?
+  streakFrozen          Boolean           @default(false)
+  lastMysteryDrop       DateTime?
+  mysteryDropCount      Int               @default(0)
+  totalMysteryChips     BigInt            @default(0)
+  totalHandsPlayed      Int               @default(0)
+  lastHandPlayed        DateTime?
+  averageSessionMinutes Float             @default(0)
+  publicWins            Int               @default(0)
+  biggestWin            BigInt            @default(0)
+  biggestWinGameId      String?
+  GameSession           GameSession[]
+  Transaction           Transaction[]
+  UserAchievement       UserAchievement[]
 
-  // OAuth Identity
-  googleId     String?  @unique
-  email        String?  @unique
-  displayName  String
-  avatarUrl    String?
-  nickname     String?  @db.VarChar(30)
-  customAvatar String?  @db.VarChar(500)
-
-  // Economic State
-  chipBalance BigInt @default(1000) // Never allow negative
-  totalWagered BigInt @default(0)   // Lifetime bet volume
-  totalWon     BigInt @default(0)   // Lifetime winnings
-
-  // Progression System
-  xpPoints  Int @default(0)
-  xpLevel   Int @default(1)
-  vipStatus VipTier @default(BRONZE)
-
-  // ========================================================================
-  // "NORTH END" RETENTION FIELDS - The Compulsion Loop
-  // ========================================================================
-  
-  // Daily Streak System
-  lastLogin        DateTime?
-  currentStreak    Int       @default(0) // Consecutive days logged in
-  bestStreak       Int       @default(0) // All-time record
-  nextStreakReward DateTime? // When they can claim next daily bonus
-  streakFrozen     Boolean   @default(false) // Grace period flag
-
-  // Variable Reward System
-  lastMysteryDrop  DateTime?
-  mysteryDropCount Int       @default(0)
-  totalMysteryChips BigInt   @default(0)
-
-  // Session Metrics (for engagement analytics)
-  totalHandsPlayed Int      @default(0)
-  lastHandPlayed   DateTime?
-  averageSessionMinutes Float @default(0)
-
-  // Social Vanity
-  publicWins       Int      @default(0) // Count of wins > 1000 chips
-  biggestWin       BigInt   @default(0)
-  biggestWinGameId String?
-
-  // Relationships
-  transactions Transaction[]
-  gameSessions GameSession[]
-  achievements UserAchievement[]
-
-  @@index([googleId])
-  @@index([email])
   @@index([currentStreak])
+  @@index([email])
+  @@index([googleId])
   @@index([lastLogin])
 }
 
-enum VipTier {
-  BRONZE
-  SILVER
-  GOLD
-  PLATINUM
-  DIAMOND
-}
+model UserAchievement {
+  id            String      @id
+  createdAt     DateTime    @default(now())
+  userId        String
+  achievementId String
+  progress      Int         @default(0)
+  completed     Boolean     @default(false)
+  Achievement   Achievement @relation(fields: [achievementId], references: [id])
+  User          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-// ============================================================================
-// DOUBLE-ENTRY LEDGER - Immutable Financial Audit Trail
-// ============================================================================
-model Transaction {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  amount Int // Positive = credit, Negative = debit
-  type   TransactionType
-
-  // Audit Trail
-  balanceBefore BigInt
-  balanceAfter  BigInt
-
-  // Context
-  gameSessionId String?
-  gameSession   GameSession? @relation(fields: [gameSessionId], references: [id])
-  
-  description String? // "Daily Streak Day 5", "Mystery Drop", "Blackjack Win"
-  metadata    Json?   // Flexible field for additional data
-
-  @@index([userId, createdAt])
-  @@index([gameSessionId])
-  @@index([type])
-}
-
-enum TransactionType {
-  // Player Actions
-  BET
-  WIN
-  PUSH // Tie/return of bet
-  
-  // Engagement Rewards
-  DAILY_STREAK
-  MYSTERY_DROP
-  ACHIEVEMENT_REWARD
-  LEVEL_UP_BONUS
-  
-  // Admin Operations
-  ADMIN_CREDIT
-  ADMIN_DEBIT
-  PROMO_CODE
-  
-  // System
-  REFUND
-  CORRECTION
-}
-
-// ============================================================================
-// GAME SESSION - Provably Fair Audit Log
-// ============================================================================
-model GameSession {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  completedAt DateTime?
-
-  gameType GameType
-  roomId   String
-
-  // Participants (War supports multiple seats per user)
-  hostUserId String
-  host       User   @relation(fields: [hostUserId], references: [id])
-
-  // Game State Snapshot (stored as JSON for flexibility)
-  initialDeckSeed String? // Cryptographic proof of fairness
-  finalState      Json    // Complete game state at conclusion
-  
-  // Outcomes
-  totalPot    Int
-  winners     Json // Array of { userId, seatIndex, payout }
-  
-  transactions Transaction[]
-  hands        Hand[]
-
-  @@index([hostUserId])
-  @@index([gameType, createdAt])
+  @@unique([userId, achievementId])
+  @@index([userId, completed])
 }
 
 enum GameType {
   WAR
   BLACKJACK
-}
-
-// ============================================================================
-// HAND - Individual Round Within a Session
-// ============================================================================
-model Hand {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-
-  sessionId String
-  session   GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  handNumber Int // Sequential within session
-
-  // Participants in this specific hand
-  playerCards Json // { userId: { cards: [], bet: 100 } }
-  dealerCards Json
-
-  result HandResult
-  payouts Json // { userId: amount }
-
-  @@index([sessionId, handNumber])
 }
 
 enum HandResult {
@@ -198,48 +149,25 @@ enum HandResult {
   DEALER_BUST
 }
 
-// ============================================================================
-// ACHIEVEMENTS - Gamification Layer
-// ============================================================================
-model Achievement {
-  id          String   @id @default(uuid())
-  key         String   @unique // "first_blackjack", "win_streak_10"
-  name        String
-  description String
-  iconUrl     String?
-  chipReward  Int      @default(0)
-  xpReward    Int      @default(0)
-
-  users UserAchievement[]
+enum TransactionType {
+  BET
+  WIN
+  PUSH
+  DAILY_STREAK
+  MYSTERY_DROP
+  ACHIEVEMENT_REWARD
+  LEVEL_UP_BONUS
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  PROMO_CODE
+  REFUND
+  CORRECTION
 }
 
-model UserAchievement {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  achievementId String
-  achievement   Achievement @relation(fields: [achievementId], references: [id])
-
-  progress Int @default(0) // For multi-step achievements
-  completed Boolean @default(false)
-
-  @@unique([userId, achievementId])
-  @@index([userId, completed])
-}
-
-// ============================================================================
-// HAPPY HOUR - Time-Limited Promotions
-// ============================================================================
-model HappyHour {
-  id        String   @id @default(uuid())
-  startTime DateTime
-  endTime   DateTime
-
-  multiplier Float @default(1.5) // XP/Chip earning multiplier
-  active     Boolean @default(true)
-
-  @@index([active, startTime, endTime])
+enum VipTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
 }
