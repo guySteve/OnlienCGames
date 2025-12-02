@@ -249,6 +249,7 @@ body{
   align-items:center;
   gap:10px;
   z-index:15;
+  margin-bottom:40px;
 }
 
 .chip-tray{
@@ -355,6 +356,7 @@ body{
   justify-content:space-around;
   align-items:flex-end;
   padding:0 20px;
+  margin-top:50px;
 }
 
 /* ===== Individual Seat ===== */
