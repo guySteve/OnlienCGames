@@ -142,7 +142,7 @@ function sendLobbyChat() {
 function addLobbyMessage(m) {
   const box = document.getElementById('lobbyChatBox');
   const row = document.createElement('div'); row.className='chat-row';
-  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${escapeHtml(m.from)}:</b> ${escapeHtml(m.msg)}`;
+  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
   box.appendChild(row); box.scrollTop = box.scrollHeight;
 }
 
@@ -164,7 +164,7 @@ function sendRoomChat() {
 function addRoomMessage(m) {
   const box = document.getElementById('roomChatBox');
   const row = document.createElement('div'); row.className='chat-row';
-  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${escapeHtml(m.from)}:</b> ${escapeHtml(m.msg)}`;
+  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
   box.appendChild(row); box.scrollTop = box.scrollHeight;
 }
 
@@ -402,7 +402,7 @@ function renderSeat(seatIndex) {
       </div>
       <div class="player-info">
         ${seat.photo ? `<img class="player-avatar" src="${seat.photo}" alt="">` : `<div class="player-avatar-placeholder">${seat.name.charAt(0).toUpperCase()}</div>`}
-        <div class="player-name">${escapeHtml(seat.name)}</div>
+        <div class="player-name">${ClientCrypto.sanitize(seat.name)}</div>
         <div class="player-chips">$${seat.chips}</div>
         ${seat.currentBet > 0 ? `<div class="player-bet">Bet: $${seat.currentBet}</div>` : ''}
         ${!seat.connected ? '<div class="disconnected-label">Disconnected</div>' : ''}
@@ -422,10 +422,10 @@ function showRoundResult(res) {
     if (winner.isHouse) {
       div.innerHTML = `<span class="result-loss">House wins! Pot lost: $${res.pot}</span>`;
     } else {
-      div.innerHTML = `<span class="result-win">${escapeHtml(winner.name)} wins $${res.pot}!</span>`;
+      div.innerHTML = `<span class="result-win">${ClientCrypto.sanitize(winner.name)} wins $${res.pot}!</span>`;
     }
   } else {
-    const names = res.winners.map(w => w.isHouse ? 'House' : escapeHtml(w.name)).join(', ');
+    const names = res.winners.map(w => w.isHouse ? 'House' : ClientCrypto.sanitize(w.name)).join(', ');
     div.innerHTML = `<span class="result-tie">Tie between ${names}. Split pot $${res.pot}</span>`;
   }
   log(div.textContent);
@@ -440,7 +440,7 @@ function showGameOver(standings) {
   const div = document.getElementById('roundResult');
   if (!div) return;
   div.style.display = 'block';
-  div.innerHTML = `<span class="game-over">Game Over! Final standings: ${standings.map(s => `${escapeHtml(s.name)}: $${s.chips}`).join(', ')}</span>`;
+  div.innerHTML = `<span class="game-over">Game Over! Final standings: ${standings.map(s => `${ClientCrypto.sanitize(s.name)}: $${s.chips}`).join(', ')}</span>`;
   log('Game Over');
 }
 
@@ -465,11 +465,6 @@ function log(msg) {
   e.className = 'log-entry';
   e.textContent = `${new Date().toLocaleTimeString()} - ${msg}`;
   gl.prepend(e);
-}
-
-function escapeHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 }
 
 window.addEventListener('load', () => { fetchMe(); showLobby(); initSocket(); });

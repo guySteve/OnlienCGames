@@ -3,12 +3,16 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
 
+# Install dependencies
 RUN npm ci --only=production
 
+# Copy Prisma schema
 COPY prisma ./prisma
 
+# Generate Prisma Client
 RUN npx prisma generate
 
 # Stage 2: Runtime
@@ -18,8 +22,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY . .
+# Copy application files first (to avoid overwriting node_modules)
+COPY --chown=node:node . .
+
+# Copy node_modules with generated Prisma Client from builder
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 
 EXPOSE 3000
 

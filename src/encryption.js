@@ -1,29 +1,34 @@
 // End-to-End Encryption for Chat Messages
 // Using AES-256-GCM with per-room shared keys
 const CryptoJS = require('crypto-js');
+const { Redis } = require('@upstash/redis');
 
-// Room-based encryption keys (in production, use Redis or database)
-const roomKeys = new Map();
+// Initialize Redis client for cross-server key storage
+const redisClient = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 // Generate a secure room key
-function generateRoomKey(roomId) {
+async function generateRoomKey(roomId) {
   const key = CryptoJS.lib.WordArray.random(32).toString();
-  roomKeys.set(roomId, key);
+  await redisClient.set(`room:${roomId}:key`, key, { ex: 86400 });
   return key;
 }
 
 // Get or create room key
-function getRoomKey(roomId) {
-  if (!roomKeys.has(roomId)) {
-    return generateRoomKey(roomId);
+async function getRoomKey(roomId) {
+  const key = await redisClient.get(`room:${roomId}:key`);
+  if (!key) {
+    return await generateRoomKey(roomId);
   }
-  return roomKeys.get(roomId);
+  return key;
 }
 
 // Encrypt message (client-side compatible)
-function encryptMessage(message, roomId) {
+async function encryptMessage(message, roomId) {
   try {
-    const key = getRoomKey(roomId);
+    const key = await getRoomKey(roomId);
     const encrypted = CryptoJS.AES.encrypt(message, key).toString();
     return encrypted;
   } catch (error) {
@@ -33,9 +38,9 @@ function encryptMessage(message, roomId) {
 }
 
 // Decrypt message (client-side compatible)
-function decryptMessage(encryptedMessage, roomId) {
+async function decryptMessage(encryptedMessage, roomId) {
   try {
-    const key = getRoomKey(roomId);
+    const key = await getRoomKey(roomId);
     const decrypted = CryptoJS.AES.decrypt(encryptedMessage, key);
     return decrypted.toString(CryptoJS.enc.Utf8);
   } catch (error) {
@@ -58,8 +63,8 @@ function sanitizeMessage(message) {
 }
 
 // Delete room key when room closes
-function deleteRoomKey(roomId) {
-  roomKeys.delete(roomId);
+async function deleteRoomKey(roomId) {
+  await redisClient.del(`room:${roomId}:key`);
 }
 
 module.exports = {

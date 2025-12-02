@@ -16,33 +16,31 @@ async function checkDailyReset(userId) {
     if (!user) return null;
 
     const now = new Date();
-    const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
+    const nextReward = user.nextStreakReward ? new Date(user.nextStreakReward) : null;
     
-    // Check if it's a new day (EST timezone)
-    const isNewDay = !lastLogin || (
-      now.toLocaleDateString('en-US', { timeZone: 'America/New_York' }) !==
-      lastLogin.toLocaleDateString('en-US', { timeZone: 'America/New_York' })
-    );
+    // Check if reward is claimable based on nextStreakReward field
+    const canClaim = !nextReward || now >= nextReward;
 
-    if (isNewDay) {
+    if (canClaim) {
       // Reset to daily chip amount (1000)
       const DAILY_CHIPS = 1000n;
+      
+      // Calculate new streak (increment if within grace period, reset otherwise)
+      const newStreak = nextReward && now <= new Date(nextReward.getTime() + (48 * 60 * 60 * 1000))
+        ? user.currentStreak + 1
+        : 1;
+      
+      // Set next reward time (24 hours from now)
+      const nextStreakReward = new Date(now.getTime() + (24 * 60 * 60 * 1000));
       
       const updated = await prisma.user.update({
         where: { id: user.id },
         data: {
           chipBalance: DAILY_CHIPS,
           lastLogin: now,
-          // Update streak logic
-          currentStreak: lastLogin && isWithin24Hours(lastLogin, now) 
-            ? user.currentStreak + 1 
-            : 1,
-          bestStreak: Math.max(
-            user.bestStreak, 
-            lastLogin && isWithin24Hours(lastLogin, now) 
-              ? user.currentStreak + 1 
-              : 1
-          ),
+          currentStreak: newStreak,
+          bestStreak: Math.max(user.bestStreak, newStreak),
+          nextStreakReward,
         },
       });
 
@@ -55,7 +53,7 @@ async function checkDailyReset(userId) {
           type: 'DAILY_STREAK',
           balanceBefore: user.chipBalance,
           balanceAfter: DAILY_CHIPS,
-          description: `Daily chip reset - Day ${updated.currentStreak}`,
+          description: `Daily chip reset - Day ${newStreak}`,
         },
       });
 
@@ -71,11 +69,6 @@ async function checkDailyReset(userId) {
     console.error('Daily reset check failed:', error);
     return null;
   }
-}
-
-function isWithin24Hours(date1, date2) {
-  const diff = Math.abs(date2 - date1);
-  return diff <= 24 * 60 * 60 * 1000 + (2 * 60 * 60 * 1000); // 24h + 2h grace
 }
 
 // Get or create user
@@ -126,35 +119,36 @@ async function getOrCreateUser(googleProfile) {
 // Update user chips (with transaction record)
 async function updateUserChips(userId, amount, type, description, gameSessionId = null) {
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    return await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) throw new Error('User not found');
 
-    const newBalance = BigInt(user.chipBalance) + BigInt(amount);
-    
-    if (newBalance < 0n) {
-      throw new Error('Insufficient chips');
-    }
+      const newBalance = BigInt(user.chipBalance) + BigInt(amount);
+      
+      if (newBalance < 0n) {
+        throw new Error('Insufficient chips');
+      }
 
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { chipBalance: newBalance },
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { chipBalance: newBalance },
+      });
+
+      await tx.transaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId,
+          amount: Number(amount),
+          type,
+          balanceBefore: user.chipBalance,
+          balanceAfter: newBalance,
+          gameSessionId,
+          description,
+        },
+      });
+
+      return updated;
     });
-
-    // Record transaction
-    await prisma.transaction.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId,
-        amount: Number(amount),
-        type,
-        balanceBefore: user.chipBalance,
-        balanceAfter: newBalance,
-        gameSessionId,
-        description,
-      },
-    });
-
-    return updated;
   } catch (error) {
     console.error('Chip update failed:', error);
     throw error;

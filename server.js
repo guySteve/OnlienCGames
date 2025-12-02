@@ -33,7 +33,7 @@ const sessionMiddleware = session({
   cookie: {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     secure: NODE_ENV === 'production',
-    sameSite: NODE_ENV === 'production' ? 'none' : 'lax'
+    sameSite: 'lax'
   }
 });
 app.use(sessionMiddleware);
