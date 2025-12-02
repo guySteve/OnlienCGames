@@ -33,26 +33,20 @@ function initSocket() {
   });
   socket.on('seat_taken', (data) => { 
     gameState = data.gameState;
-    // Check if it's our seat
+    // Check if it's our seat using findIndex for early exit
     const mySocketId = socket.id;
-    gameState.seats.forEach((seat, i) => {
-      if (!seat.empty && seat.socketId === mySocketId) {
-        mySeatIndex = i;
-      }
-    });
+    const foundSeatIndex = gameState.seats.findIndex(seat => !seat.empty && seat.socketId === mySocketId);
+    if (foundSeatIndex !== -1) {
+      mySeatIndex = foundSeatIndex;
+    }
     renderTable(); 
   });
   socket.on('seat_left', (data) => { 
     gameState = data.gameState;
-    // Check if we left
+    // Check if we're still seated using findIndex
     const mySocketId = socket.id;
-    let stillSeated = false;
-    gameState.seats.forEach((seat, i) => {
-      if (!seat.empty && seat.socketId === mySocketId) {
-        stillSeated = true;
-      }
-    });
-    if (!stillSeated) mySeatIndex = -1;
+    const foundSeatIndex = gameState.seats.findIndex(seat => !seat.empty && seat.socketId === mySocketId);
+    if (foundSeatIndex === -1) mySeatIndex = -1;
     renderTable(); 
   });
   socket.on('game_state', (data) => { gameState = data.gameState; renderTable(); });
@@ -243,7 +237,7 @@ function renderHouse() {
   if (!houseEl) return;
   
   const houseCard = gameState.houseCard;
-  let cardHtml = '<div class="card card-back"><span>🎰</span></div>';
+  let cardHtml = '<div class="card card-back"><span class="dealer-icon">D</span></div>';
   
   if (houseCard) {
     const isRed = houseCard.suit === '♥' || houseCard.suit === '♦';
@@ -272,13 +266,13 @@ function renderSeat(seatIndex) {
     // Empty seat - show "Sit Here" button
     seatEl.innerHTML = `
       <button class="sit-btn" onclick="sitAtSeat(${seatIndex})">
-        <span class="sit-icon">🪑</span>
+        <span class="sit-icon">+</span>
         <span>Sit Here</span>
       </button>
     `;
   } else {
     // Occupied seat - show player info
-    let cardHtml = '<div class="card card-back"><span>🂠</span></div>';
+    let cardHtml = '<div class="card card-back"><span>?</span></div>';
     
     if (seat.card) {
       const isRed = seat.card.suit === '♥' || seat.card.suit === '♦';
@@ -296,9 +290,9 @@ function renderSeat(seatIndex) {
         ${cardHtml}
       </div>
       <div class="player-info">
-        ${seat.photo ? `<img class="player-avatar" src="${seat.photo}" alt="">` : '<div class="player-avatar-placeholder">👤</div>'}
+        ${seat.photo ? `<img class="player-avatar" src="${seat.photo}" alt="">` : '<div class="player-avatar-placeholder">P</div>'}
         <div class="player-name">${escapeHtml(seat.name)}</div>
-        <div class="player-chips">💰 ${seat.chips}</div>
+        <div class="player-chips">$ ${seat.chips}</div>
         ${seat.currentBet > 0 ? `<div class="player-bet">Bet: ${seat.currentBet}</div>` : ''}
         ${!seat.connected ? '<div class="disconnected-label">Disconnected</div>' : ''}
       </div>

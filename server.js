@@ -425,8 +425,8 @@ async function runAutoRound(game) {
   const bustedPlayers = game.seats.filter(s => s !== null && s.chips <= 0);
   if (bustedPlayers.length > 0) {
     const standings = game.seats
-      .filter(s => s !== null)
-      .map((s, i) => ({ seatIndex: i, name: s.name, chips: s.chips }));
+      .map((s, seatIndex) => s !== null ? { seatIndex, name: s.name, chips: s.chips } : null)
+      .filter(s => s !== null);
     io.to(roomId).emit('game_over', { standings, finalState: game.getState() });
     return;
   }

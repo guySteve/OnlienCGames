@@ -209,7 +209,22 @@
   border-color:#4CAF50;
   transform:scale(1.05);
 }
-.sit-icon{font-size:2em}
+.sit-icon{
+  font-size:2em;
+  font-weight:bold;
+  width:40px;
+  height:40px;
+  border:2px solid #4CAF50;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.dealer-icon{
+  font-size:1.5em;
+  font-weight:bold;
+  color:#d4af37;
+}
 
 /* Player info in seat */
 .player-card{
