@@ -1,135 +1,92 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>War Card Game - Online</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play WAR</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>WAR - Online Card Game</h1>
-        
-        <!-- Main Menu Screen -->
-        <div id="menuScreen" class="screen">
-            <div class="setup-panel">
-                <h2>Welcome to War</h2>
-                <div class="input-group">
-                    <label for="playerName">Your Name:</label>
-                    <input type="text" id="playerName" placeholder="Enter your name">
-                </div>
-                <div class="input-group">
-                    <label for="startingChips">Starting Chips:</label>
-                    <input type="number" id="startingChips" min="100" value="1000">
-                </div>
-                <button class="btn btn-primary" onclick="createRoom()">Create Game</button>
-                <div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #ddd;">
-                    <h3>Join Existing Game</h3>
-                    <div class="input-group">
-                        <label for="roomIdInput">Room ID:</label>
-                        <input type="text" id="roomIdInput" placeholder="Enter room ID">
-                    </div>
-                    <button class="btn btn-success" onclick="joinRoom()">Join Game</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Waiting for Player Screen -->
-        <div id="waitingScreen" class="screen" style="display:none;">
-            <div class="setup-panel">
-                <h2>Waiting for Opponent...</h2>
-                <p id="roomIdDisplay"></p>
-                <p>Share this Room ID with your friend</p>
-                <button class="btn btn-warning" onclick="goToMenu()">Cancel</button>
-            </div>
-        </div>
-
-        <!-- Game Screen -->
-        <div id="gameScreen" class="screen" style="display:none;">
-            <div class="game-header">
-                <div class="player-info">
-                    <h2 id="player1NameDisplay"></h2>
-                    <div class="chip-display" id="player1Chips"></div>
-                    <div class="connection-status" id="player1Status"></div>
-                </div>
-                <div class="vs">VS</div>
-                <div class="player-info">
-                    <h2 id="player2NameDisplay"></h2>
-                    <div class="chip-display" id="player2Chips"></div>
-                    <div class="connection-status" id="player2Status"></div>
-                </div>
-            </div>
-
-            <div class="betting-section">
-                <div class="bet-input-group">
-                    <label for="betAmount">Bet Amount:</label>
-                    <input type="number" id="betAmount" min="1" value="10">
-                </div>
-                <button class="btn btn-success" onclick="placeBet()" id="betBtn">Place Bet</button>
-                <button class="btn btn-danger" onclick="resetBet()" id="resetBetBtn" style="display:none;">Reset</button>
-            </div>
-
-            <div class="pot-display">
-                <h3>Pot: <span id="potAmount">0</span></h3>
-            </div>
-
-            <div class="bets-display">
-                <div class="player-bet">
-                    <p id="player1BetDisplay">Player 1 Bet: 0</p>
-                </div>
-                <div class="player-bet">
-                    <p id="player2BetDisplay">Player 2 Bet: 0</p>
-                </div>
-            </div>
-
-            <div class="game-area">
-                <div class="player-side">
-                    <div class="card-display" id="player1Card">
-                        <div class="card-back"></div>
-                    </div>
-                </div>
-
-                <div class="center-controls">
-                    <button class="btn btn-primary btn-large" onclick="playRound()" id="playBtn" style="display:none;">Play Round</button>
-                    <button class="btn btn-secondary btn-large" onclick="nextRound()" id="nextBtn" style="display:none;">Next Round</button>
-                    <div id="roundResult" class="round-result" style="display:none;"></div>
-                </div>
-
-                <div class="player-side">
-                    <div class="card-display" id="player2Card">
-                        <div class="card-back"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="game-log">
-                <h3>Game Log</h3>
-                <div id="gameLog"></div>
-            </div>
-
-            <button class="btn btn-warning" onclick="endGame()">End Game</button>
-        </div>
-
-        <!-- Game Over Screen -->
-        <div id="gameOverScreen" class="screen" style="display:none;">
-            <div class="game-over-panel">
-                <h2>Game Over!</h2>
-                <div id="gameOverResult"></div>
-                <button class="btn btn-primary" onclick="goToMenu()">Play Again</button>
-            </div>
-        </div>
-
-        <!-- Error Screen -->
-        <div id="errorScreen" class="screen" style="display:none;">
-            <div class="setup-panel">
-                <h2>Error</h2>
-                <p id="errorMessage"></p>
-                <button class="btn btn-warning" onclick="goToMenu()">Back to Menu</button>
-            </div>
-        </div>
+  <header class="topbar">
+    <div class="brand">PLAYWAR.GAMES</div>
+    <div class="auth">
+      <a id="loginBtn" class="btn btn-primary" href="/auth/google">Login with Google</a>
+      <div id="profile" class="profile" style="display:none;">
+        <img src="" alt="avatar" class="avatar" />
+        <span></span>
+      </div>
     </div>
+  </header>
 
-    <script src="client.js"></script>
+  <main class="container">
+    <!-- Lobby -->
+    <section id="lobbyScreen" class="screen">
+      <div class="lobby">
+        <div class="left">
+          <h2>Lobby</h2>
+          <div class="controls">
+            <label>Starting chips</label>
+            <input type="number" id="startingChips" min="100" value="1000" />
+            <button class="btn btn-success" onclick="createRoom()">Create Room</button>
+          </div>
+          <div id="rooms" class="rooms"></div>
+        </div>
+        <div class="right chat">
+          <h3>Lobby Chat</h3>
+          <div id="lobbyChatBox" class="chat-box"></div>
+          <div class="chat-input">
+            <input id="lobbyChatInput" placeholder="Say hi..." />
+            <button class="btn" onclick="sendLobbyChat()">Send</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Game -->
+    <section id="gameScreen" class="screen" style="display:none;">
+      <div class="game">
+        <div class="table">
+          <div class="player">
+            <img id="p1Avatar" class="avatar large" />
+            <div class="name" id="p1Name">-</div>
+            <div class="chips" id="p1Chips"></div>
+          </div>
+          <div class="center">
+            <div class="cards" id="p1Card"><div class="card-back"></div></div>
+            <div class="pot">Pot: <span id="potAmount">0</span> | Min bet: <span id="minBet">10</span></div>
+            <div class="cards" id="p2Card"><div class="card-back"></div></div>
+          </div>
+          <div class="player">
+            <img id="p2Avatar" class="avatar large" />
+            <div class="name" id="p2Name">-</div>
+            <div class="chips" id="p2Chips"></div>
+          </div>
+        </div>
+        <div class="betting">
+          <input id="betAmount" type="number" min="1" value="10" />
+          <button class="btn btn-success" onclick="placeBet()">Place Bet</button>
+          <div id="p1Bet"></div>
+          <div id="p2Bet"></div>
+          <div id="roundResult" class="round-result" style="display:none;"></div>
+        </div>
+        <div class="right chat">
+          <h3>Room Chat</h3>
+          <div id="roomChatBox" class="chat-box"></div>
+          <div class="chat-input">
+            <input id="roomChatInput" placeholder="Message" />
+            <button class="btn" onclick="sendRoomChat()">Send</button>
+          </div>
+          <div class="log">
+            <h3>Game Log</h3>
+            <div id="gameLog"></div>
+          </div>
+        </div>
+      </div>
+      <button class="btn" onclick="showLobby()">Exit to Lobby</button>
+    </section>
+  </main>
+
+  <script src="client.js"></script>
 </body>
 </html>

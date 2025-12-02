@@ -1,8 +1,8 @@
 {
   "name": "game",
-  "version": "1.0.0",
-  "description": "A web-based 1v1 War card game with real-time betting using fake chips. Play against your friend locally!",
-  "main": "game.js",
+  "version": "1.1.0",
+  "description": "Multiplayer War card game with lobby, chat, Google login, and casino automation.",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
@@ -14,8 +14,11 @@
   "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-session": "^1.17.3",
+    "memorystore": "^1.6.7",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "socket.io": "^4.8.1"
   }
 }
