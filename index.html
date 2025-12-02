@@ -2,21 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PlayWar - Casino Card Game</title>
-  <link rel="stylesheet" href="styles.css?v=3.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Moe's Card Room - Casino War</title>
+  <link rel="stylesheet" href="styles.css?v=4.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="src/client-crypto.js?v=4.0"></script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">♠ CASINO WAR ♠</div>
+    <div class="brand">♠ MOE'S CARD ROOM ♠</div>
     <div class="auth">
-      <button id="editProfileBtn" class="btn" style="display:none;" onclick="openProfileModal()">Edit Profile</button>
-      <a id="loginBtn" class="btn btn-gold" href="/auth/google">Login with Google</a>
+      <button id="editProfileBtn" class="btn btn-profile" style="display:none;" onclick="openProfileModal()">✏️</button>
+      <a id="loginBtn" class="btn btn-gold" href="/auth/google">Login</a>
       <div id="profile" class="profile" style="display:none;">
         <img src="" alt="avatar" class="avatar" />
-        <span></span>
+        <span class="profile-name"></span>
+        <span id="chipDisplay" class="chip-balance"></span>
       </div>
+      <button id="logoutBtn" class="btn btn-logout" style="display:none;" onclick="logout()">Exit</button>
     </div>
   </header>
 

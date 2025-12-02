@@ -30,12 +30,14 @@ All tables created and synced:
 
 ### 4. Environment Variables
 Configured in `.env` (gitignored):
-- ✅ `DATABASE_URL` - Pooled connection
-- ✅ `DIRECT_URL` - Migration connection
+- ✅ `DATABASE_URL` - Pooled connection (Supabase)
+- ✅ `DIRECT_URL` - Migration connection (Supabase)
+- ✅ `UPSTASH_REDIS_REST_URL` - Redis cache (Upstash)
+- ✅ `UPSTASH_REDIS_REST_TOKEN` - Redis auth
 - ✅ `SESSION_SECRET` - Cryptographically secure (64 chars)
+- ✅ `GOOGLE_CLIENT_ID` - OAuth client ID
 - ✅ `NODE_ENV`, `PORT` - Application config
-- ⏳ `REDIS_URL` - Ready for Redis setup
-- ⏳ `GOOGLE_CLIENT_ID/SECRET` - Ready for OAuth
+- ⏳ `GOOGLE_CLIENT_SECRET` - Pending (get from Google Console)
 
 ---
 
@@ -103,12 +105,11 @@ psql "postgresql://postgres.kitqcxholtgtudojbhyd:2KF0pV31tAXJ4v1j@aws-1-us-east-
    ```
 
 ### When Ready
-3. **Set up Redis** (for session storage in production)
-   - Update `REDIS_URL` in `.env`
-
-4. **Configure Google OAuth** (for user authentication)
-   - Get credentials from Google Cloud Console
-   - Update `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+3. **Get Google Client Secret** (for user authentication)
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to your OAuth 2.0 Client
+   - Copy the Client Secret
+   - Add `GOOGLE_CLIENT_SECRET` to `.env`
 
 5. **Deploy to production**
    - Use environment variables on your hosting platform

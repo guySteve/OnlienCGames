@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -8,14 +9,16 @@ const MemoryStore = require('memorystore')(session);
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
+const { getOrCreateUser, checkDailyReset, updateUserChips, canUserPlay, prisma } = require('./src/db');
+const { getRoomKey, encryptMessage, decryptMessage, sanitizeMessage, deleteRoomKey } = require('./src/encryption');
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '4.0.0';
 
-// In-memory profile storage (nickname, avatar)
-const userProfiles = new Map(); // odUserId -> { nickname, avatar }
+// In-memory profile storage (nickname, avatar) - will migrate to DB
+const userProfiles = new Map(); // googleId -> { nickname, avatar }
 
 const app = express();
 app.set('trust proxy', 1);
@@ -43,24 +46,44 @@ if (googleClientId && googleClientSecret) {
     clientID: googleClientId,
     clientSecret: googleClientSecret,
     callbackURL: '/auth/google/callback'
-  }, (accessToken, refreshToken, profile, done) => {
-    const user = {
-      id: profile.id,
-      displayName: profile.displayName,
-      photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null
-    };
-    return done(null, user);
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      // Get or create user in database with daily reset check
+      const dbUser = await getOrCreateUser(profile);
+      
+      const user = {
+        id: profile.id,
+        dbId: dbUser.id,
+        displayName: profile.displayName,
+        photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
+        chipBalance: Number(dbUser.chipBalance),
+        currentStreak: dbUser.currentStreak,
+      };
+      return done(null, user);
+    } catch (error) {
+      console.error('Auth error:', error);
+      return done(error, null);
+    }
   }));
   passport.serializeUser((user, done) => done(null, user));
   passport.deserializeUser((obj, done) => done(null, obj));
   app.use(passport.initialize());
   app.use(passport.session());
 } else {
-  console.log('Google OAuth not configured - running without authentication');
+  console.log('⚠️  Google OAuth not configured - running without authentication');
 }
 
 app.use(cors());
 app.use(express.json());
+
+// Welcome page for unauthenticated users
+app.get('/', (req, res) => {
+  if (!req.user) {
+    return res.sendFile(path.join(__dirname, 'welcome.html'));
+  }
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, '.')));
 
 // Auth routes
@@ -69,18 +92,31 @@ app.get('/auth/google/callback', passport.authenticate('google', { failureRedire
 app.post('/logout', (req, res) => {
   req.logout(() => { req.session.destroy(() => res.clearCookie('sid').status(200).json({ ok: true })); });
 });
-app.get('/me', (req, res) => {
+app.get('/me', async (req, res) => {
   if (!req.user) return res.status(200).json({ authenticated: false });
-  // Include profile data (nickname, custom avatar)
-  const profile = userProfiles.get(req.user.id) || {};
-  res.json({ 
-    authenticated: true, 
-    user: { 
-      ...req.user, 
-      nickname: profile.nickname || req.user.displayName,
-      customAvatar: profile.avatar || null
-    } 
-  });
+  
+  try {
+    // Refresh chip balance from database
+    const dbUser = await prisma.user.findUnique({
+      where: { googleId: req.user.id }
+    });
+    
+    const profile = userProfiles.get(req.user.id) || {};
+    res.json({ 
+      authenticated: true, 
+      user: { 
+        ...req.user, 
+        nickname: profile.nickname || dbUser?.nickname || req.user.displayName,
+        customAvatar: profile.avatar || dbUser?.customAvatar || null,
+        chipBalance: dbUser ? Number(dbUser.chipBalance) : 0,
+        currentStreak: dbUser?.currentStreak || 0,
+        canPlay: dbUser && dbUser.chipBalance > 0n,
+      } 
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.json({ authenticated: true, user: req.user });
+  }
 });
 
 // Profile update endpoint
