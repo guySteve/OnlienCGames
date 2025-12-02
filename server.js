@@ -25,26 +25,26 @@ const playerToGame = new Map();
 class GameRoom {
     constructor(roomId, player1) {
         this.roomId = roomId;
-        this.players = {
-            player1: {
-                socketId: player1.socketId,
-                name: player1.name,
-                chips: player1.chips,
-                currentBet: 0,
-                card: null,
-                ready: false,
-                connected: true,
-            },
-            player2: null,
-        };
+        this.players = new Map();
+        this.players.set('player1', {
+            socketId: player1.socketId,
+            name: player1.name,
+            chips: player1.chips,
+            currentBet: 0,
+            card: null,
+            ready: false,
+            connected: true,
+            joinedAt: Date.now(),
+        });
         this.pot = 0;
         this.deck = this.createDeck();
         this.roundActive = false;
         this.bettingPhase = true;
+        this.playerCount = 1;
+        this.maxPlayers = 5;
         this.stats = {
-            player1Wins: 0,
-            player2Wins: 0,
-            ties: 0,
+            roundsPlayed: 0,
+            handCounts: {},
         };
     }
 
@@ -84,108 +84,151 @@ class GameRoom {
         return newDeck;
     }
 
-    addPlayer2(player2) {
-        this.players.player2 = {
-            socketId: player2.socketId,
-            name: player2.name,
-            chips: player2.chips,
+    addPlayer(player) {
+        if (this.playerCount >= this.maxPlayers) {
+            return { success: false, error: 'Room is full (max 5 players)' };
+        }
+        const playerKey = `player${this.playerCount + 1}`;
+        this.players.set(playerKey, {
+            socketId: player.socketId,
+            name: player.name,
+            chips: player.chips,
             currentBet: 0,
             card: null,
             ready: false,
             connected: true,
-        };
+            joinedAt: Date.now(),
+        });
+        this.playerCount++;
+        return { success: true, playerKey };
     }
 
     isFull() {
-        return this.players.player2 !== null;
+        return this.playerCount >= this.maxPlayers;
+    }
+
+    hasRoom() {
+        return this.playerCount < this.maxPlayers;
     }
 
     placeBet(playerKey, betAmount) {
-        const player = this.players[playerKey];
+        const player = this.players.get(playerKey);
+        if (!player) return { success: false, error: 'Player not found' };
         if (betAmount > player.chips) {
             return { success: false, error: 'Insufficient chips' };
         }
         player.currentBet = betAmount;
         player.chips -= betAmount;
         this.pot += betAmount;
+        player.ready = true;
         return { success: true };
     }
 
     resetBets() {
-        this.players.player1.chips += this.players.player1.currentBet;
-        this.players.player2.chips += this.players.player2.currentBet;
-        this.pot -= this.players.player1.currentBet + this.players.player2.currentBet;
-        this.players.player1.currentBet = 0;
-        this.players.player2.currentBet = 0;
+        this.players.forEach(player => {
+            player.chips += player.currentBet;
+            this.pot -= player.currentBet;
+            player.currentBet = 0;
+            player.ready = false;
+        });
+    }
+
+    allPlayersBetted() {
+        let activePlayers = 0;
+        let readyPlayers = 0;
+        this.players.forEach(player => {
+            if (player.connected) {
+                activePlayers++;
+                if (player.ready && player.currentBet > 0) {
+                    readyPlayers++;
+                }
+            }
+        });
+        return activePlayers > 0 && activePlayers === readyPlayers;
     }
 
     playRound() {
-        if (this.deck.length < 2) {
+        if (this.deck.length < this.playerCount) {
             this.deck = this.createDeck();
         }
-        this.players.player1.card = this.deck.pop();
-        this.players.player2.card = this.deck.pop();
+        
+        const cards = [];
+        this.players.forEach((player, key) => {
+            player.card = this.deck.pop();
+            cards.push({ player: key, name: player.name, card: player.card });
+        });
+        
         this.roundActive = true;
-
         const result = this.determineWinner();
+        this.stats.roundsPlayed++;
         return result;
     }
 
     determineWinner() {
-        const p1Value = this.players.player1.card.value;
-        const p2Value = this.players.player2.card.value;
-        let winner = null;
+        const hands = [];
+        this.players.forEach((player, key) => {
+            if (player.card) {
+                hands.push({
+                    key,
+                    name: player.name,
+                    value: player.card.value,
+                    card: player.card,
+                });
+            }
+        });
 
-        if (p1Value > p2Value) {
-            this.players.player1.chips += this.pot;
-            this.stats.player1Wins++;
-            winner = 'player1';
-        } else if (p2Value > p1Value) {
-            this.players.player2.chips += this.pot;
-            this.stats.player2Wins++;
-            winner = 'player2';
+        hands.sort((a, b) => b.value - a.value);
+        const highestValue = hands[0].value;
+        const winners = hands.filter(h => h.value === highestValue);
+
+        if (winners.length === 1) {
+            const winner = this.players.get(winners[0].key);
+            winner.chips += this.pot;
+            this.pot = 0;
+            this.roundActive = false;
+            return { type: 'win', winners: [winners[0]] };
         } else {
-            const tieChips = Math.floor(this.pot / 2);
-            this.players.player1.chips += tieChips;
-            this.players.player2.chips += this.pot - tieChips;
-            this.stats.ties++;
-            winner = 'tie';
+            const splitPot = Math.floor(this.pot / winners.length);
+            const remainder = this.pot % winners.length;
+            
+            winners.forEach((w, idx) => {
+                const player = this.players.get(w.key);
+                player.chips += splitPot + (idx === 0 ? remainder : 0);
+            });
+            
+            this.pot = 0;
+            this.roundActive = false;
+            return { type: 'tie', winners };
         }
-
-        this.pot = 0;
-        this.roundActive = false;
-        return winner;
     }
 
     nextRound() {
-        this.players.player1.card = null;
-        this.players.player2.card = null;
-        this.players.player1.currentBet = 0;
-        this.players.player2.currentBet = 0;
-        this.players.player1.ready = false;
-        this.players.player2.ready = false;
+        this.players.forEach(player => {
+            player.card = null;
+            player.currentBet = 0;
+            player.ready = false;
+        });
         this.bettingPhase = true;
     }
 
     getGameState() {
+        const playersArray = [];
+        this.players.forEach((player, key) => {
+            playersArray.push({
+                key,
+                name: player.name,
+                chips: player.chips,
+                currentBet: player.currentBet,
+                card: player.card,
+                connected: player.connected,
+                ready: player.ready,
+            });
+        });
+
         return {
             roomId: this.roomId,
-            players: {
-                player1: {
-                    name: this.players.player1.name,
-                    chips: this.players.player1.chips,
-                    currentBet: this.players.player1.currentBet,
-                    card: this.players.player1.card,
-                    connected: this.players.player1.connected,
-                },
-                player2: this.players.player2 ? {
-                    name: this.players.player2.name,
-                    chips: this.players.player2.chips,
-                    currentBet: this.players.player2.currentBet,
-                    card: this.players.player2.card,
-                    connected: this.players.player2.connected,
-                } : null,
-            },
+            players: playersArray,
+            playerCount: this.playerCount,
             pot: this.pot,
             roundActive: this.roundActive,
             bettingPhase: this.bettingPhase,
@@ -194,7 +237,13 @@ class GameRoom {
     }
 
     anyPlayerOutOfChips() {
-        return this.players.player1.chips <= 0 || (this.players.player2 && this.players.player2.chips <= 0);
+        let hasPlayerWithChips = false;
+        this.players.forEach(player => {
+            if (player.connected && player.chips > 0) {
+                hasPlayerWithChips = true;
+            }
+        });
+        return !hasPlayerWithChips;
     }
 }
 
@@ -231,16 +280,21 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (gameRoom.isFull()) {
-            socket.emit('error', { message: 'Room is full' });
+        if (!gameRoom.hasRoom()) {
+            socket.emit('error', { message: 'Room is full (max 5 players)' });
             return;
         }
 
-        gameRoom.addPlayer2({
+        const result = gameRoom.addPlayer({
             socketId: socket.id,
             name: playerName,
             chips: startingChips,
         });
+
+        if (!result.success) {
+            socket.emit('error', { message: result.error });
+            return;
+        }
 
         playerToGame.set(socket.id, roomId);
         socket.join(roomId);
@@ -249,7 +303,7 @@ io.on('connection', (socket) => {
             gameState: gameRoom.getGameState(),
         });
 
-        console.log(`${playerName} joined room ${roomId}`);
+        console.log(`${playerName} joined room ${roomId} (${gameRoom.playerCount} players)`);
     });
 
     socket.on('place_bet', (data) => {
@@ -258,7 +312,15 @@ io.on('connection', (socket) => {
 
         if (!gameRoom) return;
 
-        const playerKey = gameRoom.players.player1.socketId === socket.id ? 'player1' : 'player2';
+        let playerKey = null;
+        gameRoom.players.forEach((player, key) => {
+            if (player.socketId === socket.id) {
+                playerKey = key;
+            }
+        });
+
+        if (!playerKey) return;
+
         const result = gameRoom.placeBet(playerKey, data.betAmount);
 
         if (!result.success) {
@@ -266,14 +328,11 @@ io.on('connection', (socket) => {
             return;
         }
 
-        gameRoom.players[playerKey].ready = true;
-
         io.to(roomId).emit('bet_placed', {
             gameState: gameRoom.getGameState(),
         });
 
-        // Auto-play round if both players have bet
-        if (gameRoom.players.player1.ready && gameRoom.players.player2.ready) {
+        if (gameRoom.allPlayersBetted()) {
             const winner = gameRoom.playRound();
             io.to(roomId).emit('round_played', {
                 gameState: gameRoom.getGameState(),
@@ -330,17 +389,31 @@ io.on('connection', (socket) => {
         if (roomId) {
             const gameRoom = games.get(roomId);
             if (gameRoom) {
-                const playerKey = gameRoom.players.player1.socketId === socket.id ? 'player1' : 'player2';
-                gameRoom.players[playerKey].connected = false;
-
-                io.to(roomId).emit('player_disconnected', {
-                    gameState: gameRoom.getGameState(),
+                let playerKey = null;
+                gameRoom.players.forEach((player, key) => {
+                    if (player.socketId === socket.id) {
+                        playerKey = key;
+                    }
                 });
+                
+                if (playerKey) {
+                    const player = gameRoom.players.get(playerKey);
+                    player.connected = false;
 
-                // Clean up empty rooms
+                    io.to(roomId).emit('player_disconnected', {
+                        gameState: gameRoom.getGameState(),
+                    });
+                }
+
+                // Clean up empty rooms after 30 seconds
                 setTimeout(() => {
-                    if (!gameRoom.players.player1.connected && !gameRoom.players.player2?.connected) {
+                    let anyConnected = false;
+                    gameRoom.players.forEach(p => {
+                        if (p.connected) anyConnected = true;
+                    });
+                    if (!anyConnected) {
                         games.delete(roomId);
+                        console.log(`Room ${roomId} cleaned up`);
                     }
                 }, 30000);
             }
@@ -355,17 +428,20 @@ io.on('connection', (socket) => {
 
         if (!gameRoom) return;
 
-        let winner;
-        if (gameRoom.players.player1.chips > gameRoom.players.player2.chips) {
-            winner = gameRoom.players.player1.name;
-        } else if (gameRoom.players.player2.chips > gameRoom.players.player1.chips) {
-            winner = gameRoom.players.player2.name;
-        } else {
-            winner = 'tie';
-        }
+        let winners = [];
+        let maxChips = 0;
+        
+        gameRoom.players.forEach((player, key) => {
+            if (player.chips > maxChips) {
+                maxChips = player.chips;
+                winners = [{ key, name: player.name, chips: player.chips }];
+            } else if (player.chips === maxChips) {
+                winners.push({ key, name: player.name, chips: player.chips });
+            }
+        });
 
         io.to(roomId).emit('game_over', {
-            winner,
+            winners,
             stats: gameRoom.stats,
             finalState: gameRoom.getGameState(),
         });
