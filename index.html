@@ -4,13 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PlayWar - Casino Card Game</title>
-  <link rel="stylesheet" href="styles.css?v=1.3">
+  <link rel="stylesheet" href="styles.css?v=2.0">
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">PLAYWAR</div>
     <div class="auth">
+      <button id="editProfileBtn" class="btn" style="display:none;" onclick="openProfileModal()">Edit Profile</button>
       <a id="loginBtn" class="btn btn-gold" href="/auth/google">Login with Google</a>
       <div id="profile" class="profile" style="display:none;">
         <img src="" alt="avatar" class="avatar" />
@@ -50,48 +51,82 @@
 
     <!-- Game -->
     <section id="gameScreen" class="screen" style="display:none;">
-      <div class="game">
-        <div class="table">
-          <div class="player">
-            <img id="p1Avatar" class="avatar large" />
-            <div class="name" id="p1Name">-</div>
-            <div class="chips" id="p1Chips"></div>
+      <div class="game-layout">
+        <!-- Visual Casino Table -->
+        <div class="table-container">
+          <div id="casinoTable" class="casino-table">
+            <!-- House/Dealer Area -->
+            <div id="houseArea" class="house-area">
+              <div class="house-label">DEALER</div>
+              <div class="house-card">
+                <div class="card card-back"><span>🎰</span></div>
+              </div>
+            </div>
+            
+            <!-- Pot and Status Display -->
+            <div class="table-center">
+              <div id="potDisplay" class="pot-display">Pot: 0 | Min bet: 10</div>
+              <div id="tableStatus" class="table-status">Place your bets!</div>
+              <div id="roundResult" class="round-result" style="display:none;"></div>
+            </div>
+            
+            <!-- 5 Seats arranged in semi-circle -->
+            <div class="seats-container">
+              <div id="seat0" class="seat empty"></div>
+              <div id="seat1" class="seat empty"></div>
+              <div id="seat2" class="seat empty"></div>
+              <div id="seat3" class="seat empty"></div>
+              <div id="seat4" class="seat empty"></div>
+            </div>
           </div>
-          <div class="center">
-            <div class="cards" id="p1Card"><div class="card-back"></div></div>
-            <div class="pot">Pot: <span id="potAmount">0</span> | Min bet: <span id="minBet">10</span></div>
-            <div class="cards" id="p2Card"><div class="card-back"></div></div>
+          
+          <!-- Betting Controls -->
+          <div id="bettingControls" class="betting-controls" style="display:none;">
+            <input id="betAmount" type="number" min="1" value="10" />
+            <button class="btn btn-success btn-large" onclick="placeBet()">Place Bet</button>
           </div>
-          <div class="player">
-            <img id="p2Avatar" class="avatar large" />
-            <div class="name" id="p2Name">-</div>
-            <div class="chips" id="p2Chips"></div>
+          
+          <!-- Observer Info -->
+          <div class="observer-info">
+            <span id="observerCount">0 watching</span>
           </div>
         </div>
-        <div class="betting">
-          <input id="betAmount" type="number" min="1" value="10" />
-          <button class="btn btn-success" onclick="placeBet()">Place Bet</button>
-          <div id="p1Bet"></div>
-          <div id="p2Bet"></div>
-          <div id="roundResult" class="round-result" style="display:none;"></div>
-        </div>
-        <div class="right chat">
-          <h3>Room Chat</h3>
-          <div id="roomChatBox" class="chat-box"></div>
-          <div class="chat-input">
-            <input id="roomChatInput" placeholder="Message" />
-            <button class="btn" onclick="sendRoomChat()">Send</button>
+        
+        <!-- Chat and Log Sidebar -->
+        <div class="game-sidebar">
+          <div class="chat">
+            <h3>Room Chat</h3>
+            <div id="roomChatBox" class="chat-box"></div>
+            <div class="chat-input">
+              <input id="roomChatInput" placeholder="Message" />
+              <button class="btn" onclick="sendRoomChat()">Send</button>
+            </div>
           </div>
           <div class="log">
             <h3>Game Log</h3>
             <div id="gameLog"></div>
           </div>
+          <button class="btn btn-exit" onclick="showLobby()">Exit to Lobby</button>
         </div>
       </div>
-      <button class="btn" onclick="showLobby()">Exit to Lobby</button>
     </section>
   </main>
 
-  <script src="client.js?v=1.3"></script>
+  <!-- Profile Edit Modal -->
+  <div id="profileModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h2>Edit Profile</h2>
+      <label>Nickname</label>
+      <input type="text" id="nicknameInput" maxlength="30" placeholder="Your display name" />
+      <label>Avatar URL (optional)</label>
+      <input type="text" id="avatarInput" maxlength="500" placeholder="https://..." />
+      <div class="modal-buttons">
+        <button class="btn btn-success" onclick="saveProfile()">Save</button>
+        <button class="btn" onclick="closeProfileModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="client.js?v=2.0"></script>
 </body>
 </html>
