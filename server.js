@@ -1264,16 +1264,20 @@ io.on('connection', (socket) => {
 
 // Initialize and start server
 async function startServer() {
-  await initializeAuth();
-  
-  serverHttp.listen(PORT, async () => {
+  // Start HTTP server immediately to satisfy Cloud Run health check
+  serverHttp.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
-    
-    // Check database connection
+  });
+  
+  // Initialize auth and database in parallel (non-blocking)
+  initializeAuth().then(async () => {
+    console.log('✅ Authentication initialized');
     const dbConnected = await checkDatabaseConnection();
     if (!dbConnected) {
-      console.warn('⚠️  Server started but database connection failed. Some features may not work.');
+      console.warn('⚠️  Database connection failed. Some features may not work.');
     }
+  }).catch(err => {
+    console.error('❌ Initialization error:', err);
   });
 }
 
