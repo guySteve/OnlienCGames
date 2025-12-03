@@ -6,13 +6,17 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
+// import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
+
+// Use any for Redis to support both node-redis and upstash/redis without strict type dependency
+type Redis = any;
 
 export enum GameState {
   WAITING = 'WAITING',
   PLACING_BETS = 'PLACING_BETS',
   DEALING = 'DEALING',
+  PLAYING = 'PLAYING',
   PLAYER_TURN = 'PLAYER_TURN',
   DEALER_TURN = 'DEALER_TURN',
   RESOLVING = 'RESOLVING',
@@ -54,7 +58,7 @@ export abstract class GameEngine {
   // ABSTRACT METHODS - Must be implemented by subclasses
   // ==========================================================================
 
-  abstract getGameType(): 'WAR' | 'BLACKJACK';
+  abstract getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
   abstract startNewHand(): Promise<void>;
   abstract placeBet(userId: string, amount: number, seatIndex?: number): Promise<boolean>;
   abstract resolveHand(): Promise<void>;

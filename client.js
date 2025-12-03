@@ -171,12 +171,22 @@ function renderAuth() {
     if (adminBtn && auth.user.isAdmin) {
       adminBtn.style.display = 'inline-block';
     }
+    
+    // Update global chip count
+    const chipDisplay = document.getElementById('globalChipCount');
+    if (chipDisplay) {
+      chipDisplay.style.display = 'flex';
+      chipDisplay.textContent = auth.user.chipBalance.toLocaleString();
+    }
   } else {
     btn.style.display = 'inline-block';
     prof.style.display = 'none';
     if (editBtn) editBtn.style.display = 'none';
     if (adminBtn) adminBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'none';
+    
+    const chipDisplay = document.getElementById('globalChipCount');
+    if (chipDisplay) chipDisplay.style.display = 'none';
   }
 }
 
@@ -1186,13 +1196,25 @@ function renderBingoUI() {
   }
   document.getElementById('bingoPhase').textContent = phaseText;
   
-  // Update called numbers display
+  // Update called numbers display with rolling animation
   const calledNumbersEl = document.getElementById('bingoCalledNumbers');
   if (calledNumbersEl && bingoGameState.drawnNumbers) {
-    calledNumbersEl.innerHTML = bingoGameState.drawnNumbers
-      .slice(-10) // Show last 10
-      .map(n => `<span class="called-number">${getBingoLetterFromNum(n)}-${n}</span>`)
-      .join('');
+    // Clear and rebuild
+    calledNumbersEl.innerHTML = '';
+    calledNumbersEl.className = 'bingo-rolling-area';
+    
+    // Show all numbers in reverse order (newest first)
+    [...bingoGameState.drawnNumbers].reverse().forEach((n, index) => {
+      const ball = document.createElement('div');
+      ball.className = `bingo-ball-display ${index === 0 ? 'latest' : ''}`;
+      ball.textContent = n;
+      
+      // Add letter above number
+      const letter = getBingoLetterFromNum(n);
+      ball.innerHTML = `<div style="font-size:0.6em;margin-bottom:-5px">${letter}</div><div>${n}</div>`;
+      
+      calledNumbersEl.appendChild(ball);
+    });
   }
   
   // Enable/disable BINGO button

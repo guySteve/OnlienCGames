@@ -13,7 +13,7 @@ exports.BingoEngine = void 0;
 const GameEngine_1 = require("./GameEngine");
 const crypto_1 = __importDefault(require("crypto"));
 const CARD_PRICE = 1; // 1 chip per card
-const MAX_CARDS_PER_PLAYER = 5;
+const MAX_CARDS_PER_PLAYER = 2;
 const BALL_DRAW_INTERVAL = 4500; // 4.5 seconds between balls
 const BUYING_PHASE_DURATION = 30000; // 30 seconds to buy cards
 class BingoEngine extends GameEngine_1.GameEngine {
@@ -331,9 +331,9 @@ class BingoEngine extends GameEngine_1.GameEngine {
         // Generate new server seed for next game
         this.generateServerSeed();
         // Start buying phase timer (30 seconds)
-        if (this.ballTimer) {
-            clearInterval(this.ballTimer);
-            this.ballTimer = null;
+        if (this.ballDrawTimer) {
+            clearInterval(this.ballDrawTimer);
+            this.ballDrawTimer = null;
         }
     }
     /**

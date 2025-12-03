@@ -6,8 +6,8 @@
  */
 import { GameEngine } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
+type Redis = any;
 interface BingoCard {
     id: string;
     userId: string;

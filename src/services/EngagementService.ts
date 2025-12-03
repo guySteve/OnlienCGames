@@ -11,7 +11,10 @@
  */
 
 import { PrismaClient, TransactionType, User } from '@prisma/client';
-import { Redis } from 'ioredis';
+// import { Redis } from 'ioredis';
+
+// Use any for Redis to support both node-redis and upstash/redis without strict type dependency
+type Redis = any;
 
 export class EngagementService {
   constructor(

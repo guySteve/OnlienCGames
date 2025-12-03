@@ -15,15 +15,15 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">♠ MOE'S CARD ROOM ♠</div>
+    <div class="brand">OnlineCGames</div>
+    <div id="globalChipCount" class="chip-display" style="display: none;">0</div>
     <div class="auth">
       <span id="editProfileBtn" class="icon-btn" style="display:none;" onclick="openProfileModal()" title="Edit Profile">✏️</span>
-      <a id="adminBtn" class="btn btn-gold" href="/admin" style="display:none;" title="Admin Dashboard">👑 Admin</a>
+      <a id="adminBtn" class="btn btn-gold" href="/admin.html" style="display:none;" title="Admin Dashboard">👑 Admin</a>
       <a id="loginBtn" class="btn btn-gold" href="/auth/google">Login</a>
       <div id="profile" class="profile" style="display:none;">
         <img src="" alt="avatar" class="avatar" />
         <span class="profile-name"></span>
-        <span id="chipDisplay" class="chip-balance"></span>
       </div>
       <button id="logoutBtn" class="btn btn-logout" style="display:none;" onclick="logout()">Exit</button>
     </div>

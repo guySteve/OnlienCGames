@@ -10,7 +10,7 @@
  * 4. Time Pressure (Happy Hour)
  */
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
+type Redis = any;
 export declare class EngagementService {
     private prisma;
     private redis;
@@ -105,4 +105,5 @@ export declare class EngagementService {
  */
 export declare let engagementService: EngagementService;
 export declare function initEngagementService(prisma: PrismaClient, redis: Redis): void;
+export {};
 //# sourceMappingURL=EngagementService.d.ts.map

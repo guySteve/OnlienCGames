@@ -12,10 +12,13 @@
 
 import { GameEngine, GameState, GameConfig } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
+// import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
 import crypto from 'crypto';
 import https from 'https';
+
+// Use any for Redis to support both node-redis and upstash/redis without strict type dependency
+type Redis = any;
 
 interface Card {
   rank: string;

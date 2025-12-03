@@ -7,9 +7,12 @@
 
 import { GameEngine, GameState, Player } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
+// import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
 import crypto from 'crypto';
+
+// Use any for Redis to support both node-redis and upstash/redis without strict type dependency
+type Redis = any;
 
 interface BingoCard {
   id: string;
@@ -34,7 +37,7 @@ interface BingoGameState {
 }
 
 const CARD_PRICE = 1; // 1 chip per card
-const MAX_CARDS_PER_PLAYER = 5;
+const MAX_CARDS_PER_PLAYER = 2;
 const BALL_DRAW_INTERVAL = 4500; // 4.5 seconds between balls
 const BUYING_PHASE_DURATION = 30000; // 30 seconds to buy cards
 
@@ -415,9 +418,9 @@ export class BingoEngine extends GameEngine {
     this.generateServerSeed();
     
     // Start buying phase timer (30 seconds)
-    if (this.ballTimer) {
-      clearInterval(this.ballTimer);
-      this.ballTimer = null;
+    if (this.ballDrawTimer) {
+      clearInterval(this.ballDrawTimer);
+      this.ballDrawTimer = null;
     }
   }
 

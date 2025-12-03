@@ -5,12 +5,13 @@
  * consistent state management and hook into engagement mechanics
  */
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
+type Redis = any;
 export declare enum GameState {
     WAITING = "WAITING",
     PLACING_BETS = "PLACING_BETS",
     DEALING = "DEALING",
+    PLAYING = "PLAYING",
     PLAYER_TURN = "PLAYER_TURN",
     DEALER_TURN = "DEALER_TURN",
     RESOLVING = "RESOLVING",
@@ -42,7 +43,7 @@ export declare abstract class GameEngine {
     protected pot: number;
     protected handNumber: number;
     constructor(config: GameConfig, prisma: PrismaClient, redis: Redis, engagement: EngagementService);
-    abstract getGameType(): 'WAR' | 'BLACKJACK';
+    abstract getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
     abstract startNewHand(): Promise<void>;
     abstract placeBet(userId: string, amount: number, seatIndex?: number): Promise<boolean>;
     abstract resolveHand(): Promise<void>;
@@ -94,4 +95,5 @@ export declare abstract class GameEngine {
      */
     setPlayerDisconnected(userId: string, seatIndex: number): void;
 }
+export {};
 //# sourceMappingURL=GameEngine.d.ts.map

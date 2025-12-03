@@ -12,6 +12,7 @@ var GameState;
     GameState["WAITING"] = "WAITING";
     GameState["PLACING_BETS"] = "PLACING_BETS";
     GameState["DEALING"] = "DEALING";
+    GameState["PLAYING"] = "PLAYING";
     GameState["PLAYER_TURN"] = "PLAYER_TURN";
     GameState["DEALER_TURN"] = "DEALER_TURN";
     GameState["RESOLVING"] = "RESOLVING";

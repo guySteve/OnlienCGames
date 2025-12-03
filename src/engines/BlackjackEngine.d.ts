@@ -11,8 +11,8 @@
  */
 import { GameEngine, GameConfig } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
+type Redis = any;
 interface Card {
     rank: string;
     suit: string;
