@@ -1,0 +1,57 @@
+# Cloud Build Configuration for Automatic Deployment
+# Triggers on push to main branch
+
+steps:
+  # Step 1: Build the Docker image with no cache
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--no-cache'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/game:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/game:latest'
+      - '.'
+    timeout: 600s
+
+  # Step 2: Push the Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/game:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/game:latest'
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'game'
+      - '--image=gcr.io/$PROJECT_ID/game:$COMMIT_SHA'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--timeout=300'
+      - '--min-instances=0'
+      - '--max-instances=10'
+      - '--port=3000'
+
+# Automatically tag images
+images:
+  - 'gcr.io/$PROJECT_ID/game:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/game:latest'
+
+# Build timeout
+timeout: 1200s
+
+# Options
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
