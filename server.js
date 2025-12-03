@@ -104,7 +104,8 @@ function createSessionMiddleware() {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       secure: NODE_ENV === 'production',
       sameSite: 'lax'
-    }
+    },
+    rolling: true // Reset session timeout on every request
   });
 }
 
@@ -123,7 +124,10 @@ async function initializeAuth() {
   passport.use(new GoogleStrategy({
     clientID: googleClientId,
     clientSecret: googleClientSecret,
-    callbackURL: '/auth/google/callback'
+    callbackURL: '/auth/google/callback',
+    passReqToCallback: false,
+    accessType: 'offline',
+    prompt: 'consent'
   }, async (accessToken, refreshToken, profile, done) => {
     try {
       console.log('🔐 Google OAuth callback received for:', profile.displayName);
@@ -180,13 +184,18 @@ app.use(express.static(path.join(__dirname, '.')));
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', 
   (req, res, next) => {
-    passport.authenticate('google', (err, user, info) => {
+    passport.authenticate('google', { failureRedirect: '/?error=auth_denied' }, (err, user, info) => {
       if (err) {
-        // Handle OAuth errors (TokenError, etc.)
+        // Handle 2FA/MFA timeout and other OAuth errors
         console.error('❌ OAuth authentication error:', err.message);
         console.error('Error type:', err.name || err.constructor?.name);
         if (err.oauthError) {
           console.error('OAuth error details:', err.oauthError);
+        }
+        // Check if it's a timeout error from 2FA
+        if (err.message.includes('timeout') || err.code === 'ETIMEDOUT') {
+          console.warn('⚠️  2FA/MFA verification timed out - user should retry');
+          return res.redirect('/?error=2fa_timeout&retry=true');
         }
         // Redirect to home with error parameter for user feedback
         return res.redirect('/?error=oauth_error');

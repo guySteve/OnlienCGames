@@ -207,7 +207,8 @@
           'oauth_error': '⚠️ Sign-in failed. Please check your connection and try again. If the problem persists, contact support.',
           'auth_denied': '⚠️ Sign-in was cancelled. Click "Enter the Room" to try again.',
           'auth_failed': '⚠️ Authentication with Google failed. Please try signing in again.',
-          'session_error': '⚠️ Unable to create your session. Please clear your cookies and try again.'
+          'session_error': '⚠️ Unable to create your session. Please clear your cookies and try again.',
+          '2fa_timeout': '⏱️ Two-factor authentication verification timed out. Make sure you complete the verification quickly, then try signing in again.'
         };
         errorMessage.textContent = messages[error] || '⚠️ An error occurred. Please try again.';
         errorBanner.style.display = 'block';
