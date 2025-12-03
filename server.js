@@ -228,7 +228,8 @@ app.get('/auth/google/callback',
       req.logIn(user, (loginErr) => {
         if (loginErr) {
           console.error('❌ Session login error:', loginErr.message);
-          return res.redirect('/?error=session_error');
+          const debugMsg = encodeURIComponent(loginErr.message);
+          return res.redirect(`/?error=session_error&debug_error=${debugMsg}`);
         }
         
         // Redirect to home page after successful authentication
