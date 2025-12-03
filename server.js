@@ -84,37 +84,50 @@ async function initializeSessionStore() {
   const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
   
   if (redisUrl) {
-    try {
-      // Create Redis client with cold start optimizations
-      redisClient = createClient({
-        url: redisUrl,
-        socket: {
-          tls: redisUrl.startsWith('rediss://'),
-          rejectUnauthorized: false,
-          connectTimeout: 10000, // 10 second connection timeout
-          keepAlive: 30000 // Keep connection alive for 30 seconds
+    // Don't await - initialize Redis in background
+    (async () => {
+      try {
+        console.log('🔄 Connecting to Redis...');
+        // Create Redis client with cold start optimizations
+        redisClient = createClient({
+          url: redisUrl,
+          socket: {
+            tls: redisUrl.startsWith('rediss://'),
+            rejectUnauthorized: false,
+            connectTimeout: 5000, // 5 second connection timeout
+            keepAlive: 30000
+          }
+        });
+        
+        redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+        redisClient.on('connect', () => console.log('✅ Redis session store connected'));
+        
+        // Add timeout to prevent hanging
+        await Promise.race([
+          redisClient.connect(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Redis timeout')), 5000)
+          )
+        ]);
+        
+        sessionStore = new RedisStore({
+          client: redisClient,
+          prefix: 'sess:',
+          ttl: 7 * 24 * 60 * 60
+        });
+        
+        console.log('✅ Redis session store initialized');
+      } catch (error) {
+        console.error('⚠️  Redis connection failed, using memory store:', error.message);
+        sessionStore = null;
+        if (redisClient) {
+          redisClient.quit().catch(() => {});
+          redisClient = null;
         }
-      });
-      
-      redisClient.on('error', (err) => console.error('Redis Client Error:', err));
-      redisClient.on('connect', () => console.log('✅ Redis session store connected'));
-      
-      await redisClient.connect();
-      
-      // Create Redis session store
-      sessionStore = new RedisStore({
-        client: redisClient,
-        prefix: 'sess:',
-        ttl: 7 * 24 * 60 * 60 // 7 days in seconds
-      });
-      
-      console.log('✅ Redis session store initialized');
-    } catch (error) {
-      console.error('⚠️  Redis connection failed, falling back to memory store:', error.message);
-      sessionStore = null;
-    }
+      }
+    })();
   } else {
-    console.log('⚠️  No Redis URL configured, using memory store (not recommended for production)');
+    console.log('⚠️  No Redis URL configured, using memory store');
   }
 }
 
@@ -2051,34 +2064,33 @@ io.on('connection', (socket) => {
 // Initialize and start server
 async function startServer() {
   try {
-    // Start HTTP server immediately to satisfy Cloud Run health check
-    await new Promise((resolve, reject) => {
-      serverHttp.listen(PORT, (err) => {
-        if (err) {
-          console.error('❌ Failed to start HTTP server:', err);
-          reject(err);
-        } else {
-          console.log(`✅ Server listening on port ${PORT}`);
-          resolve();
-        }
-      });
+    console.log('🚀 Starting server on port', PORT);
+    
+    // Start HTTP server FIRST - non-blocking
+    serverHttp.listen(PORT, () => {
+      console.log(`✅ Server listening on port ${PORT}`);
     });
     
-    // Initialize auth and database in background (non-blocking)
-    initializeAuth().then(async () => {
-      console.log('✅ Authentication initialized');
-      try {
-        const dbConnected = await checkDatabaseConnection();
-        if (!dbConnected) {
-          console.warn('⚠️  Database connection failed. Some features may not work.');
-        } else {
-          console.log('✅ All systems ready');
+    // Wait a moment for server to be ready
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Initialize everything else in background (completely non-blocking)
+    setImmediate(() => {
+      initializeAuth().then(async () => {
+        console.log('✅ Authentication initialized');
+        try {
+          const dbConnected = await checkDatabaseConnection();
+          if (!dbConnected) {
+            console.warn('⚠️  Database connection failed. Some features may not work.');
+          } else {
+            console.log('✅ All systems ready');
+          }
+        } catch (dbErr) {
+          console.error('❌ Database check error:', dbErr);
         }
-      } catch (dbErr) {
-        console.error('❌ Database check error:', dbErr);
-      }
-    }).catch(err => {
-      console.error('❌ Auth initialization error:', err);
+      }).catch(err => {
+        console.error('❌ Auth initialization error:', err);
+      });
     });
   } catch (err) {
     console.error('❌ Fatal startup error:', err);
