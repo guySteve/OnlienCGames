@@ -59,12 +59,14 @@ async function initializeSessionStore() {
   
   if (redisUrl) {
     try {
-      // Create Redis client
+      // Create Redis client with cold start optimizations
       redisClient = createClient({
         url: redisUrl,
         socket: {
           tls: redisUrl.startsWith('rediss://'),
-          rejectUnauthorized: false
+          rejectUnauthorized: false,
+          connectTimeout: 10000, // 10 second connection timeout
+          keepAlive: 30000 // Keep connection alive for 30 seconds
         }
       });
       
@@ -132,7 +134,9 @@ async function initializeAuth() {
     callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
     passReqToCallback: true,
     accessType: 'offline',
-    prompt: 'consent'
+    prompt: 'consent',
+    // Cold start optimization: increase timeout for OAuth callback
+    timeout: 30000 // 30 seconds (default is 0/no timeout)
   }, async (req, accessToken, refreshToken, profile, done) => {
     console.log('🔐 GoogleStrategy verify callback invoked for:', profile.displayName);
     try {
@@ -238,6 +242,11 @@ app.get('/auth/google/callback',
     })(req, res, next);
   }
 );
+// Health check endpoint (lightweight - prevents cold starts)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
 app.get('/debug/oauth', (req, res) => {
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID ? '✅ Configured' : '❌ Missing',

@@ -5,6 +5,14 @@ const crypto = require('crypto');
 
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  // Cold start optimizations
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  },
+  // Connection pooling for better performance
+  connectionLimit: 10
 });
 
 // Daily chip reset check
