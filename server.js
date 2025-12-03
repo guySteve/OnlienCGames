@@ -20,6 +20,18 @@ const APP_VERSION = '4.0.0';
 // In-memory profile storage (nickname, avatar) - will migrate to DB
 const userProfiles = new Map(); // googleId -> { nickname, avatar }
 
+// Database health check
+async function checkDatabaseConnection() {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ Database connection established');
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    return false;
+  }
+}
+
 const app = express();
 app.set('trust proxy', 1);
 
@@ -48,8 +60,17 @@ if (googleClientId && googleClientSecret) {
     callbackURL: '/auth/google/callback'
   }, async (accessToken, refreshToken, profile, done) => {
     try {
+      console.log('🔐 Google OAuth callback received for:', profile.displayName);
+      
       // Get or create user in database with daily reset check
       const dbUser = await getOrCreateUser(profile);
+      
+      if (!dbUser) {
+        console.error('❌ Failed to create/get user from database');
+        return done(new Error('Failed to create user'), null);
+      }
+      
+      console.log('✅ User authenticated:', dbUser.displayName, 'Balance:', Number(dbUser.chipBalance));
       
       const user = {
         id: profile.id,
@@ -61,8 +82,10 @@ if (googleClientId && googleClientSecret) {
       };
       return done(null, user);
     } catch (error) {
-      console.error('Auth error:', error);
-      return done(error, null);
+      console.error('❌ Auth error:', error);
+      console.error('Error stack:', error.stack);
+      // Return a simple error instead of throwing to avoid "Service Unavailable"
+      return done(null, false, { message: 'Authentication failed' });
     }
   }));
   passport.serializeUser((user, done) => done(null, user));
@@ -88,7 +111,17 @@ app.use(express.static(path.join(__dirname, '.')));
 
 // Auth routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/', successRedirect: '/' }));
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { 
+    failureRedirect: '/',
+    failureMessage: true
+  }),
+  (req, res) => {
+    // Successful authentication
+    console.log('✅ OAuth callback successful, redirecting to home');
+    res.redirect('/');
+  }
+);
 app.post('/logout', (req, res) => {
   req.logout(() => { req.session.destroy(() => res.clearCookie('sid').status(200).json({ ok: true })); });
 });
@@ -1087,6 +1120,12 @@ io.on('connection', (socket) => {
   });
 });
 
-serverHttp.listen(PORT, () => {
+serverHttp.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
+  
+  // Check database connection
+  const dbConnected = await checkDatabaseConnection();
+  if (!dbConnected) {
+    console.warn('⚠️  Server started but database connection failed. Some features may not work.');
+  }
 });

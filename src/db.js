@@ -1,6 +1,7 @@
 // Database utilities for VegasCore
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
@@ -13,7 +14,10 @@ async function checkDailyReset(userId) {
       where: { googleId: userId },
     });
 
-    if (!user) return null;
+    if (!user) {
+      console.log('⚠️ User not found for daily reset check');
+      return null;
+    }
 
     const now = new Date();
     const nextReward = user.nextStreakReward ? new Date(user.nextStreakReward) : null;
@@ -22,6 +26,8 @@ async function checkDailyReset(userId) {
     const canClaim = !nextReward || now >= nextReward;
 
     if (canClaim) {
+      console.log('🎁 Daily reward claimable for:', user.displayName);
+      
       // Reset to daily chip amount (1000)
       const DAILY_CHIPS = 1000n;
       
@@ -38,6 +44,7 @@ async function checkDailyReset(userId) {
         data: {
           chipBalance: DAILY_CHIPS,
           lastLogin: now,
+          updatedAt: now,
           currentStreak: newStreak,
           bestStreak: Math.max(user.bestStreak, newStreak),
           nextStreakReward,
@@ -45,17 +52,21 @@ async function checkDailyReset(userId) {
       });
 
       // Create transaction record for daily bonus
-      await prisma.transaction.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          amount: Number(DAILY_CHIPS),
-          type: 'DAILY_STREAK',
-          balanceBefore: user.chipBalance,
-          balanceAfter: DAILY_CHIPS,
-          description: `Daily chip reset - Day ${newStreak}`,
-        },
-      });
+      try {
+        await prisma.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: user.id,
+            amount: Number(DAILY_CHIPS),
+            type: 'DAILY_STREAK',
+            balanceBefore: user.chipBalance,
+            balanceAfter: DAILY_CHIPS,
+            description: `Daily chip reset - Day ${newStreak}`,
+          },
+        });
+      } catch (txError) {
+        console.error('⚠️ Transaction record failed (non-critical):', txError.message);
+      }
 
       return updated;
     }
@@ -63,10 +74,11 @@ async function checkDailyReset(userId) {
     // Just update last login
     return await prisma.user.update({
       where: { id: user.id },
-      data: { lastLogin: now },
+      data: { lastLogin: now, updatedAt: now },
     });
   } catch (error) {
-    console.error('Daily reset check failed:', error);
+    console.error('❌ Daily reset check failed:', error);
+    console.error('Error details:', error.message);
     return null;
   }
 }
@@ -74,44 +86,72 @@ async function checkDailyReset(userId) {
 // Get or create user
 async function getOrCreateUser(googleProfile) {
   try {
+    console.log('📊 Looking up user:', googleProfile.displayName, 'ID:', googleProfile.id);
+    
     let user = await prisma.user.findUnique({
       where: { googleId: googleProfile.id },
     });
 
     if (!user) {
+      console.log('👤 Creating new user:', googleProfile.displayName);
+      
+      const newUserId = crypto.randomUUID();
+      
       user = await prisma.user.create({
         data: {
-          id: crypto.randomUUID(),
+          id: newUserId,
           googleId: googleProfile.id,
           email: googleProfile.emails?.[0]?.value || null,
           displayName: googleProfile.displayName,
           avatarUrl: googleProfile.photos?.[0]?.value || null,
           chipBalance: 1000n,
           lastLogin: new Date(),
+          updatedAt: new Date(),
           currentStreak: 1,
         },
       });
 
+      console.log('✅ User created with ID:', user.id);
+
       // Welcome transaction
-      await prisma.transaction.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          amount: 1000,
-          type: 'ADMIN_CREDIT',
-          balanceBefore: 0n,
-          balanceAfter: 1000n,
-          description: 'Welcome to Moe\'s Card Room!',
-        },
-      });
+      try {
+        await prisma.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: user.id,
+            amount: 1000,
+            type: 'ADMIN_CREDIT',
+            balanceBefore: 0n,
+            balanceAfter: 1000n,
+            description: 'Welcome to Moe\'s Card Room!',
+          },
+        });
+        console.log('✅ Welcome transaction created');
+      } catch (txError) {
+        console.error('⚠️ Warning: Failed to create welcome transaction:', txError.message);
+        // Don't fail user creation if transaction fails
+      }
     } else {
+      console.log('✅ Existing user found:', user.displayName, 'Balance:', Number(user.chipBalance));
+      
       // Check daily reset
-      user = await checkDailyReset(googleProfile.id);
+      try {
+        const resetUser = await checkDailyReset(googleProfile.id);
+        if (resetUser) {
+          user = resetUser;
+          console.log('✅ Daily reset checked, new balance:', Number(user.chipBalance));
+        }
+      } catch (resetError) {
+        console.error('⚠️ Warning: Daily reset check failed:', resetError.message);
+        // Continue with existing user data if reset fails
+      }
     }
 
     return user;
   } catch (error) {
-    console.error('User creation/retrieval failed:', error);
+    console.error('❌ User creation/retrieval failed:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     throw error;
   }
 }
