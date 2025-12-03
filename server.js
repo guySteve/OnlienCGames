@@ -105,7 +105,7 @@ function createSessionMiddleware() {
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       secure: NODE_ENV === 'production',
-      sameSite: 'none'
+      sameSite: 'lax'
     },
     rolling: true // Reset session timeout on every request
   });
@@ -131,12 +131,8 @@ async function initializeAuth() {
   passport.use(new GoogleStrategy({
     clientID: googleClientId,
     clientSecret: googleClientSecret,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
-    passReqToCallback: true,
-    accessType: 'offline',
-    prompt: 'consent',
-    // Cold start optimization: increase timeout for OAuth callback
-    timeout: 30000 // 30 seconds (default is 0/no timeout)
+    callbackURL: '/auth/google/callback',
+    passReqToCallback: true
   }, async (req, accessToken, refreshToken, profile, done) => {
     console.log('🔐 GoogleStrategy verify callback invoked for:', profile.displayName);
     try {
@@ -235,11 +231,9 @@ app.get('/auth/google/callback',
           return res.redirect('/?error=session_error');
         }
         
-        // --- START FIX: FINAL CUSTOM DOMAIN REDIRECT ---
-        const CUSTOM_DOMAIN = 'https://playwar.games';
-        console.log('✅ OAuth callback successful, redirecting to custom domain');
-        return res.redirect(CUSTOM_DOMAIN);
-        // --- END FIX: FINAL CUSTOM DOMAIN REDIRECT ---
+        // Redirect to home page after successful authentication
+        console.log('✅ OAuth callback successful, redirecting to home');
+        return res.redirect('/');
       });
     })(req, res, next);
   }
