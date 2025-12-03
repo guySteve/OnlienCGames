@@ -105,7 +105,7 @@ function createSessionMiddleware() {
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       secure: NODE_ENV === 'production',
-      sameSite: 'lax'
+      sameSite: 'none'
     },
     rolling: true // Reset session timeout on every request
   });
@@ -235,9 +235,11 @@ app.get('/auth/google/callback',
           return res.redirect('/?error=session_error');
         }
         
-        // Redirect to root path to load the game
-        console.log('✅ OAuth callback successful, redirecting to game');
-        return res.redirect('/');
+        // --- START FIX: FINAL CUSTOM DOMAIN REDIRECT ---
+        const CUSTOM_DOMAIN = 'https://playwar.games';
+        console.log('✅ OAuth callback successful, redirecting to custom domain');
+        return res.redirect(CUSTOM_DOMAIN);
+        // --- END FIX: FINAL CUSTOM DOMAIN REDIRECT ---
       });
     })(req, res, next);
   }
