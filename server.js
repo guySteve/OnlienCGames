@@ -231,11 +231,9 @@ app.get('/auth/google/callback',
           return res.redirect('/?error=session_error');
         }
         
-        // --- START FIX ---
-        const CUSTOM_DOMAIN = 'https://playwar.games';
-        console.log('✅ OAuth callback successful, redirecting to custom domain');
-        return res.redirect(CUSTOM_DOMAIN);
-        // --- END FIX ---
+        // Redirect to root path to load the game
+        console.log('✅ OAuth callback successful, redirecting to game');
+        return res.redirect('/');
       });
     })(req, res, next);
   }
