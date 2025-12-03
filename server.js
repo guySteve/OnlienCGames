@@ -180,10 +180,7 @@ app.use(express.static(path.join(__dirname, '.')));
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', 
   (req, res, next) => {
-    passport.authenticate('google', { 
-      failureRedirect: '/?error=auth_failed',
-      failureMessage: true
-    }, (err, user, info) => {
+    passport.authenticate('google', (err, user, info) => {
       if (err) {
         // Handle OAuth errors (TokenError, etc.)
         console.error('❌ OAuth authentication error:', err.message);
