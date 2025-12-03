@@ -160,8 +160,8 @@ async function initializeAuth() {
     } catch (error) {
       console.error('❌ Auth error:', error);
       console.error('Error stack:', error.stack);
-      // Return a simple error instead of throwing to avoid "Service Unavailable"
-      return done(null, false, { message: 'Authentication failed' });
+      // Pass the actual error object to done() to trigger the err path in the callback
+      return done(error, null);
     }
   }));
     passport.serializeUser((user, done) => done(null, user));
@@ -209,13 +209,20 @@ app.get('/auth/google/callback',
           console.warn('⚠️  2FA/MFA verification timed out - user should retry');
           return res.redirect('/?error=2fa_timeout&retry=true');
         }
-        // Redirect to home with error parameter for user feedback
-        return res.redirect('/?error=oauth_error');
+        // --- START DEBUG FIX: Capture the specific error message for debugging
+        const debugMsg = encodeURIComponent(err.message);
+        console.warn(`⚠️  Redirecting with specific error: ${debugMsg}`);
+        return res.redirect(`/?error=oauth_error&debug_error=${debugMsg}`);
+        // --- END DEBUG FIX ---
       }
       if (!user) {
         // Authentication failed (user denied access or other failure)
         console.warn('⚠️ OAuth authentication failed:', info?.message || 'Unknown reason');
-        return res.redirect('/?error=auth_denied');
+        
+        // --- START DEBUG FIX: Capture the specific error message for debugging
+        const debugMsg = encodeURIComponent(info?.message || 'Authentication failed for unknown reason');
+        return res.redirect(`/?error=auth_denied&debug_error=${debugMsg}`);
+        // --- END DEBUG FIX ---
       }
       // Log in the user
       req.logIn(user, (loginErr) => {
