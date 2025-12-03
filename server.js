@@ -1699,8 +1699,6 @@ io.on('connection', (socket) => {
       console.error('Room chat error:', error);
     }
   });
-    }
-  });
 
   // Betting - supports specific seat for multi-seat
   socket.on('place_bet', (data = {}) => {

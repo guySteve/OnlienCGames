@@ -1,5 +1,8 @@
 #!/bin/sh
 set -e
 
-echo "🚀 Starting server..."
+echo "🔄 Running database migrations..."
+npx prisma db push --skip-generate --accept-data-loss
+
+echo "✅ Migrations complete, starting server..."
 exec node server.js
