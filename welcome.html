@@ -200,6 +200,8 @@
     (function() {
       const urlParams = new URLSearchParams(window.location.search);
       const error = urlParams.get('error');
+      const debugError = urlParams.get('debug_error'); // <-- New debug parameter
+      
       if (error) {
         const errorBanner = document.getElementById('error-banner');
         const errorMessage = document.getElementById('error-message');
@@ -210,7 +212,15 @@
           'session_error': '⚠️ Unable to create your session. Please clear your cookies and try again.',
           '2fa_timeout': '⏱️ Two-factor authentication verification timed out. Make sure you complete the verification quickly, then try signing in again.'
         };
-        errorMessage.textContent = messages[error] || '⚠️ An error occurred. Please try again.';
+        
+        let displayMessage = messages[error] || '⚠️ An error occurred. Please try again.';
+        
+        // Append the debug error message if present
+        if (debugError) {
+          displayMessage += `<br><br><strong>DEBUG INFO:</strong> ${decodeURIComponent(debugError)}`;
+        }
+
+        errorMessage.innerHTML = displayMessage; // Use innerHTML to allow <br> and <strong>
         errorBanner.style.display = 'block';
         // Clean URL without reloading
         window.history.replaceState({}, document.title, window.location.pathname);
