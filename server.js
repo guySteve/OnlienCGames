@@ -55,11 +55,17 @@ app.set('trust proxy', 1);
 let redisClient;
 let sessionStore;
 
-// Initialize Auto-Moderation
-const autoMod = new AutoModerationService(prisma);
-
 // Admin email
 const ADMIN_EMAIL = 'smmohamed60@gmail.com';
+
+// Initialize Auto-Moderation (lazy - will be created on first use)
+let autoMod = null;
+function getAutoMod() {
+  if (!autoMod) {
+    autoMod = new AutoModerationService(prisma);
+  }
+  return autoMod;
+}
 
 // Middleware to check if user is admin
 function isAdmin(req, res, next) {
@@ -1480,44 +1486,55 @@ io.on('connection', (socket) => {
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
       if (!dbUser) return;
 
-      // Auto-moderate message
-      const modResult = await autoMod.filterMessage(dbUser.id, msg, 'lobby');
-
-      if (!modResult.allowed) {
-        // Message blocked
-        io.to(socket.id).emit('chat_filtered', { 
-          reason: modResult.reason,
-          severity: modResult.severity
-        });
-        return;
-      }
-
-      // Save to database
-      await autoMod.saveChatMessage(
-        dbUser.id, 
-        modResult.filtered, 
-        'lobby', 
-        modResult.filtered !== msg,
-        modResult.reason
-      );
-
       const profile = await getUserProfile(user.id);
       
-      // Broadcast filtered message
-      io.to('lobby').emit('lobby_message', { 
-        from: profile.nickname, 
-        photo: profile.avatar, 
-        msg: modResult.filtered, 
-        at: Date.now(),
-        filtered: modResult.filtered !== msg
-      });
+      // Try auto-moderation, but don't crash if tables don't exist yet
+      try {
+        const modResult = await getAutoMod().filterMessage(dbUser.id, msg, 'lobby');
 
-      // Notify user if their message was filtered
-      if (modResult.filtered !== msg) {
-        io.to(socket.id).emit('chat_filtered', {
-          reason: modResult.reason,
-          severity: 'low',
-          message: 'Your message was filtered for profanity'
+        if (!modResult.allowed) {
+          // Message blocked
+          io.to(socket.id).emit('chat_filtered', { 
+            reason: modResult.reason,
+            severity: modResult.severity
+          });
+          return;
+        }
+
+        // Save to database
+        await getAutoMod().saveChatMessage(
+          dbUser.id, 
+          modResult.filtered, 
+          'lobby', 
+          modResult.filtered !== msg,
+          modResult.reason
+        );
+
+        // Broadcast filtered message
+        io.to('lobby').emit('lobby_message', { 
+          from: profile.nickname, 
+          photo: profile.avatar, 
+          msg: modResult.filtered, 
+          at: Date.now(),
+          filtered: modResult.filtered !== msg
+        });
+
+        // Notify user if their message was filtered
+        if (modResult.filtered !== msg) {
+          io.to(socket.id).emit('chat_filtered', {
+            reason: modResult.reason,
+            severity: 'low',
+            message: 'Your message was filtered for profanity'
+          });
+        }
+      } catch (modError) {
+        // If moderation fails (e.g., tables don't exist), just send unfiltered message
+        console.warn('Auto-moderation disabled:', modError.message);
+        io.to('lobby').emit('lobby_message', { 
+          from: profile.nickname, 
+          photo: profile.avatar, 
+          msg, 
+          at: Date.now()
         });
       }
     } catch (error) {
@@ -1614,44 +1631,55 @@ io.on('connection', (socket) => {
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
       if (!dbUser) return;
 
-      // Auto-moderate message
-      const modResult = await autoMod.filterMessage(dbUser.id, msg, roomId);
-
-      if (!modResult.allowed) {
-        // Message blocked
-        io.to(socket.id).emit('chat_filtered', { 
-          reason: modResult.reason,
-          severity: modResult.severity
-        });
-        return;
-      }
-
-      // Save to database
-      await autoMod.saveChatMessage(
-        dbUser.id, 
-        modResult.filtered, 
-        roomId, 
-        modResult.filtered !== msg,
-        modResult.reason
-      );
-
       const profile = await getUserProfile(user.id);
       
-      // Broadcast filtered message
-      io.to(roomId).emit('room_message', { 
-        from: profile.nickname, 
-        photo: profile.avatar, 
-        msg: modResult.filtered, 
-        at: Date.now(),
-        filtered: modResult.filtered !== msg
-      });
+      // Try auto-moderation, but don't crash if tables don't exist yet
+      try {
+        const modResult = await getAutoMod().filterMessage(dbUser.id, msg, roomId);
 
-      // Notify user if their message was filtered
-      if (modResult.filtered !== msg) {
-        io.to(socket.id).emit('chat_filtered', {
-          reason: modResult.reason,
-          severity: 'low',
-          message: 'Your message was filtered for profanity'
+        if (!modResult.allowed) {
+          // Message blocked
+          io.to(socket.id).emit('chat_filtered', { 
+            reason: modResult.reason,
+            severity: modResult.severity
+          });
+          return;
+        }
+
+        // Save to database
+        await getAutoMod().saveChatMessage(
+          dbUser.id, 
+          modResult.filtered, 
+          roomId, 
+          modResult.filtered !== msg,
+          modResult.reason
+        );
+
+        // Broadcast filtered message
+        io.to(roomId).emit('room_message', { 
+          from: profile.nickname, 
+          photo: profile.avatar, 
+          msg: modResult.filtered, 
+          at: Date.now(),
+          filtered: modResult.filtered !== msg
+        });
+
+        // Notify user if their message was filtered
+        if (modResult.filtered !== msg) {
+          io.to(socket.id).emit('chat_filtered', {
+            reason: modResult.reason,
+            severity: 'low',
+            message: 'Your message was filtered for profanity'
+          });
+        }
+      } catch (modError) {
+        // If moderation fails (e.g., tables don't exist), just send unfiltered message
+        console.warn('Auto-moderation disabled:', modError.message);
+        io.to(roomId).emit('room_message', { 
+          from: profile.nickname, 
+          photo: profile.avatar, 
+          msg, 
+          at: Date.now()
         });
       }
     } catch (error) {
