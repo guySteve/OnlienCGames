@@ -1264,21 +1264,40 @@ io.on('connection', (socket) => {
 
 // Initialize and start server
 async function startServer() {
-  // Start HTTP server immediately to satisfy Cloud Run health check
-  serverHttp.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
-  });
-  
-  // Initialize auth and database in parallel (non-blocking)
-  initializeAuth().then(async () => {
-    console.log('✅ Authentication initialized');
-    const dbConnected = await checkDatabaseConnection();
-    if (!dbConnected) {
-      console.warn('⚠️  Database connection failed. Some features may not work.');
-    }
-  }).catch(err => {
-    console.error('❌ Initialization error:', err);
-  });
+  try {
+    // Start HTTP server immediately to satisfy Cloud Run health check
+    await new Promise((resolve, reject) => {
+      serverHttp.listen(PORT, (err) => {
+        if (err) {
+          console.error('❌ Failed to start HTTP server:', err);
+          reject(err);
+        } else {
+          console.log(`✅ Server listening on port ${PORT}`);
+          resolve();
+        }
+      });
+    });
+    
+    // Initialize auth and database in background (non-blocking)
+    initializeAuth().then(async () => {
+      console.log('✅ Authentication initialized');
+      try {
+        const dbConnected = await checkDatabaseConnection();
+        if (!dbConnected) {
+          console.warn('⚠️  Database connection failed. Some features may not work.');
+        } else {
+          console.log('✅ All systems ready');
+        }
+      } catch (dbErr) {
+        console.error('❌ Database check error:', dbErr);
+      }
+    }).catch(err => {
+      console.error('❌ Auth initialization error:', err);
+    });
+  } catch (err) {
+    console.error('❌ Fatal startup error:', err);
+    process.exit(1);
+  }
 }
 
 // Handle graceful shutdown
