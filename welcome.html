@@ -131,12 +131,35 @@
         gap: 12px;
       }
     }
+    .error-banner {
+      background: linear-gradient(180deg, #8b0000 0%, #5c0000 100%);
+      border: 2px solid #ff6b6b;
+      border-radius: 12px;
+      padding: 16px 24px;
+      margin-bottom: 20px;
+      max-width: 600px;
+      width: 100%;
+      animation: fadeIn 0.3s ease-in;
+    }
+    .error-banner-text {
+      color: #fff;
+      font-size: 1em;
+      line-height: 1.5;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
   <div class="welcome-container">
     <div class="welcome-logo">♠ MOE'S CARD ROOM ♠</div>
     <div class="welcome-subtitle">Where the Felt Meets Fortune</div>
+    
+    <div id="error-banner" class="error-banner" style="display: none;">
+      <div class="error-banner-text" id="error-message"></div>
+    </div>
     
     <div class="welcome-card">
       <div class="welcome-text">
@@ -172,5 +195,26 @@
       </div>
     </div>
   </div>
+  <script>
+    // Display error message if present in URL
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const error = urlParams.get('error');
+      if (error) {
+        const errorBanner = document.getElementById('error-banner');
+        const errorMessage = document.getElementById('error-message');
+        const messages = {
+          'oauth_error': '⚠️ Sign-in failed. Please check your connection and try again. If the problem persists, contact support.',
+          'auth_denied': '⚠️ Sign-in was cancelled. Click "Enter the Room" to try again.',
+          'auth_failed': '⚠️ Authentication with Google failed. Please try signing in again.',
+          'session_error': '⚠️ Unable to create your session. Please clear your cookies and try again.'
+        };
+        errorMessage.textContent = messages[error] || '⚠️ An error occurred. Please try again.';
+        errorBanner.style.display = 'block';
+        // Clean URL without reloading
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    })();
+  </script>
 </body>
 </html>

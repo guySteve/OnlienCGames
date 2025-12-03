@@ -179,14 +179,33 @@ app.use(express.static(path.join(__dirname, '.')));
 // Auth routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', 
-  passport.authenticate('google', { 
-    failureRedirect: '/',
-    failureMessage: true
-  }),
-  (req, res) => {
-    // Successful authentication
-    console.log('✅ OAuth callback successful, redirecting to home');
-    res.redirect('/');
+  (req, res, next) => {
+    passport.authenticate('google', (err, user, info) => {
+      if (err) {
+        // Handle OAuth errors (TokenError, etc.)
+        console.error('❌ OAuth authentication error:', err.message);
+        console.error('Error type:', err.name || err.constructor?.name);
+        if (err.oauthError) {
+          console.error('OAuth error details:', err.oauthError);
+        }
+        // Redirect to home with error parameter for user feedback
+        return res.redirect('/?error=oauth_error');
+      }
+      if (!user) {
+        // Authentication failed (user denied access or other failure)
+        console.warn('⚠️ OAuth authentication failed:', info?.message || 'Unknown reason');
+        return res.redirect('/?error=auth_denied');
+      }
+      // Log in the user
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          console.error('❌ Session login error:', loginErr.message);
+          return res.redirect('/?error=session_error');
+        }
+        console.log('✅ OAuth callback successful, redirecting to home');
+        return res.redirect('/');
+      });
+    })(req, res, next);
   }
 );
 app.post('/logout', (req, res) => {
