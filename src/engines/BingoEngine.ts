@@ -346,6 +346,14 @@ export class BingoEngine extends GameEngine {
         this.gameEndCallback({ userId, cardId, pattern, pot: this.bingoState.pot });
       }
 
+      // Auto-reset for next round after 10 seconds
+      setTimeout(() => {
+        this.resetForNextRound();
+        if (this.gameEndCallback) {
+          this.gameEndCallback({ type: 'ROUND_RESET' });
+        }
+      }, 10000);
+
       return { valid: true, pattern };
     }
 
@@ -384,6 +392,33 @@ export class BingoEngine extends GameEngine {
     }
 
     return null;
+  }
+
+  /**
+   * Reset game for next round
+   */
+  private resetForNextRound(): void {
+    this.bingoState.phase = 'BUYING';
+    this.bingoState.drawnNumbers = [];
+    this.bingoState.currentBall = null;
+    this.bingoState.pot = 0;
+    this.bingoState.winner = null;
+    this.bingoState.nextBallTime = null;
+    
+    // Clear all player cards
+    this.bingoPlayers.forEach(player => {
+      player.cards = [];
+      player.currentBet = 0;
+    });
+    
+    // Generate new server seed for next game
+    this.generateServerSeed();
+    
+    // Start buying phase timer (30 seconds)
+    if (this.ballTimer) {
+      clearInterval(this.ballTimer);
+      this.ballTimer = null;
+    }
   }
 
   /**

@@ -105,10 +105,20 @@ function initSocket() {
   });
   socket.on('bingo_winner', (data) => {
     bingoGameState = data.gameState;
-    alert(`BINGO! ${data.winner.name} wins with ${data.winner.pattern}!`);
+    if (data.winner) {
+      showNotification(`🎉 BINGO! ${data.winner.name} wins with ${data.winner.pattern}! Pot: ${data.pot} chips`);
+    }
   });
   socket.on('bingo_pot_updated', (data) => {
     bingoGameState = data.gameState;
+    if (bingoGameState) renderBingoUI();
+  });
+  socket.on('bingo_round_reset', (data) => {
+    bingoGameState = data.gameState;
+    bingoCards = [];
+    selectedBingoCard = null;
+    showNotification(data.message || '🎱 New round starting!');
+    renderBingoUI();
   });
   
   // Admin events
@@ -1126,8 +1136,22 @@ function renderBingoUI() {
   if (!bingoGameState) return;
   
   // Update pot and phase
-  document.getElementById('bingoPot').textContent = `Pot: ${bingoGameState.pot}`;
-  document.getElementById('bingoPhase').textContent = `Phase: ${bingoGameState.phase}`;
+  document.getElementById('bingoPot').textContent = `Pot: ${bingoGameState.pot} chips`;
+  
+  // Show phase with helpful messages
+  let phaseText = bingoGameState.phase;
+  if (bingoGameState.phase === 'BUYING') {
+    phaseText = '🛒 BUYING PHASE - Buy your cards now!';
+  } else if (bingoGameState.phase === 'PLAYING') {
+    if (bingoCards.length === 0) {
+      phaseText = '👀 WATCHING - Next round you can play!';
+    } else {
+      phaseText = '🎱 GAME IN PROGRESS';
+    }
+  } else if (bingoGameState.phase === 'COMPLETE') {
+    phaseText = '🎉 GAME OVER - New round starting soon!';
+  }
+  document.getElementById('bingoPhase').textContent = phaseText;
   
   // Update called numbers display
   const calledNumbersEl = document.getElementById('bingoCalledNumbers');
@@ -1141,7 +1165,27 @@ function renderBingoUI() {
   // Enable/disable BINGO button
   const bingoBtn = document.getElementById('bingoButton');
   if (bingoBtn) {
-    bingoBtn.disabled = bingoGameState.phase !== 'PLAYING';
+    bingoBtn.disabled = bingoGameState.phase !== 'PLAYING' || bingoCards.length === 0;
+    if (bingoCards.length === 0) {
+      bingoBtn.textContent = 'Buy cards to play!';
+    } else {
+      bingoBtn.textContent = 'BINGO!';
+    }
+  }
+  
+  // Show/hide buy button based on phase
+  const buyBtn = document.querySelector('.bingo-controls .btn-gold');
+  if (buyBtn) {
+    if (bingoGameState.phase === 'BUYING') {
+      buyBtn.style.display = 'block';
+      buyBtn.textContent = `Buy Card (1 chip) - ${bingoCards.length}/5`;
+    } else if (bingoGameState.phase === 'PLAYING') {
+      buyBtn.style.display = 'none';
+    } else {
+      buyBtn.style.display = 'block';
+      buyBtn.textContent = 'Next round starting soon...';
+      buyBtn.disabled = true;
+    }
   }
   
   renderBingoCards();

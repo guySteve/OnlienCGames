@@ -1823,8 +1823,25 @@ io.on('connection', (socket) => {
       });
       
       // Set up game end callback
-      bingoGame.setGameEndCallback((winner) => {
-        io.to(roomId).emit('bingo_winner', winner);
+      bingoGame.setGameEndCallback((data) => {
+        if (data.type === 'ROUND_RESET') {
+          // New round starting
+          io.to(roomId).emit('bingo_round_reset', { 
+            gameState: bingoGame.getGameState(),
+            message: '🎱 New round starting! Buy your cards now!'
+          });
+          
+          // Auto-start next game after 30 seconds
+          setTimeout(async () => {
+            if (games.has(roomId)) {
+              await bingoGame.startNewHand();
+              io.to(roomId).emit('bingo_game_started', { gameState: bingoGame.getGameState() });
+            }
+          }, 30000);
+        } else {
+          // Winner announced
+          io.to(roomId).emit('bingo_winner', data);
+        }
       });
       
       games.set(roomId, bingoGame);
@@ -1912,7 +1929,19 @@ io.on('connection', (socket) => {
         });
         io.to(roomId).emit('bingo_pot_updated', { gameState: bingoGame.getGameState() });
       } else {
-        io.to(socket.id).emit('error', { message: 'Cannot buy card (insufficient chips, max cards reached, or wrong phase)' });
+        const gameState = bingoGame.getGameState();
+        
+        // Give helpful message based on phase
+        let message = 'Cannot buy card';
+        if (gameState.phase === 'PLAYING') {
+          message = '⏳ Game in progress! You can buy cards for the next round.';
+        } else if (gameState.phase === 'COMPLETE') {
+          message = '🎉 Game over! Next round starting soon...';
+        } else {
+          message = 'Cannot buy card (insufficient chips or max 5 cards reached)';
+        }
+        
+        io.to(socket.id).emit('error', { message });
       }
     } catch (error) {
       console.error('Error buying Bingo card:', error);
