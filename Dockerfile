@@ -36,7 +36,10 @@ COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 
 EXPOSE 3000
 
+# Make start script executable
+RUN chmod +x start.sh
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-CMD ["node", "server.js"]
+CMD ["sh", "start.sh"]
