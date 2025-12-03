@@ -120,15 +120,21 @@ async function initializeAuth() {
   // Passport: Google (optional - skip if credentials not provided)
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  
+  console.log('🔍 OAuth Configuration Check:');
+  console.log('  GOOGLE_CLIENT_ID:', googleClientId ? '✅ Set' : '❌ Missing');
+  console.log('  GOOGLE_CLIENT_SECRET:', googleClientSecret ? '✅ Set' : '❌ Missing');
+  
   if (googleClientId && googleClientSecret) {
   passport.use(new GoogleStrategy({
     clientID: googleClientId,
     clientSecret: googleClientSecret,
-    callbackURL: '/auth/google/callback',
-    passReqToCallback: false,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
+    passReqToCallback: true,
     accessType: 'offline',
     prompt: 'consent'
-  }, async (accessToken, refreshToken, profile, done) => {
+  }, async (req, accessToken, refreshToken, profile, done) => {
+    console.log('🔐 GoogleStrategy verify callback invoked for:', profile.displayName);
     try {
       console.log('🔐 Google OAuth callback received for:', profile.displayName);
       
@@ -181,10 +187,16 @@ app.get('/', (req, res) => {
 app.use(express.static(path.join(__dirname, '.')));
 
 // Auth routes
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google', (req, res, next) => {
+  console.log('📍 /auth/google route accessed');
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
 app.get('/auth/google/callback', 
   (req, res, next) => {
+    console.log('📍 /auth/google/callback route accessed');
+    console.log('Query params:', req.query);
     passport.authenticate('google', { failureRedirect: '/?error=auth_denied' }, (err, user, info) => {
+      console.log('🔐 Passport callback executed - err:', !!err, 'user:', !!user);
       if (err) {
         // Handle 2FA/MFA timeout and other OAuth errors
         console.error('❌ OAuth authentication error:', err.message);
@@ -217,6 +229,19 @@ app.get('/auth/google/callback',
     })(req, res, next);
   }
 );
+app.get('/debug/oauth', (req, res) => {
+  res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID ? '✅ Configured' : '❌ Missing',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ? '✅ Configured' : '❌ Missing',
+    googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback',
+    accessingFrom: req.get('host'),
+    protocol: req.protocol,
+    expectedCallbackUrl: `${req.protocol}://${req.get('host')}/auth/google/callback`,
+    nodeEnv: process.env.NODE_ENV,
+    redisConfigured: process.env.REDIS_URL ? '✅ Yes' : '❌ No',
+    databaseConfigured: process.env.DATABASE_URL ? '✅ Yes' : '❌ No'
+  });
+});
 app.post('/logout', (req, res) => {
   req.logout(() => { req.session.destroy(() => res.clearCookie('sid').status(200).json({ ok: true })); });
 });
