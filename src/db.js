@@ -55,7 +55,6 @@ async function checkDailyReset(userId) {
       try {
         await prisma.transaction.create({
           data: {
-            id: crypto.randomUUID(),
             userId: user.id,
             amount: Number(DAILY_CHIPS),
             type: 'DAILY_STREAK',
@@ -117,7 +116,6 @@ async function getOrCreateUser(googleProfile) {
       try {
         await prisma.transaction.create({
           data: {
-            id: crypto.randomUUID(),
             userId: user.id,
             amount: 1000,
             type: 'ADMIN_CREDIT',
@@ -176,7 +174,6 @@ async function updateUserChips(userId, amount, type, description, gameSessionId 
 
       await tx.transaction.create({
         data: {
-          id: crypto.randomUUID(),
           userId,
           amount: Number(amount),
           type,

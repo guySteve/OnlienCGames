@@ -5,7 +5,8 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
-const MemoryStore = require('memorystore')(session);
+const RedisStore = require('connect-redis').default;
+const { createClient } = require('redis');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
@@ -35,25 +36,76 @@ async function checkDatabaseConnection() {
 const app = express();
 app.set('trust proxy', 1);
 
-// Sessions
-const sessionMiddleware = session({
-  store: new MemoryStore({ checkPeriod: 86400000 }),
-  name: 'sid',
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: NODE_ENV === 'production',
-    sameSite: 'lax'
-  }
-});
-app.use(sessionMiddleware);
+// Redis client for sessions
+let redisClient;
+let sessionStore;
 
-// Passport: Google (optional - skip if credentials not provided)
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-if (googleClientId && googleClientSecret) {
+async function initializeSessionStore() {
+  const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
+  
+  if (redisUrl) {
+    try {
+      // Create Redis client
+      redisClient = createClient({
+        url: redisUrl,
+        socket: {
+          tls: redisUrl.startsWith('rediss://'),
+          rejectUnauthorized: false
+        }
+      });
+      
+      redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+      redisClient.on('connect', () => console.log('✅ Redis session store connected'));
+      
+      await redisClient.connect();
+      
+      // Create Redis session store
+      sessionStore = new RedisStore({
+        client: redisClient,
+        prefix: 'sess:',
+        ttl: 7 * 24 * 60 * 60 // 7 days in seconds
+      });
+      
+      console.log('✅ Redis session store initialized');
+    } catch (error) {
+      console.error('⚠️  Redis connection failed, falling back to memory store:', error.message);
+      sessionStore = null;
+    }
+  } else {
+    console.log('⚠️  No Redis URL configured, using memory store (not recommended for production)');
+  }
+}
+
+// Sessions
+let sessionMiddleware;
+
+function createSessionMiddleware() {
+  return session({
+    store: sessionStore || undefined, // undefined uses default MemoryStore
+    name: 'sid',
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: NODE_ENV === 'production',
+      sameSite: 'lax'
+    }
+  });
+}
+
+// Initialize session store and start authentication
+async function initializeAuth() {
+  await initializeSessionStore();
+  
+  // Create session middleware after store is initialized
+  sessionMiddleware = createSessionMiddleware();
+  app.use(sessionMiddleware);
+  
+  // Passport: Google (optional - skip if credentials not provided)
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (googleClientId && googleClientSecret) {
   passport.use(new GoogleStrategy({
     clientID: googleClientId,
     clientSecret: googleClientSecret,
@@ -88,12 +140,13 @@ if (googleClientId && googleClientSecret) {
       return done(null, false, { message: 'Authentication failed' });
     }
   }));
-  passport.serializeUser((user, done) => done(null, user));
-  passport.deserializeUser((obj, done) => done(null, obj));
-  app.use(passport.initialize());
-  app.use(passport.session());
-} else {
-  console.log('⚠️  Google OAuth not configured - running without authentication');
+    passport.serializeUser((user, done) => done(null, user));
+    passport.deserializeUser((obj, done) => done(null, obj));
+    app.use(passport.initialize());
+    app.use(passport.session());
+  } else {
+    console.log('⚠️  Google OAuth not configured - running without authentication');
+  }
 }
 
 app.use(cors());
@@ -382,7 +435,6 @@ app.post('/transfer-chips', express.json(), async (req, res) => {
       // Create transaction records
       const senderTx = await tx.transaction.create({
         data: {
-          id: crypto.randomBytes(16).toString('hex'),
           userId: dbUser.id,
           amount: -transferAmount,
           type: 'TRANSFER_SENT',
@@ -396,7 +448,6 @@ app.post('/transfer-chips', express.json(), async (req, res) => {
       
       const receiverTx = await tx.transaction.create({
         data: {
-          id: crypto.randomBytes(16).toString('hex'),
           userId: friendUser.id,
           amount: transferAmount,
           type: 'TRANSFER_RECEIVED',
@@ -912,6 +963,10 @@ io.on('connection', (socket) => {
     playerToGame.set(socket.id, roomId);
     socket.join(roomId);
 
+    // Send room_joined event to the joiner specifically
+    io.to(socket.id).emit('room_joined', { roomId, gameState: game.getState(), startingChips: Number(data.startingChips) || 1000 });
+    
+    // Notify everyone in room (including joiner)
     io.to(roomId).emit('observer_joined', { gameState: game.getState() });
     io.to('lobby').emit('rooms_update', getRoomsSummary());
   });
@@ -1120,12 +1175,35 @@ io.on('connection', (socket) => {
   });
 });
 
-serverHttp.listen(PORT, async () => {
-  console.log(`Server listening on port ${PORT}`);
+// Initialize and start server
+async function startServer() {
+  await initializeAuth();
   
-  // Check database connection
-  const dbConnected = await checkDatabaseConnection();
-  if (!dbConnected) {
-    console.warn('⚠️  Server started but database connection failed. Some features may not work.');
+  serverHttp.listen(PORT, async () => {
+    console.log(`Server listening on port ${PORT}`);
+    
+    // Check database connection
+    const dbConnected = await checkDatabaseConnection();
+    if (!dbConnected) {
+      console.warn('⚠️  Server started but database connection failed. Some features may not work.');
+    }
+  });
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing server gracefully...');
+  if (redisClient) {
+    await redisClient.quit();
   }
+  serverHttp.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+// Start the server
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

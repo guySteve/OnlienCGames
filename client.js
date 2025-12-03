@@ -43,8 +43,16 @@ function initSocket() {
     showGame(); 
     renderTable(); 
   });
+  socket.on('room_joined', (data) => {
+    roomId = data.roomId;
+    gameState = data.gameState;
+    startingChips = data.startingChips || 1000;
+    mySeats = []; // Start as observer
+    showGame();
+    renderTable();
+  });
   socket.on('observer_joined', (data) => { 
-    gameState = data.gameState; 
+    gameState = data.gameState;
     renderTable(); 
   });
   socket.on('seat_taken', (data) => { 

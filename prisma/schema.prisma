@@ -64,7 +64,7 @@ model HappyHour {
 }
 
 model Transaction {
-  id            String          @id
+  id            String          @id @default(cuid())
   createdAt     DateTime        @default(now())
   userId        String
   amount        Int
