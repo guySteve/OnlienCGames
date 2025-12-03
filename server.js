@@ -115,9 +115,8 @@ function createSessionMiddleware() {
 async function initializeAuth() {
   await initializeSessionStore();
   
-  // Create session middleware after store is initialized
-  sessionMiddleware = createSessionMiddleware();
-  app.use(sessionMiddleware);
+  // Update session middleware with Redis store if available
+  // Note: Session middleware already initialized synchronously before routes
   
   // Passport: Google (optional - skip if credentials not provided)
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
@@ -166,8 +165,6 @@ async function initializeAuth() {
   }));
     passport.serializeUser((user, done) => done(null, user));
     passport.deserializeUser((obj, done) => done(null, obj));
-    app.use(passport.initialize());
-    app.use(passport.session());
   } else {
     console.log('⚠️  Google OAuth not configured - running without authentication');
   }
@@ -175,6 +172,15 @@ async function initializeAuth() {
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize session middleware IMMEDIATELY (before any routes)
+// Redis store will be added later when available
+sessionMiddleware = createSessionMiddleware();
+app.use(sessionMiddleware);
+
+// Initialize passport middleware IMMEDIATELY (after session)
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Welcome page for unauthenticated users
 app.get('/', (req, res) => {
