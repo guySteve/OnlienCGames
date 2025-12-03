@@ -34,12 +34,14 @@ interface BingoGameState {
   cardPrice: number;
   maxCardsPerPlayer: number;
   nextBallTime: number | null;
+  houseBankroll: number;
 }
 
 const CARD_PRICE = 1; // 1 chip per card
-const MAX_CARDS_PER_PLAYER = 2;
+const MAX_CARDS_PER_PLAYER = 1; // Limit to 1 card per player for better UX
 const BALL_DRAW_INTERVAL = 4500; // 4.5 seconds between balls
 const BUYING_PHASE_DURATION = 30000; // 30 seconds to buy cards
+const HOUSE_BANKROLL = 1000000; // 1 million chips for game payouts
 
 export class BingoEngine extends GameEngine {
   private bingoState: BingoGameState;
@@ -66,7 +68,8 @@ export class BingoEngine extends GameEngine {
       pot: 0,
       cardPrice: CARD_PRICE,
       maxCardsPerPlayer: MAX_CARDS_PER_PLAYER,
-      nextBallTime: Date.now() + BUYING_PHASE_DURATION
+      nextBallTime: Date.now() + BUYING_PHASE_DURATION,
+      houseBankroll: HOUSE_BANKROLL
     };
 
     this.initializeBalls();
@@ -407,12 +410,16 @@ export class BingoEngine extends GameEngine {
     this.bingoState.pot = 0;
     this.bingoState.winner = null;
     this.bingoState.nextBallTime = null;
+    // houseBankroll is preserved across rounds
     
     // Clear all player cards
     this.bingoPlayers.forEach(player => {
       player.cards = [];
       player.currentBet = 0;
     });
+    
+    // Reset available balls for new game
+    this.initializeBalls();
     
     // Generate new server seed for next game
     this.generateServerSeed();
@@ -527,6 +534,7 @@ export class BingoEngine extends GameEngine {
       maxCardsPerPlayer: this.bingoState.maxCardsPerPlayer,
       nextBallTime: this.bingoState.nextBallTime,
       winner: this.bingoState.winner,
+      houseBankroll: this.bingoState.houseBankroll,
       players: Array.from(this.bingoPlayers.entries()).map(([userId, player]) => ({
         userId,
         cardCount: player.cards.length,
