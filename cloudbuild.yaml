@@ -42,7 +42,7 @@ steps:
       - '--min-instances=0'
       - '--max-instances=10'
       - '--port=3000'
-      - '--startup-cpu-boost'
+      - '--cpu-boost'
 
 # Automatically tag images
 images:
