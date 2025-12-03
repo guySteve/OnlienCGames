@@ -9,6 +9,9 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci --only=production
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl
+
 # Copy Prisma schema
 COPY prisma ./prisma
 
@@ -19,6 +22,9 @@ RUN npx prisma generate
 FROM node:18-alpine
 
 WORKDIR /app
+
+# Install OpenSSL for Prisma runtime
+RUN apk add --no-cache openssl
 
 ENV NODE_ENV=production
 
