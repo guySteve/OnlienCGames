@@ -297,7 +297,7 @@ function updateAvatarPreview() {
   
   const previewEl = document.getElementById('avatarPreview');
   if (previewEl) {
-    previewEl.innerHTML = `<img src="https://api.dicebear.com/9.x/${style}/svg?seed=${seed}" alt="Avatar Preview" />`;
+    previewEl.innerHTML = `<img src="https://api.dicebear.com/9.x/${style}/svg?seed=${seed}" alt="Avatar Preview" class="avatar-preview-img" />`;
   }
 }
 
@@ -513,15 +513,34 @@ function renderHouse() {
   const houseEl = document.getElementById('houseArea');
   if (!houseEl) return;
   
-  const houseCard = gameState.houseCard;
-  let cardHtml = '<div class="card card-back"><span class="dealer-icon">D</span></div>';
+  let cardsHtml = '';
   
-  if (houseCard) {
+  // Handle Blackjack dealer hand
+  if (gameState.dealerHand && gameState.dealerHand.length > 0) {
+    cardsHtml = gameState.dealerHand.map((card, i) => {
+      // First card might be hidden if game state says so, but usually server sends what should be seen
+      // If card has no rank/suit, it's hidden
+      if (!card.rank) {
+        return '<div class="card card-back" style="margin-left: -30px;"><span class="dealer-icon">D</span></div>';
+      }
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      const style = i > 0 ? 'margin-left: -30px;' : '';
+      return `<div class="card dealt ${isRed ? 'red' : 'black'}" style="${style}">
+        <span class="card-rank">${card.rank}</span>
+        <span class="card-suit">${card.suit}</span>
+      </div>`;
+    }).join('');
+  } 
+  // Handle War house card
+  else if (gameState.houseCard) {
+    const houseCard = gameState.houseCard;
     const isRed = houseCard.suit === '♥' || houseCard.suit === '♦';
-    cardHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
+    cardsHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
       <span class="card-rank">${houseCard.rank}</span>
       <span class="card-suit">${houseCard.suit}</span>
     </div>`;
+  } else {
+    cardsHtml = '<div class="card card-back"><span class="dealer-icon">D</span></div>';
   }
   
   houseEl.innerHTML = `
@@ -535,8 +554,8 @@ function renderHouse() {
       <div class="tray-chip blue"></div>
       <div class="tray-chip gold"></div>
     </div>
-    <div class="house-label">DEALER</div>
-    <div class="house-card">${cardHtml}</div>
+    <div class="house-label">DEALER ${gameState.dealerValue ? `(${gameState.dealerValue})` : ''}</div>
+    <div class="house-card" style="display:flex; justify-content:center;">${cardsHtml}</div>
   `;
 }
 
@@ -600,14 +619,33 @@ function renderSeat(seatIndex) {
     `;
   } else {
     // Occupied seat - show player info with chip stack
-    let cardHtml = '<div class="card card-back"><span>?</span></div>';
+    let cardsHtml = '';
     
-    if (seat.card) {
+    // Handle Blackjack hands
+    if (seat.hands && seat.hands.length > 0) {
+      cardsHtml = seat.hands.map((hand, hIndex) => {
+        return `<div class="hand-container" style="display:flex; margin-right:10px;">
+          ${hand.cards.map((card, cIndex) => {
+            const isRed = card.suit === '♥' || card.suit === '♦';
+            const style = cIndex > 0 ? 'margin-left: -25px;' : '';
+            return `<div class="card dealt ${isRed ? 'red' : 'black'}" style="${style}">
+              <span class="card-rank">${card.rank}</span>
+              <span class="card-suit">${card.suit}</span>
+            </div>`;
+          }).join('')}
+          ${hand.value ? `<div class="hand-value">${hand.value}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+    // Handle War card
+    else if (seat.card) {
       const isRed = seat.card.suit === '♥' || seat.card.suit === '♦';
-      cardHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
+      cardsHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
         <span class="card-rank">${seat.card.rank}</span>
         <span class="card-suit">${seat.card.suit}</span>
       </div>`;
+    } else {
+      cardsHtml = '<div class="card card-back"><span>?</span></div>';
     }
     
     const statusClass = seat.ready ? 'ready' : '';
@@ -616,8 +654,8 @@ function renderSeat(seatIndex) {
     
     seatEl.innerHTML = `
       ${seat.currentBet > 0 ? `<div class="betting-circle">${chipStackHtml}</div>` : ''}
-      <div class="player-card ${statusClass} ${disconnectedClass}">
-        ${cardHtml}
+      <div class="player-card ${statusClass} ${disconnectedClass}" style="display:flex; justify-content:center;">
+        ${cardsHtml}
       </div>
       <div class="player-info">
         ${seat.photo ? `<img class="player-avatar" src="${seat.photo}" alt="">` : `<div class="player-avatar-placeholder">${seat.name.charAt(0).toUpperCase()}</div>`}

@@ -151,7 +151,7 @@ class WarEngine extends GameEngine_1.GameEngine {
             empty: false,
             socketId,
             name,
-            photo,
+            photo: photo || undefined,
             chips,
             currentBet: 0,
             ready: false,
@@ -222,11 +222,11 @@ class WarEngine extends GameEngine_1.GameEngine {
         // Deal cards to all seated and ready players
         for (const seat of this.seats) {
             if (!seat.empty && seat.ready) {
-                seat.card = this.drawCard();
+                seat.card = this.drawCard() || undefined;
             }
         }
         // Deal house card
-        this.houseCard = this.drawCard();
+        this.houseCard = this.drawCard() || null;
         this.state = GameEngine_1.GameState.RESOLVING;
         await this.saveStateToRedis();
     }

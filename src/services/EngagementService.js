@@ -10,10 +10,14 @@
  * 3. Social Proof (Global ticker)
  * 4. Time Pressure (Happy Hour)
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.engagementService = exports.EngagementService = void 0;
 exports.initEngagementService = initEngagementService;
 const client_1 = require("@prisma/client");
+const crypto_1 = __importDefault(require("crypto"));
 class EngagementService {
     prisma;
     redis;
@@ -275,6 +279,7 @@ class EngagementService {
         const endTime = new Date(now.getTime() + 60 * 60 * 1000);
         await this.prisma.happyHour.create({
             data: {
+                id: crypto_1.default.randomUUID(),
                 startTime: now,
                 endTime,
                 multiplier,

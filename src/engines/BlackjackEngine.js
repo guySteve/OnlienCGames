@@ -391,26 +391,63 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         await this.saveStateToRedis();
     }
     getGameState() {
+        // Convert players map to seats array for client compatibility
+        const seats = Array(5).fill(null).map((_, i) => ({
+            empty: true,
+            seatIndex: i,
+            ready: false,
+            name: null,
+            photo: null,
+            chips: 0,
+            currentBet: 0,
+            hands: []
+        }));
+        // First, populate from base players (seated players)
+        for (const player of this.players.values()) {
+            if (player.seatIndex >= 0 && player.seatIndex < 5) {
+                seats[player.seatIndex] = {
+                    empty: false,
+                    seatIndex: player.seatIndex,
+                    ready: player.currentBet > 0,
+                    name: 'Player', // In a real app, we'd store names in this.players
+                    photo: null,
+                    chips: player.chips,
+                    currentBet: player.currentBet,
+                    hands: []
+                };
+            }
+        }
+        // Then, overlay blackjack specific data (active hands)
+        for (const player of this.bjPlayers.values()) {
+            if (player.seatIndex >= 0 && player.seatIndex < 5) {
+                const seat = seats[player.seatIndex];
+                if (!seat.empty) {
+                    seat.hands = player.hands.map(h => ({
+                        cards: h.cards,
+                        value: this.calculateHandValue(h.cards),
+                        bet: h.bet,
+                        status: h.status,
+                        isBlackjack: this.isBlackjack(h.cards),
+                        isSoft: this.isSoftHand(h.cards)
+                    }));
+                    // For backward compatibility with simple clients, show first card of first hand
+                    if (seat.hands.length > 0 && seat.hands[0].cards.length > 0) {
+                        seat.card = seat.hands[0].cards[0];
+                    }
+                }
+            }
+        }
         return {
+            gameType: 'BLACKJACK',
+            roomId: this.config.roomId,
+            seats: seats,
             dealerHand: this.dealerHand,
             dealerValue: this.calculateHandValue(this.dealerHand),
-            players: Array.from(this.bjPlayers.entries()).map(([key, player]) => ({
-                userId: player.userId,
-                seatIndex: player.seatIndex,
-                hands: player.hands.map(h => ({
-                    cards: h.cards,
-                    value: this.calculateHandValue(h.cards),
-                    bet: h.bet,
-                    status: h.status,
-                    isBlackjack: this.isBlackjack(h.cards),
-                    isSoft: this.isSoftHand(h.cards)
-                })),
-                currentHandIndex: player.currentHandIndex,
-                insurance: player.insurance
-            })),
-            state: this.state,
             pot: this.pot,
-            handNumber: this.handNumber
+            minBet: this.config.minBet,
+            bettingPhase: this.state === GameEngine_1.GameState.PLACING_BETS,
+            status: this.state,
+            observerCount: 0 // We'd need to track this
         };
     }
 }

@@ -31,9 +31,9 @@ function createApiRouter(prisma, engagement) {
             const user = await prisma.user.findUnique({
                 where: { id: userId },
                 include: {
-                    achievements: {
+                    UserAchievement: {
                         where: { completed: true },
-                        include: { achievement: true }
+                        include: { Achievement: true }
                     }
                 }
             });
@@ -75,10 +75,10 @@ function createApiRouter(prisma, engagement) {
                     lastDrop: user.lastMysteryDrop
                 },
                 activeMultiplier: multiplier,
-                achievements: user.achievements.map(a => ({
-                    key: a.achievement.key,
-                    name: a.achievement.name,
-                    description: a.achievement.description,
+                achievements: user.UserAchievement.map(a => ({
+                    key: a.Achievement.key,
+                    name: a.Achievement.name,
+                    description: a.Achievement.description,
                     completedAt: a.createdAt
                 }))
             });

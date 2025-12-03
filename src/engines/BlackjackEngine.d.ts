@@ -32,7 +32,7 @@ export declare class BlackjackEngine extends GameEngine {
     private playerSeed;
     private serverSeed;
     constructor(config: GameConfig, prisma: PrismaClient, redis: Redis, engagement: EngagementService);
-    getGameType(): 'WAR' | 'BLACKJACK';
+    getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
     private initializeShoe;
     private shuffleShoe;
     /**

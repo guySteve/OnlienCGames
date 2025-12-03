@@ -1825,3 +1825,29 @@ body{
   .seat-3 { top: 40% !important; left: 5% !important; transform: translateY(-50%) scale(0.8) !important; }
   .seat-4 { top: 40% !important; right: 5% !important; transform: translateY(-50%) scale(0.8) !important; }
 }
+
+/* Avatar Fix */
+.avatar {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.profile .avatar {
+  width: 40px !important;
+  height: 40px !important;
+}
+
+
+/* Fix for avatar preview */
+.avatar-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* General image constraint to prevent huge images */
+img {
+  max-width: 100%;
+}
+

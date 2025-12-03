@@ -11,6 +11,7 @@
  */
 
 import { PrismaClient, TransactionType, User } from '@prisma/client';
+import crypto from 'crypto';
 // import { Redis } from 'ioredis';
 
 // Use any for Redis to support both node-redis and upstash/redis without strict type dependency
@@ -337,6 +338,7 @@ export class EngagementService {
 
     await this.prisma.happyHour.create({
       data: {
+        id: crypto.randomUUID(),
         startTime: now,
         endTime,
         multiplier,
