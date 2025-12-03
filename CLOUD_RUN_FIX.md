@@ -63,7 +63,22 @@ Added `--startup-cpu-boost` flag for faster cold starts during migrations.
 
 ## Deployment Steps
 
-### Option A: Commit and Push (Automatic)
+### Step 1: Migrate Database First (IMPORTANT!)
+```bash
+# Set your production DATABASE_URL
+export DATABASE_URL="your-production-database-url"
+
+# Run migration
+npx prisma db push --skip-generate --accept-data-loss
+```
+
+Or use the script:
+```bash
+chmod +x migrate-production.sh
+./migrate-production.sh
+```
+
+### Step 2: Deploy Code
 ```bash
 git add .
 git commit -m "Add admin dashboard and auto-moderation"
@@ -72,8 +87,8 @@ git push origin main
 
 Cloud Build will automatically:
 1. Build Docker image
-2. Run migrations on startup
-3. Deploy to Cloud Run
+2. Deploy to Cloud Run
+3. Server starts (schema already migrated)
 
 ### Option B: Manual Deploy
 ```bash
