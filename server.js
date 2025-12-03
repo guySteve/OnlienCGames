@@ -2062,20 +2062,15 @@ io.on('connection', (socket) => {
 });
 
 // Initialize and start server
-async function startServer() {
+function startServer() {
   try {
     console.log('🚀 Starting server on port', PORT);
     
-    // Start HTTP server FIRST - non-blocking
-    serverHttp.listen(PORT, () => {
+    // Start HTTP server FIRST - blocking until ready
+    serverHttp.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Server listening on port ${PORT}`);
-    });
-    
-    // Wait a moment for server to be ready
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Initialize everything else in background (completely non-blocking)
-    setImmediate(() => {
+      
+      // Initialize everything else AFTER server is listening
       initializeAuth().then(async () => {
         console.log('✅ Authentication initialized');
         try {
@@ -2091,6 +2086,12 @@ async function startServer() {
       }).catch(err => {
         console.error('❌ Auth initialization error:', err);
       });
+    });
+    
+    // Handle startup errors
+    serverHttp.on('error', (err) => {
+      console.error('❌ Server startup error:', err);
+      process.exit(1);
     });
   } catch (err) {
     console.error('❌ Fatal startup error:', err);
@@ -2111,7 +2112,4 @@ process.on('SIGTERM', async () => {
 });
 
 // Start the server
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+startServer();
