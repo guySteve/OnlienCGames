@@ -8,7 +8,17 @@ let auth = { authenticated: false, user: null };
 let mySeats = []; // Array of seat indices
 
 async function fetchMe() {
-  try { const r = await fetch('/me'); auth = await r.json(); } catch { auth = { authenticated: false }; }
+  try { 
+    const r = await fetch('/me'); 
+    auth = await r.json(); 
+    
+    // Show avatar setup for new users
+    if (auth.authenticated && auth.user.needsAvatarSetup) {
+      setTimeout(() => openProfileModal(), 500);
+    }
+  } catch { 
+    auth = { authenticated: false }; 
+  }
   renderAuth();
 }
 
@@ -19,6 +29,11 @@ function initSocket() {
   socket.on('rooms_list', renderRooms);
   socket.on('rooms_update', renderRooms);
   socket.on('lobby_message', addLobbyMessage);
+  // Friends and invites
+  socket.on('friend_request', handleFriendRequest);
+  socket.on('table_invite', handleTableInvite);
+  socket.on('invite_accepted', handleInviteAccepted);
+  socket.on('chips_received', handleChipsReceived);
   // Room
   socket.on('room_created', (data) => { 
     roomId = data.roomId; 
@@ -84,13 +99,42 @@ function renderAuth() {
   }
 }
 
+// Avatar state
+let currentAvatarTab = 'generated';
+let currentAvatarSeed = null;
+let currentAvatarStyle = 'adventurer';
+
 // Profile editing
 function openProfileModal() {
   const modal = document.getElementById('profileModal');
   if (!modal) return;
   modal.style.display = 'flex';
   document.getElementById('nicknameInput').value = auth.user?.nickname || auth.user?.displayName || '';
-  document.getElementById('avatarInput').value = auth.user?.customAvatar || '';
+  
+  // Check if user has custom avatar
+  const customAvatar = auth.user?.customAvatar || '';
+  if (customAvatar && !customAvatar.includes('api.dicebear.com')) {
+    // Custom URL
+    switchAvatarTab('custom');
+    document.getElementById('avatarInput').value = customAvatar;
+  } else {
+    // Generated avatar - extract seed and style if available
+    switchAvatarTab('generated');
+    if (customAvatar.includes('api.dicebear.com')) {
+      const urlMatch = customAvatar.match(/\/([^\/]+)\/svg\?seed=([^&]+)/);
+      if (urlMatch) {
+        currentAvatarStyle = urlMatch[1];
+        currentAvatarSeed = urlMatch[2];
+        document.getElementById('avatarStyle').value = currentAvatarStyle;
+        document.getElementById('avatarSeed').value = currentAvatarSeed;
+      }
+    } else {
+      // New avatar
+      currentAvatarSeed = generateSeed();
+      document.getElementById('avatarSeed').value = currentAvatarSeed;
+    }
+    updateAvatarPreview();
+  }
 }
 
 function closeProfileModal() {
@@ -100,7 +144,17 @@ function closeProfileModal() {
 
 async function saveProfile() {
   const nickname = document.getElementById('nicknameInput').value.trim();
-  const avatar = document.getElementById('avatarInput').value.trim();
+  let avatar = '';
+  
+  if (currentAvatarTab === 'custom') {
+    avatar = document.getElementById('avatarInput').value.trim();
+  } else {
+    // Generated avatar
+    const seed = document.getElementById('avatarSeed').value;
+    const style = document.getElementById('avatarStyle').value;
+    avatar = `https://api.dicebear.com/9.x/${style}/svg?seed=${seed}`;
+  }
+  
   try {
     const res = await fetch('/profile', {
       method: 'POST',
@@ -119,6 +173,47 @@ async function saveProfile() {
   } catch (e) {
     alert('Error saving profile');
   }
+}
+
+// Avatar functions
+function switchAvatarTab(tab) {
+  currentAvatarTab = tab;
+  const tabs = document.querySelectorAll('.avatar-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  
+  if (tab === 'generated') {
+    tabs[0].classList.add('active');
+    document.getElementById('generatedTab').style.display = 'block';
+    document.getElementById('customTab').style.display = 'none';
+  } else {
+    tabs[1].classList.add('active');
+    document.getElementById('generatedTab').style.display = 'none';
+    document.getElementById('customTab').style.display = 'block';
+  }
+}
+
+function generateSeed() {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+function updateAvatarPreview() {
+  const style = document.getElementById('avatarStyle').value;
+  const seed = document.getElementById('avatarSeed').value || generateSeed();
+  currentAvatarStyle = style;
+  currentAvatarSeed = seed;
+  
+  document.getElementById('avatarSeed').value = seed;
+  
+  const previewEl = document.getElementById('avatarPreview');
+  if (previewEl) {
+    previewEl.innerHTML = `<img src="https://api.dicebear.com/9.x/${style}/svg?seed=${seed}" alt="Avatar Preview" />`;
+  }
+}
+
+function randomizeAvatar() {
+  currentAvatarSeed = generateSeed();
+  document.getElementById('avatarSeed').value = currentAvatarSeed;
+  updateAvatarPreview();
 }
 
 // Lobby UI
@@ -450,12 +545,20 @@ function showLobby() {
   mySeats = [];
   gameState = null;
   roomId = null;
-  initSocket(); socket.emit('get_rooms');
+  initSocket(); 
+  socket.emit('get_rooms');
+  if (auth.authenticated) {
+    loadFriends();
+    loadFriendRequests();
+    loadInvites();
+  }
+  renderFriends(); // Update invite buttons
 }
 
 function showGame() {
   document.getElementById('lobbyScreen').style.display = 'none';
   document.getElementById('gameScreen').style.display = 'block';
+  renderFriends(); // Update invite buttons
 }
 
 function log(msg) {
@@ -467,4 +570,322 @@ function log(msg) {
   gl.prepend(e);
 }
 
-window.addEventListener('load', () => { fetchMe(); showLobby(); initSocket(); });
+// Friends and Invites
+let friends = [];
+let friendRequests = [];
+let tableInvites = [];
+
+async function loadFriends() {
+  try {
+    const res = await fetch('/friends');
+    const data = await res.json();
+    friends = data.friends || [];
+    renderFriends();
+  } catch (e) {
+    console.error('Error loading friends:', e);
+  }
+}
+
+async function loadFriendRequests() {
+  try {
+    const res = await fetch('/friend-requests');
+    const data = await res.json();
+    friendRequests = data.requests || [];
+    renderFriendRequests();
+  } catch (e) {
+    console.error('Error loading friend requests:', e);
+  }
+}
+
+async function loadInvites() {
+  try {
+    const res = await fetch('/invites');
+    const data = await res.json();
+    tableInvites = data.invites || [];
+    if (tableInvites.length > 0) {
+      showInviteNotification();
+    }
+  } catch (e) {
+    console.error('Error loading invites:', e);
+  }
+}
+
+function renderFriends() {
+  const list = document.getElementById('friendsList');
+  if (!list) return;
+  
+  if (friends.length === 0) {
+    list.innerHTML = '<div class="empty-state">No friends yet</div>';
+    return;
+  }
+  
+  list.innerHTML = friends.map(f => `
+    <div class="friend-item">
+      ${f.customAvatar ? `<img src="${f.customAvatar}" class="friend-avatar">` : '<div class="friend-avatar-placeholder">👤</div>'}
+      <span class="friend-name">${ClientCrypto.sanitize(f.nickname || f.displayName)}</span>
+      <div class="friend-actions">
+        <button class="btn btn-small btn-transfer" onclick="openTransferModal('${f.id}', '${ClientCrypto.sanitize(f.nickname || f.displayName)}')">💰 Send</button>
+        ${roomId ? `<button class="btn btn-small btn-invite" onclick="inviteFriend('${f.id}')">Invite</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderFriendRequests() {
+  const container = document.getElementById('friendRequests');
+  if (!container) return;
+  
+  if (friendRequests.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="friend-requests-header">Friend Requests (${friendRequests.length})</div>
+    ${friendRequests.map(req => `
+      <div class="friend-request-item">
+        ${req.user.customAvatar ? `<img src="${req.user.customAvatar}" class="friend-avatar">` : '<div class="friend-avatar-placeholder">👤</div>'}
+        <span class="friend-name">${ClientCrypto.sanitize(req.user.nickname || req.user.displayName)}</span>
+        <div class="friend-request-actions">
+          <button class="btn btn-small btn-success" onclick="acceptFriendRequest('${req.id}')">✓</button>
+          <button class="btn btn-small btn-danger" onclick="declineFriendRequest('${req.id}')">✗</button>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function openAddFriendModal() {
+  document.getElementById('addFriendModal').style.display = 'flex';
+  document.getElementById('friendEmail').value = '';
+}
+
+function closeAddFriendModal() {
+  document.getElementById('addFriendModal').style.display = 'none';
+}
+
+async function sendFriendRequest() {
+  const email = document.getElementById('friendEmail').value.trim();
+  if (!email) return;
+  
+  try {
+    const res = await fetch('/friend-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ friendEmail: email })
+    });
+    const data = await res.json();
+    
+    if (data.ok) {
+      alert('Friend request sent!');
+      closeAddFriendModal();
+    } else {
+      alert(data.error || 'Failed to send request');
+    }
+  } catch (e) {
+    alert('Error sending friend request');
+  }
+}
+
+async function acceptFriendRequest(requestId) {
+  try {
+    const res = await fetch(`/friend-request/${requestId}/accept`, { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.ok) {
+      await loadFriends();
+      await loadFriendRequests();
+    }
+  } catch (e) {
+    console.error('Error accepting friend request:', e);
+  }
+}
+
+async function declineFriendRequest(requestId) {
+  try {
+    const res = await fetch(`/friend-request/${requestId}/decline`, { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.ok) {
+      await loadFriendRequests();
+    }
+  } catch (e) {
+    console.error('Error declining friend request:', e);
+  }
+}
+
+function inviteFriend(friendId) {
+  if (!socket || !roomId) return;
+  socket.emit('send_invite', { friendId });
+  alert('Invite sent!');
+}
+
+function handleFriendRequest(data) {
+  loadFriendRequests();
+  showNotification(`Friend request from ${data.from.nickname || data.from.displayName}`);
+}
+
+function handleTableInvite(data) {
+  tableInvites.push(data);
+  showNotification(`${data.from.name} invited you to a table!`);
+  openInvitesModal();
+}
+
+function handleInviteAccepted(data) {
+  roomId = data.roomId;
+  gameState = data.gameState;
+  showGame();
+  renderTable();
+  closeInvitesModal();
+}
+
+function openInvitesModal() {
+  const modal = document.getElementById('invitesModal');
+  const list = document.getElementById('invitesList');
+  
+  if (tableInvites.length === 0) {
+    list.innerHTML = '<div class="empty-state">No pending invites</div>';
+  } else {
+    list.innerHTML = tableInvites.map(inv => `
+      <div class="invite-item">
+        <div>
+          ${inv.from.photo ? `<img src="${inv.from.photo}" class="invite-avatar">` : '<div class="invite-avatar-placeholder">👤</div>'}
+          <span>${ClientCrypto.sanitize(inv.from.name)} invited you to Table ${inv.roomId}</span>
+        </div>
+        <div class="invite-actions">
+          <button class="btn btn-success" onclick="acceptInvite('${inv.inviteId}')">Join</button>
+          <button class="btn" onclick="declineInvite('${inv.inviteId}')">Decline</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function closeInvitesModal() {
+  document.getElementById('invitesModal').style.display = 'none';
+}
+
+function acceptInvite(inviteId) {
+  if (!socket) return;
+  socket.emit('accept_invite', { inviteId });
+}
+
+function declineInvite(inviteId) {
+  tableInvites = tableInvites.filter(inv => inv.inviteId !== inviteId);
+  openInvitesModal();
+}
+
+function showNotification(message) {
+  // Simple notification - could be enhanced with a proper notification system
+  const notif = document.createElement('div');
+  notif.className = 'notification';
+  notif.textContent = message;
+  document.body.appendChild(notif);
+  
+  setTimeout(() => {
+    notif.classList.add('show');
+  }, 100);
+  
+  setTimeout(() => {
+    notif.classList.remove('show');
+    setTimeout(() => notif.remove(), 300);
+  }, 3000);
+}
+
+function showInviteNotification() {
+  showNotification(`You have ${tableInvites.length} table invite(s)!`);
+}
+
+// Chip Transfer
+let transferTargetId = null;
+let transferTargetName = null;
+
+function openTransferModal(friendId, friendName) {
+  transferTargetId = friendId;
+  transferTargetName = friendName;
+  
+  const modal = document.getElementById('transferModal');
+  document.getElementById('transferRecipient').textContent = friendName;
+  document.getElementById('transferAmount').value = '100';
+  document.getElementById('transferBalance').textContent = auth.user?.chipBalance || 0;
+  modal.style.display = 'flex';
+}
+
+function closeTransferModal() {
+  document.getElementById('transferModal').style.display = 'none';
+  transferTargetId = null;
+  transferTargetName = null;
+}
+
+async function sendChips() {
+  const amount = Number(document.getElementById('transferAmount').value);
+  
+  if (!amount || amount <= 0) {
+    alert('Please enter a valid amount');
+    return;
+  }
+  
+  if (amount < 10) {
+    alert('Minimum transfer is 10 chips');
+    return;
+  }
+  
+  if (amount > auth.user?.chipBalance) {
+    alert('Insufficient chips');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/transfer-chips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ friendId: transferTargetId, amount })
+    });
+    const data = await res.json();
+    
+    if (data.ok) {
+      auth.user.chipBalance = data.newBalance;
+      renderAuth();
+      showNotification(`✅ Sent ${amount} chips to ${transferTargetName}!`);
+      closeTransferModal();
+      
+      // Refresh chip display
+      const chipDisplay = document.getElementById('chipDisplay');
+      if (chipDisplay) {
+        chipDisplay.textContent = `$${data.newBalance}`;
+      }
+    } else {
+      alert(data.error || 'Failed to send chips');
+    }
+  } catch (e) {
+    alert('Error sending chips');
+  }
+}
+
+function handleChipsReceived(data) {
+  auth.user.chipBalance = data.newBalance;
+  renderAuth();
+  showNotification(`💰 ${data.from.name} sent you ${data.amount} chips!`);
+  
+  // Update chip display
+  const chipDisplay = document.getElementById('chipDisplay');
+  if (chipDisplay) {
+    chipDisplay.textContent = `$${data.newBalance}`;
+  }
+  
+  // Refresh user data
+  fetchMe();
+}
+
+window.addEventListener('load', () => {
+  fetchMe(); 
+  showLobby(); 
+  initSocket(); 
+  if (auth.authenticated) {
+    loadFriends();
+    loadFriendRequests();
+    loadInvites();
+  }
+});

@@ -72,6 +72,7 @@ model Transaction {
   balanceBefore BigInt
   balanceAfter  BigInt
   gameSessionId String?
+  relatedUserId String?
   description   String?
   metadata      Json?
   GameSession   GameSession?    @relation(fields: [gameSessionId], references: [id])
@@ -80,6 +81,7 @@ model Transaction {
   @@index([gameSessionId])
   @@index([type])
   @@index([userId, createdAt])
+  @@index([relatedUserId])
 }
 
 model User {
@@ -92,6 +94,7 @@ model User {
   avatarUrl             String?
   nickname              String?           @db.VarChar(30)
   customAvatar          String?           @db.VarChar(500)
+  needsAvatarSetup      Boolean           @default(true)
   chipBalance           BigInt            @default(1000)
   totalWagered          BigInt            @default(0)
   totalWon              BigInt            @default(0)
@@ -115,11 +118,53 @@ model User {
   GameSession           GameSession[]
   Transaction           Transaction[]
   UserAchievement       UserAchievement[]
+  friendsInitiated      Friendship[]      @relation("FriendInitiator")
+  friendsReceived       Friendship[]      @relation("FriendReceiver")
 
   @@index([currentStreak])
   @@index([email])
   @@index([googleId])
   @@index([lastLogin])
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  createdAt   DateTime         @default(now())
+  userId      String
+  friendId    String
+  status      FriendshipStatus @default(PENDING)
+  user        User             @relation("FriendInitiator", fields: [userId], references: [id], onDelete: Cascade)
+  friend      User             @relation("FriendReceiver", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId, status])
+  @@index([friendId, status])
+}
+
+model TableInvite {
+  id         String       @id @default(cuid())
+  createdAt  DateTime     @default(now())
+  roomId     String
+  fromUserId String
+  toUserId   String
+  status     InviteStatus @default(PENDING)
+  expiresAt  DateTime
+
+  @@index([toUserId, status])
+  @@index([roomId])
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
 }
 
 model UserAchievement {
@@ -163,6 +208,8 @@ enum TransactionType {
   PROMO_CODE
   REFUND
   CORRECTION
+  TRANSFER_SENT
+  TRANSFER_RECEIVED
 }
 
 enum VipTier {

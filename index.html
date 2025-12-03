@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="styles.css?v=4.0">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@dicebear/collection@9/dist/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@dicebear/core@9/dist/index.min.js"></script>
   <script src="src/client-crypto.js?v=4.0"></script>
 </head>
 <body>
@@ -44,12 +46,22 @@
             <div id="rooms" class="rooms"></div>
           </div>
         </div>
-        <div class="right chat">
-          <h3>Lobby Chat</h3>
-          <div id="lobbyChatBox" class="chat-box"></div>
-          <div class="chat-input">
-            <input id="lobbyChatInput" placeholder="Say hi..." onkeypress="if(event.key==='Enter')sendLobbyChat()" />
-            <button class="btn" onclick="sendLobbyChat()">Send</button>
+        <div class="right">
+          <div class="casino-section friends-section">
+            <div class="friends-header">
+              <h3>👥 Friends</h3>
+              <button class="btn btn-small" onclick="openAddFriendModal()">+ Add</button>
+            </div>
+            <div id="friendsList" class="friends-list"></div>
+            <div id="friendRequests" class="friend-requests"></div>
+          </div>
+          <div class="chat">
+            <h3>Lobby Chat</h3>
+            <div id="lobbyChatBox" class="chat-box"></div>
+            <div class="chat-input">
+              <input id="lobbyChatInput" placeholder="Say hi..." onkeypress="if(event.key==='Enter')sendLobbyChat()" />
+              <button class="btn" onclick="sendLobbyChat()">Send</button>
+            </div>
           </div>
         </div>
       </div>
@@ -138,14 +150,97 @@
     </section>
   </main>
 
+  <!-- Add Friend Modal -->
+  <div id="addFriendModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h2>Add Friend</h2>
+      <label>Friend's Email</label>
+      <input type="email" id="friendEmail" placeholder="friend@example.com" />
+      <div class="modal-buttons">
+        <button class="btn btn-success" onclick="sendFriendRequest()">Send Request</button>
+        <button class="btn" onclick="closeAddFriendModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table Invites Modal -->
+  <div id="invitesModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h2>Table Invites</h2>
+      <div id="invitesList" class="invites-list"></div>
+      <div class="modal-buttons">
+        <button class="btn" onclick="closeInvitesModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transfer Chips Modal -->
+  <div id="transferModal" class="modal" style="display:none;">
+    <div class="modal-content transfer-modal">
+      <h2>💰 Send Chips</h2>
+      <div class="transfer-info">
+        <label>Send to:</label>
+        <div class="transfer-recipient" id="transferRecipient"></div>
+      </div>
+      <div class="transfer-amount-section">
+        <label>Amount</label>
+        <input type="number" id="transferAmount" min="10" step="10" value="100" />
+        <div class="transfer-balance">Your Balance: <span id="transferBalance">0</span></div>
+      </div>
+      <div class="transfer-quick-amounts">
+        <button class="btn btn-small" onclick="document.getElementById('transferAmount').value='50'">50</button>
+        <button class="btn btn-small" onclick="document.getElementById('transferAmount').value='100'">100</button>
+        <button class="btn btn-small" onclick="document.getElementById('transferAmount').value='500'">500</button>
+        <button class="btn btn-small" onclick="document.getElementById('transferAmount').value='1000'">1000</button>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn btn-success" onclick="sendChips()">Send Chips</button>
+        <button class="btn" onclick="closeTransferModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Profile Edit Modal -->
   <div id="profileModal" class="modal" style="display:none;">
-    <div class="modal-content">
+    <div class="modal-content profile-modal">
       <h2>Edit Profile</h2>
       <label>Nickname</label>
       <input type="text" id="nicknameInput" maxlength="30" placeholder="Your display name" />
-      <label>Avatar URL (optional)</label>
-      <input type="text" id="avatarInput" maxlength="500" placeholder="https://..." />
+      
+      <label>Choose Avatar</label>
+      <div class="avatar-picker">
+        <div class="avatar-tabs">
+          <button class="avatar-tab active" onclick="switchAvatarTab('generated')">Generated</button>
+          <button class="avatar-tab" onclick="switchAvatarTab('custom')">Custom URL</button>
+        </div>
+        
+        <div id="generatedTab" class="avatar-tab-content">
+          <div class="avatar-styles">
+            <label>Style</label>
+            <select id="avatarStyle" onchange="updateAvatarPreview()">
+              <option value="adventurer">Adventurer</option>
+              <option value="avataaars">Avataaars</option>
+              <option value="bottts">Bottts</option>
+              <option value="fun-emoji">Fun Emoji</option>
+              <option value="lorelei">Lorelei</option>
+              <option value="micah">Micah</option>
+              <option value="personas">Personas</option>
+              <option value="pixel-art">Pixel Art</option>
+            </select>
+          </div>
+          <div class="avatar-preview-section">
+            <div class="avatar-preview" id="avatarPreview"></div>
+            <button class="btn" onclick="randomizeAvatar()">🎲 Randomize</button>
+          </div>
+          <input type="hidden" id="avatarSeed" />
+        </div>
+        
+        <div id="customTab" class="avatar-tab-content" style="display:none;">
+          <label>Avatar URL</label>
+          <input type="text" id="avatarInput" maxlength="500" placeholder="https://..." />
+        </div>
+      </div>
+      
       <div class="modal-buttons">
         <button class="btn btn-success" onclick="saveProfile()">Save</button>
         <button class="btn" onclick="closeProfileModal()">Cancel</button>

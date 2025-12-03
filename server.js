@@ -106,8 +106,10 @@ app.get('/me', async (req, res) => {
       authenticated: true, 
       user: { 
         ...req.user, 
+        dbId: dbUser?.id,
         nickname: profile.nickname || dbUser?.nickname || req.user.displayName,
         customAvatar: profile.avatar || dbUser?.customAvatar || null,
+        needsAvatarSetup: dbUser?.needsAvatarSetup ?? true,
         chipBalance: dbUser ? Number(dbUser.chipBalance) : 0,
         currentStreak: dbUser?.currentStreak || 0,
         canPlay: dbUser && dbUser.chipBalance > 0n,
@@ -120,7 +122,7 @@ app.get('/me', async (req, res) => {
 });
 
 // Profile update endpoint
-app.post('/profile', express.json(), (req, res) => {
+app.post('/profile', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
   const { nickname, avatar } = req.body;
   if (nickname && (typeof nickname !== 'string' || nickname.length > 30)) {
@@ -129,12 +131,311 @@ app.post('/profile', express.json(), (req, res) => {
   if (avatar && (typeof avatar !== 'string' || avatar.length > 500)) {
     return res.status(400).json({ error: 'Invalid avatar URL' });
   }
-  const existing = userProfiles.get(req.user.id) || {};
-  userProfiles.set(req.user.id, { 
-    nickname: nickname || existing.nickname || req.user.displayName,
-    avatar: avatar || existing.avatar || null
-  });
-  res.json({ ok: true, profile: userProfiles.get(req.user.id) });
+  
+  try {
+    // Update in database
+    await prisma.user.update({
+      where: { googleId: req.user.id },
+      data: {
+        nickname: nickname || req.user.displayName,
+        customAvatar: avatar || null,
+        needsAvatarSetup: false,
+        updatedAt: new Date()
+      }
+    });
+    
+    // Keep in memory for backward compatibility
+    const existing = userProfiles.get(req.user.id) || {};
+    userProfiles.set(req.user.id, { 
+      nickname: nickname || existing.nickname || req.user.displayName,
+      avatar: avatar || existing.avatar || null
+    });
+    
+    res.json({ ok: true, profile: userProfiles.get(req.user.id) });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Friend endpoints
+app.get('/friends', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { googleId: req.user.id },
+      include: {
+        friendsInitiated: {
+          where: { status: 'ACCEPTED' },
+          include: { friend: { select: { id: true, displayName: true, nickname: true, customAvatar: true } } }
+        },
+        friendsReceived: {
+          where: { status: 'ACCEPTED' },
+          include: { user: { select: { id: true, displayName: true, nickname: true, customAvatar: true } } }
+        }
+      }
+    });
+    
+    if (!dbUser) return res.status(404).json({ error: 'User not found' });
+    
+    const friends = [
+      ...dbUser.friendsInitiated.map(f => ({ ...f.friend, friendshipId: f.id })),
+      ...dbUser.friendsReceived.map(f => ({ ...f.user, friendshipId: f.id }))
+    ];
+    
+    res.json({ friends });
+  } catch (error) {
+    console.error('Error fetching friends:', error);
+    res.status(500).json({ error: 'Failed to fetch friends' });
+  }
+});
+
+app.get('/friend-requests', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    if (!dbUser) return res.status(404).json({ error: 'User not found' });
+    
+    const requests = await prisma.friendship.findMany({
+      where: { friendId: dbUser.id, status: 'PENDING' },
+      include: { user: { select: { id: true, displayName: true, nickname: true, customAvatar: true } } }
+    });
+    
+    res.json({ requests });
+  } catch (error) {
+    console.error('Error fetching friend requests:', error);
+    res.status(500).json({ error: 'Failed to fetch friend requests' });
+  }
+});
+
+app.post('/friend-request', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  const { friendEmail } = req.body;
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const friendUser = await prisma.user.findUnique({ where: { email: friendEmail } });
+    
+    if (!friendUser) return res.status(404).json({ error: 'User not found' });
+    if (friendUser.id === dbUser.id) return res.status(400).json({ error: 'Cannot add yourself' });
+    
+    // Check if already friends or pending
+    const existing = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: dbUser.id, friendId: friendUser.id },
+          { userId: friendUser.id, friendId: dbUser.id }
+        ]
+      }
+    });
+    
+    if (existing) return res.status(400).json({ error: 'Friend request already exists' });
+    
+    const friendship = await prisma.friendship.create({
+      data: { userId: dbUser.id, friendId: friendUser.id, status: 'PENDING' }
+    });
+    
+    // Notify friend via socket if online
+    const friendSocket = Array.from(io.sockets.sockets.values()).find(s => s.request.session?.passport?.user?.id === friendUser.googleId);
+    if (friendSocket) {
+      friendSocket.emit('friend_request', {
+        from: { id: dbUser.id, displayName: dbUser.displayName, nickname: dbUser.nickname, customAvatar: dbUser.customAvatar },
+        requestId: friendship.id
+      });
+    }
+    
+    res.json({ ok: true, friendship });
+  } catch (error) {
+    console.error('Error sending friend request:', error);
+    res.status(500).json({ error: 'Failed to send friend request' });
+  }
+});
+
+app.post('/friend-request/:id/accept', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const friendship = await prisma.friendship.update({
+      where: { id: req.params.id, friendId: dbUser.id },
+      data: { status: 'ACCEPTED' }
+    });
+    
+    res.json({ ok: true, friendship });
+  } catch (error) {
+    console.error('Error accepting friend request:', error);
+    res.status(500).json({ error: 'Failed to accept friend request' });
+  }
+});
+
+app.post('/friend-request/:id/decline', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    await prisma.friendship.delete({
+      where: { id: req.params.id, friendId: dbUser.id }
+    });
+    
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error declining friend request:', error);
+    res.status(500).json({ error: 'Failed to decline friend request' });
+  }
+});
+
+// Chip transfer endpoint
+app.post('/transfer-chips', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  const { friendId, amount } = req.body;
+  const transferAmount = Number(amount);
+  
+  if (!friendId || !transferAmount || transferAmount <= 0) {
+    return res.status(400).json({ error: 'Invalid transfer details' });
+  }
+  
+  if (transferAmount < 10) {
+    return res.status(400).json({ error: 'Minimum transfer is 10 chips' });
+  }
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const friendUser = await prisma.user.findUnique({ where: { id: friendId } });
+    
+    if (!friendUser) {
+      return res.status(404).json({ error: 'Friend not found' });
+    }
+    
+    if (dbUser.id === friendUser.id) {
+      return res.status(400).json({ error: 'Cannot transfer to yourself' });
+    }
+    
+    // Verify friendship exists
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: dbUser.id, friendId: friendUser.id, status: 'ACCEPTED' },
+          { userId: friendUser.id, friendId: dbUser.id, status: 'ACCEPTED' }
+        ]
+      }
+    });
+    
+    if (!friendship) {
+      return res.status(403).json({ error: 'Can only transfer chips to friends' });
+    }
+    
+    // Check if user has enough chips
+    if (dbUser.chipBalance < BigInt(transferAmount)) {
+      return res.status(400).json({ error: 'Insufficient chips' });
+    }
+    
+    // Perform transfer in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Deduct from sender
+      const updatedSender = await tx.user.update({
+        where: { id: dbUser.id },
+        data: { chipBalance: { decrement: BigInt(transferAmount) } }
+      });
+      
+      // Add to receiver
+      const updatedReceiver = await tx.user.update({
+        where: { id: friendUser.id },
+        data: { chipBalance: { increment: BigInt(transferAmount) } }
+      });
+      
+      // Create transaction records
+      const senderTx = await tx.transaction.create({
+        data: {
+          id: crypto.randomBytes(16).toString('hex'),
+          userId: dbUser.id,
+          amount: -transferAmount,
+          type: 'TRANSFER_SENT',
+          balanceBefore: dbUser.chipBalance,
+          balanceAfter: updatedSender.chipBalance,
+          relatedUserId: friendUser.id,
+          description: `Sent ${transferAmount} chips to ${friendUser.nickname || friendUser.displayName}`,
+          metadata: { recipientId: friendUser.id, recipientName: friendUser.nickname || friendUser.displayName }
+        }
+      });
+      
+      const receiverTx = await tx.transaction.create({
+        data: {
+          id: crypto.randomBytes(16).toString('hex'),
+          userId: friendUser.id,
+          amount: transferAmount,
+          type: 'TRANSFER_RECEIVED',
+          balanceBefore: friendUser.chipBalance,
+          balanceAfter: updatedReceiver.chipBalance,
+          relatedUserId: dbUser.id,
+          description: `Received ${transferAmount} chips from ${dbUser.nickname || dbUser.displayName}`,
+          metadata: { senderId: dbUser.id, senderName: dbUser.nickname || dbUser.displayName }
+        }
+      });
+      
+      return { updatedSender, updatedReceiver, senderTx, receiverTx };
+    });
+    
+    // Update session user chip balance
+    req.user.chipBalance = Number(result.updatedSender.chipBalance);
+    
+    // Notify friend via socket if online
+    const friendSocket = Array.from(io.sockets.sockets.values()).find(s => 
+      s.request?.session?.passport?.user?.id === friendUser.googleId
+    );
+    
+    if (friendSocket) {
+      friendSocket.emit('chips_received', {
+        amount: transferAmount,
+        from: {
+          name: dbUser.nickname || dbUser.displayName,
+          photo: dbUser.customAvatar
+        },
+        newBalance: Number(result.updatedReceiver.chipBalance)
+      });
+    }
+    
+    res.json({ 
+      ok: true, 
+      newBalance: Number(result.updatedSender.chipBalance),
+      message: `Successfully sent ${transferAmount} chips to ${friendUser.nickname || friendUser.displayName}`
+    });
+  } catch (error) {
+    console.error('Error transferring chips:', error);
+    res.status(500).json({ error: 'Failed to transfer chips' });
+  }
+});
+
+// Table invite endpoints
+app.get('/invites', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const invites = await prisma.tableInvite.findMany({
+      where: { 
+        toUserId: dbUser.id, 
+        status: 'PENDING',
+        expiresAt: { gt: new Date() }
+      }
+    });
+    
+    // Get sender details
+    const invitesWithSender = await Promise.all(invites.map(async inv => {
+      const sender = await prisma.user.findUnique({
+        where: { id: inv.fromUserId },
+        select: { displayName: true, nickname: true, customAvatar: true }
+      });
+      return { ...inv, sender };
+    }));
+    
+    res.json({ invites: invitesWithSender });
+  } catch (error) {
+    console.error('Error fetching invites:', error);
+    res.status(500).json({ error: 'Failed to fetch invites' });
+  }
 });
 
 // Game / Lobby state
@@ -661,6 +962,96 @@ io.on('connection', (socket) => {
     const game = games.get(roomId);
     if (game) {
       io.to(socket.id).emit('game_state', { gameState: game.getState() });
+    }
+  });
+
+  // Send table invite
+  socket.on('send_invite', async (data) => {
+    const user = socket.request?.session?.passport?.user;
+    if (!user) return;
+    
+    const roomId = playerToGame.get(socket.id);
+    if (!roomId) return io.to(socket.id).emit('error', { message: 'Not in a room' });
+    
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      const friendUser = await prisma.user.findUnique({ where: { id: data.friendId } });
+      
+      if (!friendUser) return io.to(socket.id).emit('error', { message: 'Friend not found' });
+      
+      // Create invite that expires in 5 minutes
+      const invite = await prisma.tableInvite.create({
+        data: {
+          roomId,
+          fromUserId: dbUser.id,
+          toUserId: friendUser.id,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+        }
+      });
+      
+      // Find friend's socket and send notification
+      const friendSocket = Array.from(io.sockets.sockets.values()).find(s => 
+        s.request?.session?.passport?.user?.id === friendUser.googleId
+      );
+      
+      if (friendSocket) {
+        const profile = userProfiles.get(user.id) || {};
+        friendSocket.emit('table_invite', {
+          inviteId: invite.id,
+          roomId: invite.roomId,
+          from: {
+            name: profile.nickname || dbUser.nickname || dbUser.displayName,
+            photo: profile.avatar || dbUser.customAvatar
+          }
+        });
+      }
+      
+      io.to(socket.id).emit('invite_sent', { ok: true });
+    } catch (error) {
+      console.error('Error sending invite:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to send invite' });
+    }
+  });
+  
+  // Accept table invite
+  socket.on('accept_invite', async (data) => {
+    try {
+      const invite = await prisma.tableInvite.findUnique({ where: { id: data.inviteId } });
+      if (!invite || invite.status !== 'PENDING') {
+        return io.to(socket.id).emit('error', { message: 'Invalid invite' });
+      }
+      
+      if (new Date() > invite.expiresAt) {
+        await prisma.tableInvite.update({
+          where: { id: data.inviteId },
+          data: { status: 'EXPIRED' }
+        });
+        return io.to(socket.id).emit('error', { message: 'Invite expired' });
+      }
+      
+      await prisma.tableInvite.update({
+        where: { id: data.inviteId },
+        data: { status: 'ACCEPTED' }
+      });
+      
+      // Join the room
+      const game = games.get(invite.roomId);
+      if (!game) return io.to(socket.id).emit('error', { message: 'Room no longer exists' });
+      
+      const user = socket.request?.session?.passport?.user;
+      const profile = user ? (userProfiles.get(user.id) || {}) : {};
+      const name = profile.nickname || user?.displayName || 'Player';
+      const photo = profile.avatar || user?.photo || null;
+      
+      game.addObserver({ socketId: socket.id, name, photo });
+      playerToGame.set(socket.id, invite.roomId);
+      socket.join(invite.roomId);
+      
+      io.to(socket.id).emit('invite_accepted', { roomId: invite.roomId, gameState: game.getState() });
+      io.to(invite.roomId).emit('observer_joined', { gameState: game.getState() });
+    } catch (error) {
+      console.error('Error accepting invite:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to accept invite' });
     }
   });
 
