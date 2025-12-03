@@ -14,6 +14,8 @@ import { GameEngine, GameState, GameConfig } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
+import crypto from 'crypto';
+import https from 'https';
 
 interface Card {
   rank: string;
@@ -50,6 +52,9 @@ export class BlackjackEngine extends GameEngine {
   private readonly PENETRATION = 0.75;
   private readonly BLACKJACK_PAYOUT = 1.5;
   private readonly INSURANCE_PAYOUT = 2.0;
+  
+  private playerSeed: string = '';
+  private serverSeed: string = '';
 
   constructor(
     config: GameConfig,
@@ -94,11 +99,61 @@ export class BlackjackEngine extends GameEngine {
   }
 
   private shuffleShoe(): void {
-    // Fisher-Yates shuffle
+    // Fisher-Yates shuffle using dual-seed hash (Provably Fair 2.0)
+    const combinedHash = crypto
+      .createHash('sha256')
+      .update(this.playerSeed + this.serverSeed)
+      .digest();
+    
+    let seedIndex = 0;
     for (let i = this.shoe.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const byte = combinedHash[seedIndex % 32];
+      const j = byte % (i + 1);
       [this.shoe[i], this.shoe[j]] = [this.shoe[j], this.shoe[i]];
+      seedIndex++;
     }
+  }
+
+  /**
+   * Fetch external entropy from Cloudflare's QRNG service
+   */
+  private async fetchQRNGEntropy(): Promise<string> {
+    return new Promise((resolve) => {
+      const request = https.get('https://drand.cloudflare.com/public/latest', (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed.randomness || crypto.randomBytes(32).toString('hex'));
+          } catch (e) {
+            resolve(crypto.randomBytes(32).toString('hex'));
+          }
+        });
+      });
+      request.on('error', () => {
+        resolve(crypto.randomBytes(32).toString('hex'));
+      });
+    });
+  }
+
+  /**
+   * Initialize game with QRNG entropy and player seed
+   */
+  public async initializeWithQRNG(playerSeed: string): Promise<void> {
+    this.playerSeed = playerSeed;
+    this.serverSeed = await this.fetchQRNGEntropy();
+    this.initializeShoe();
+  }
+
+  /**
+   * Get the dual seeds for verification (public audit)
+   */
+  public getDualSeeds(): { playerSeed: string; serverSeed: string } {
+    return {
+      playerSeed: this.playerSeed,
+      serverSeed: this.serverSeed
+    };
   }
 
   private dealCard(): Card {

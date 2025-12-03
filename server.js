@@ -5,8 +5,8 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
-const RedisStore = require('connect-redis').default;
 const { createClient } = require('redis');
+const { RedisStore } = require('connect-redis');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
@@ -18,9 +18,6 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
 const APP_VERSION = '4.0.0';
 
-// In-memory profile storage (nickname, avatar) - will migrate to DB
-const userProfiles = new Map(); // googleId -> { nickname, avatar }
-
 // Database health check
 async function checkDatabaseConnection() {
   try {
@@ -30,6 +27,23 @@ async function checkDatabaseConnection() {
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
     return false;
+  }
+}
+
+// Get user profile from database (nickname and avatar)
+async function getUserProfile(googleId) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { googleId },
+      select: { nickname: true, customAvatar: true, displayName: true }
+    });
+    return {
+      nickname: user?.nickname || user?.displayName || 'Player',
+      avatar: user?.customAvatar || null
+    };
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return { nickname: 'Player', avatar: null };
   }
 }
 
@@ -182,19 +196,18 @@ app.get('/me', async (req, res) => {
   if (!req.user) return res.status(200).json({ authenticated: false });
   
   try {
-    // Refresh chip balance from database
+    // Fetch all user data from database
     const dbUser = await prisma.user.findUnique({
       where: { googleId: req.user.id }
     });
     
-    const profile = userProfiles.get(req.user.id) || {};
     res.json({ 
       authenticated: true, 
       user: { 
         ...req.user, 
         dbId: dbUser?.id,
-        nickname: profile.nickname || dbUser?.nickname || req.user.displayName,
-        customAvatar: profile.avatar || dbUser?.customAvatar || null,
+        nickname: dbUser?.nickname || req.user.displayName,
+        customAvatar: dbUser?.customAvatar || null,
         needsAvatarSetup: dbUser?.needsAvatarSetup ?? true,
         chipBalance: dbUser ? Number(dbUser.chipBalance) : 0,
         currentStreak: dbUser?.currentStreak || 0,
@@ -219,8 +232,8 @@ app.post('/profile', express.json(), async (req, res) => {
   }
   
   try {
-    // Update in database
-    await prisma.user.update({
+    // Update in database only
+    const updated = await prisma.user.update({
       where: { googleId: req.user.id },
       data: {
         nickname: nickname || req.user.displayName,
@@ -230,14 +243,7 @@ app.post('/profile', express.json(), async (req, res) => {
       }
     });
     
-    // Keep in memory for backward compatibility
-    const existing = userProfiles.get(req.user.id) || {};
-    userProfiles.set(req.user.id, { 
-      nickname: nickname || existing.nickname || req.user.displayName,
-      avatar: avatar || existing.avatar || null
-    });
-    
-    res.json({ ok: true, profile: userProfiles.get(req.user.id) });
+    res.json({ ok: true, profile: { nickname: updated.nickname, avatar: updated.customAvatar } });
   } catch (error) {
     console.error('Profile update error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
@@ -920,22 +926,26 @@ io.on('connection', (socket) => {
   io.to(socket.id).emit('rooms_list', getRoomsSummary());
 
   // Lobby chat
-  socket.on('lobby_chat', (msg) => {
+  socket.on('lobby_chat', async (msg) => {
     const user = socket.request?.session?.passport?.user;
-    const profile = user ? (userProfiles.get(user.id) || {}) : {};
-    const name = profile.nickname || user?.displayName || 'Guest';
-    const photo = profile.avatar || user?.photo || null;
-    io.to('lobby').emit('lobby_message', { from: name, photo, msg, at: Date.now() });
+    if (!user) {
+      const name = 'Guest';
+      const photo = null;
+      io.to('lobby').emit('lobby_message', { from: name, photo, msg, at: Date.now() });
+    } else {
+      const profile = await getUserProfile(user.id);
+      io.to('lobby').emit('lobby_message', { from: profile.nickname, photo: profile.avatar, msg, at: Date.now() });
+    }
   });
   socket.on('get_rooms', () => io.to(socket.id).emit('rooms_list', getRoomsSummary()));
 
   // Create room - player joins as observer first
-  socket.on('create_room', (data = {}) => {
+  socket.on('create_room', async (data = {}) => {
     const roomId = crypto.randomBytes(4).toString('hex');
     const user = socket.request?.session?.passport?.user;
-    const profile = user ? (userProfiles.get(user.id) || {}) : {};
-    const name = profile.nickname || user?.displayName || data.playerName || 'Player';
-    const photo = profile.avatar || user?.photo || data.photo || null;
+    const profile = user ? await getUserProfile(user.id) : { nickname: 'Player', avatar: null };
+    const name = profile.nickname || data.playerName || 'Player';
+    const photo = profile.avatar || data.photo || null;
 
     const game = new GameRoom(roomId);
     game.addObserver({ socketId: socket.id, name, photo });
@@ -949,15 +959,15 @@ io.on('connection', (socket) => {
   });
 
   // Join room - player joins as observer first
-  socket.on('join_room', (data = {}) => {
+  socket.on('join_room', async (data = {}) => {
     const { roomId } = data;
     const game = games.get(roomId);
     if (!game) return io.to(socket.id).emit('error', { message: 'Room not found' });
 
     const user = socket.request?.session?.passport?.user;
-    const profile = user ? (userProfiles.get(user.id) || {}) : {};
-    const name = profile.nickname || user?.displayName || data.playerName || 'Player';
-    const photo = profile.avatar || user?.photo || data.photo || null;
+    const profile = user ? await getUserProfile(user.id) : { nickname: 'Player', avatar: null };
+    const name = profile.nickname || data.playerName || 'Player';
+    const photo = profile.avatar || data.photo || null;
 
     game.addObserver({ socketId: socket.id, name, photo });
     playerToGame.set(socket.id, roomId);
@@ -1004,14 +1014,18 @@ io.on('connection', (socket) => {
   });
 
   // Room chat
-  socket.on('room_chat', (msg) => {
+  socket.on('room_chat', async (msg) => {
     const roomId = playerToGame.get(socket.id);
     if (!roomId) return;
     const user = socket.request?.session?.passport?.user;
-    const profile = user ? (userProfiles.get(user.id) || {}) : {};
-    const name = profile.nickname || user?.displayName || 'Guest';
-    const photo = profile.avatar || user?.photo || null;
-    io.to(roomId).emit('room_message', { from: name, photo, msg, at: Date.now() });
+    if (!user) {
+      const name = 'Guest';
+      const photo = null;
+      io.to(roomId).emit('room_message', { from: name, photo, msg, at: Date.now() });
+    } else {
+      const profile = await getUserProfile(user.id);
+      io.to(roomId).emit('room_message', { from: profile.nickname, photo: profile.avatar, msg, at: Date.now() });
+    }
   });
 
   // Betting - supports specific seat for multi-seat
@@ -1083,13 +1097,13 @@ io.on('connection', (socket) => {
       );
       
       if (friendSocket) {
-        const profile = userProfiles.get(user.id) || {};
+        const inviterProfile = await getUserProfile(user.id);
         friendSocket.emit('table_invite', {
           inviteId: invite.id,
           roomId: invite.roomId,
           from: {
-            name: profile.nickname || dbUser.nickname || dbUser.displayName,
-            photo: profile.avatar || dbUser.customAvatar
+            name: inviterProfile.nickname,
+            photo: inviterProfile.avatar
           }
         });
       }
@@ -1127,9 +1141,9 @@ io.on('connection', (socket) => {
       if (!game) return io.to(socket.id).emit('error', { message: 'Room no longer exists' });
       
       const user = socket.request?.session?.passport?.user;
-      const profile = user ? (userProfiles.get(user.id) || {}) : {};
-      const name = profile.nickname || user?.displayName || 'Player';
-      const photo = profile.avatar || user?.photo || null;
+      const profile = user ? await getUserProfile(user.id) : { nickname: 'Player', avatar: null };
+      const name = profile.nickname || 'Player';
+      const photo = profile.avatar || null;
       
       game.addObserver({ socketId: socket.id, name, photo });
       playerToGame.set(socket.id, invite.roomId);

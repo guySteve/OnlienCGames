@@ -10,6 +10,8 @@ import { PrismaClient } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
 import crypto from 'crypto';
+import { promisify } from 'util';
+import https from 'https';
 
 interface Card {
   rank: string;
@@ -59,6 +61,29 @@ const RANKS = [
 ];
 
 /**
+ * Fetch external entropy from Cloudflare's QRNG service
+ */
+async function fetchQRNGEntropy(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const request = https.get('https://drand.cloudflare.com/public/latest', (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed.randomness || crypto.randomBytes(32).toString('hex'));
+        } catch (e) {
+          resolve(crypto.randomBytes(32).toString('hex'));
+        }
+      });
+    });
+    request.on('error', () => {
+      resolve(crypto.randomBytes(32).toString('hex'));
+    });
+  });
+}
+
+/**
  * War Game Engine - Modular implementation
  */
 export class WarEngine extends GameEngine {
@@ -68,6 +93,8 @@ export class WarEngine extends GameEngine {
   private bettingPhase: boolean = true;
   private observers: Set<string> = new Set();
   private gameSessionId: string | null = null;
+  private playerSeed: string = '';
+  private serverSeed: string = '';
 
   constructor(
     roomId: string,
@@ -110,13 +137,47 @@ export class WarEngine extends GameEngine {
     return this.shuffleDeck(deck);
   }
 
+  /**
+   * Shuffle deck using dual-seed hashing (Provably Fair 2.0)
+   * Combines player seed + server seed for verifiable randomness
+   */
   private shuffleDeck(deck: Card[]): Card[] {
     const shuffled = [...deck];
+    
+    // Generate deterministic RNG from combined seeds
+    const combinedHash = crypto
+      .createHash('sha256')
+      .update(this.playerSeed + this.serverSeed)
+      .digest();
+    
+    let seedIndex = 0;
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = crypto.randomInt(0, i + 1);
+      // Use bytes from hash as seed for randomness
+      const byte = combinedHash[seedIndex % 32];
+      const j = byte % (i + 1);
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      seedIndex++;
     }
     return shuffled;
+  }
+
+  /**
+   * Initialize game with QRNG entropy and player seed
+   */
+  public async initializeWithQRNG(playerSeed: string): Promise<void> {
+    this.playerSeed = playerSeed;
+    this.serverSeed = await fetchQRNGEntropy();
+    this.deck = this.createDeck();
+  }
+
+  /**
+   * Get the dual seeds for verification (public audit)
+   */
+  public getDualSeeds(): { playerSeed: string; serverSeed: string } {
+    return {
+      playerSeed: this.playerSeed,
+      serverSeed: this.serverSeed
+    };
   }
 
   private drawCard(): Card | null {

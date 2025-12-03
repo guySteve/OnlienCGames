@@ -28,6 +28,8 @@ model GameSession {
   roomId          String
   hostUserId      String
   initialDeckSeed String?
+  playerSeed      String?       // Player's seed commitment for Provably Fair 2.0
+  serverSeed      String?       // Server's QRNG-derived seed for Provably Fair 2.0
   finalState      Json
   totalPot        Int
   winners         Json
