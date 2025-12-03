@@ -301,11 +301,17 @@ function randomizeAvatar() {
 function renderRooms(list) {
   const el = document.getElementById('rooms');
   el.innerHTML = '';
-  if (!list || list.length === 0) { el.innerHTML = '<div class="empty">No active tables. Start the first War!</div>'; return; }
+  if (!list || list.length === 0) { el.innerHTML = '<div class="empty">No active tables. Start the first game!</div>'; return; }
   list.forEach(r => {
     const div = document.createElement('div');
     div.className = 'room-card';
-    div.innerHTML = `<div><div class="room-id">Table ${r.roomId}</div><div style="font-size:.9em;opacity:.8">${r.seatedCount}/5 Seated | ${r.observerCount} Watching</div></div><button class="btn btn-success">Join Table</button>`;
+    
+    let icon = '🃏';
+    let name = 'War';
+    if (r.gameType === 'BINGO') { icon = '🎱'; name = 'Bingo'; }
+    if (r.gameType === 'BLACKJACK') { icon = '♠️'; name = 'Blackjack'; }
+    
+    div.innerHTML = `<div><div class="room-id">${icon} ${name} Table ${r.roomId.substring(0,6)}</div><div style="font-size:.9em;opacity:.8">${r.seatedCount} Players | ${r.observerCount} Watching</div></div><button class="btn btn-success">Join Table</button>`;
     div.querySelector('button').onclick = () => joinRoom(r.roomId);
     el.appendChild(div);
   });
@@ -325,13 +331,15 @@ function addLobbyMessage(m) {
 // Game UI
 function createRoom() {
   initSocket();
-  startingChips = Number(document.getElementById('startingChips').value) || 1000;
-  socket.emit('create_room', { startingChips });
+  socket.emit('create_room', { startingChips: 1000 });
+}
+function createBlackjackRoom() {
+  initSocket();
+  socket.emit('create_blackjack_room');
 }
 function joinRoom(id) {
   initSocket();
-  startingChips = Number(document.getElementById('startingChips').value) || 1000;
-  socket.emit('join_room', { roomId: id, startingChips });
+  socket.emit('join_room', { roomId: id, startingChips: 1000 });
 }
 function sendRoomChat() {
   const input = document.getElementById('roomChatInput'); const msg = input.value.trim(); if (!msg) return;
@@ -342,6 +350,31 @@ function addRoomMessage(m) {
   const row = document.createElement('div'); row.className='chat-row';
   row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
   box.appendChild(row); box.scrollTop = box.scrollHeight;
+}
+
+async function claimDailyReward() {
+  try {
+    const res = await fetch('/api/daily-reward', { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.success) {
+      alert(`🎁 Daily Reward Claimed!\n\n+${data.reward.chips} Chips\nStreak: ${data.reward.day} Days`);
+      fetchMe(); // Refresh balance
+    } else {
+      if (data.nextClaimAt) {
+        const next = new Date(data.nextClaimAt);
+        const diff = next - new Date();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        alert(`⏳ Daily reward not ready yet.\n\nCome back in ${hours}h ${mins}m.`);
+      } else {
+        alert('❌ ' + (data.error || 'Failed to claim reward'));
+      }
+    }
+  } catch (e) {
+    console.error(e);
+    alert('❌ Error claiming reward');
+  }
 }
 
 // Sit at seat - now supports multi-seat

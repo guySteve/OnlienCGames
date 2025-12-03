@@ -37,10 +37,11 @@
           <div class="casino-section">
             <h2>🎰 Open a New Table</h2>
             <div class="new-table-controls">
-              <label>Starting Chips</label>
-              <input type="number" id="startingChips" min="100" value="1000" />
               <button class="btn btn-gold btn-large" onclick="createRoom()">🃏 Start War Table</button>
+              <button class="btn btn-gold btn-large" onclick="createBlackjackRoom()" style="margin-top: 10px;">♠️ Start Blackjack</button>
               <button class="btn btn-gold btn-large" onclick="createBingoRoom()" style="margin-top: 10px;">🎱 Start Bingo Hall</button>
+              <hr style="border-color: #1e6048; margin: 15px 0;">
+              <button id="dailyRewardBtn" class="btn btn-success btn-large" onclick="claimDailyReward()">🎁 Claim Daily Chips</button>
             </div>
           </div>
           <div class="casino-section">

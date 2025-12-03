@@ -399,6 +399,26 @@ app.post('/profile', express.json(), async (req, res) => {
   }
 });
 
+// Daily Reward Endpoint
+app.post('/api/daily-reward', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  try {
+    const EngagementService = require('./src/services/EngagementService').EngagementService;
+    const engagement = new EngagementService(prisma, redisClient || null);
+    
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    if (!dbUser) return res.status(404).json({ error: 'User not found' });
+    
+    const claimResult = await engagement.claimDailyReward(dbUser.id);
+    
+    res.json(claimResult);
+  } catch (error) {
+    console.error('Daily reward error:', error);
+    res.status(500).json({ error: 'Failed to claim reward' });
+  }
+});
+
 // Friend endpoints
 app.get('/friends', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
@@ -1409,7 +1429,8 @@ function getRoomsSummary() {
     roomId: g.roomId, 
     seatedCount: g.seatedCount, 
     observerCount: g.observers.size,
-    hasEmptySeat: g.hasEmptySeat()
+    hasEmptySeat: g.hasEmptySeat(),
+    gameType: g.getGameType ? g.getGameType() : 'WAR'
   }));
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1906,6 +1927,48 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error creating Bingo room:', error);
       io.to(socket.id).emit('error', { message: 'Failed to create Bingo room' });
+    }
+  });
+
+  // ===== BLACKJACK GAME HANDLERS =====
+  socket.on('create_blackjack_room', async (data = {}) => {
+    const roomId = 'bj_' + crypto.randomBytes(4).toString('hex');
+    const user = socket.request?.session?.passport?.user;
+    
+    if (!user) {
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to create Blackjack room' });
+    }
+    
+    try {
+      const BlackjackEngine = require('./src/engines/BlackjackEngine').BlackjackEngine;
+      const EngagementService = require('./src/services/EngagementService').EngagementService;
+      
+      const engagement = new EngagementService(prisma, redisClient || null);
+      const bjGame = new BlackjackEngine(
+        { roomId, minBet: 10, maxBet: 500, maxPlayers: 5 },
+        prisma,
+        redisClient || null,
+        engagement
+      );
+      
+      games.set(roomId, bjGame);
+      playerToGame.set(socket.id, roomId);
+      socket.join(roomId);
+      
+      const profile = await getUserProfile(user.id);
+      // Add creator as observer initially
+      bjGame.addObserver({ socketId: socket.id, name: profile.nickname, photo: profile.avatar });
+      
+      io.to(socket.id).emit('room_created', { 
+        roomId, 
+        gameState: bjGame.getState(),
+        gameType: 'BLACKJACK'
+      });
+      io.to('lobby').emit('rooms_update', getRoomsSummary());
+      
+    } catch (error) {
+      console.error('Error creating Blackjack room:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to create room' });
     }
   });
   

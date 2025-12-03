@@ -1711,3 +1711,39 @@ body{
     right: 20px;
   }
 }
+
+/* Mobile Portrait Fix for Oval Table */
+@media (max-width: 768px) and (orientation: portrait) {
+  .casino-table {
+    width: 95% !important;
+    height: 350px !important; /* Scale down height */
+    border-radius: 150px / 100px !important; /* Adjust oval shape */
+    margin: 0 auto;
+  }
+  
+  .table-title {
+    font-size: 1.5em !important;
+    top: 40% !important;
+  }
+  
+  .table-subtitle {
+    font-size: 0.8em !important;
+    top: 55% !important;
+  }
+  
+  .house-area {
+    top: 10px !important;
+    transform: translateX(-50%) scale(0.8) !important; /* Scale down dealer area */
+  }
+  
+  .player-seat {
+    transform: scale(0.8); /* Scale down player seats */
+  }
+  
+  /* Adjust seat positions for smaller table */
+  .seat-0 { bottom: 10px !important; left: 50% !important; transform: translateX(-50%) scale(0.8) !important; }
+  .seat-1 { bottom: 40px !important; left: 15% !important; transform: translateX(-50%) scale(0.8) !important; }
+  .seat-2 { bottom: 40px !important; left: 85% !important; transform: translateX(-50%) scale(0.8) !important; }
+  .seat-3 { top: 40% !important; left: 5% !important; transform: translateY(-50%) scale(0.8) !important; }
+  .seat-4 { top: 40% !important; right: 5% !important; transform: translateY(-50%) scale(0.8) !important; }
+}
