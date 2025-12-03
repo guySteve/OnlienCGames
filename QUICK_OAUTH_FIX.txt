@@ -1,123 +1,77 @@
-╔═══════════════════════════════════════════════════════════════════╗
-║           🔧 GOOGLE OAUTH FIX - QUICK INSTRUCTIONS                ║
-╚═══════════════════════════════════════════════════════════════════╝
+===============================================
+OAUTH FIX FOR CLOUD RUN - US-EAST1
+===============================================
 
-PROBLEM: Error 400: redirect_uri_mismatch
+Your Service: onlinecgames
+Region: us-east1
+URL: https://onlinecgames-212973396288.us-east1.run.app
 
-SOLUTION: Add callback URLs to Google Cloud Console
+ERROR: "Sign in was cancelled" = redirect_uri_mismatch
 
-═══════════════════════════════════════════════════════════════════
+===============================================
+STEP 1: UPDATE GOOGLE CLOUD CONSOLE
+===============================================
 
-STEP 1: OPEN GOOGLE CLOUD CONSOLE
-───────────────────────────────────────────────────────────────────
-🔗 https://console.cloud.google.com/apis/credentials?project=vegascore-441322
+1. Go to: https://console.cloud.google.com/apis/credentials
 
-(This link will open automatically in your browser)
+2. Click on your OAuth 2.0 Client ID
 
-═══════════════════════════════════════════════════════════════════
+3. Under "Authorized redirect URIs", ADD:
 
-STEP 2: FIND YOUR OAUTH CLIENT
-───────────────────────────────────────────────────────────────────
-1. Look for "OAuth 2.0 Client IDs" section
-2. Click on your client (starts with "212973396288-...")
-3. Scroll to "Authorized redirect URIs"
+   https://onlinecgames-212973396288.us-east1.run.app/auth/google/callback
 
-═══════════════════════════════════════════════════════════════════
+4. Click SAVE
 
-STEP 3: ADD THESE THREE REDIRECT URIs
-───────────────────────────────────────────────────────────────────
-Click "+ ADD URI" and paste each of these (one at a time):
+5. Wait 1-2 minutes
 
-1️⃣  http://localhost:3000/auth/google/callback
+===============================================
+STEP 2: SET ENVIRONMENT VARIABLE
+===============================================
 
-2️⃣  http://127.0.0.1:3000/auth/google/callback
+Via Cloud Run Console (Easiest):
 
-3️⃣  http://YOUR_LOCAL_IP:3000/auth/google/callback
-    (Run: ipconfig to find your IP, e.g., 192.168.1.100)
+1. Go to: https://console.cloud.google.com/run
+2. Click "onlinecgames" service
+3. Click "EDIT & DEPLOY NEW REVISION"
+4. Scroll to "Variables & Secrets"
+5. ADD:
+   GOOGLE_CALLBACK_URL = https://onlinecgames-212973396288.us-east1.run.app/auth/google/callback
+6. Click DEPLOY
 
-═══════════════════════════════════════════════════════════════════
+===============================================
+STEP 3: TEST
+===============================================
 
-STEP 4: SAVE
-───────────────────────────────────────────────────────────────────
-Click the blue "SAVE" button at the bottom
+1. Go to: https://onlinecgames-212973396288.us-east1.run.app
+2. Click "Sign in with Google"
+3. Should work now!
 
-⚠️ IMPORTANT: Wait 5-10 minutes for changes to take effect!
+===============================================
+STEP 4: DELETE DUPLICATE SERVICE
+===============================================
 
-═══════════════════════════════════════════════════════════════════
+Delete the "game" service in us-central1:
 
-STEP 5: CLEAR BROWSER & RESTART SERVER
-───────────────────────────────────────────────────────────────────
-In PowerShell:
+1. Go to: https://console.cloud.google.com/run
+2. Select "game" service
+3. Click DELETE
 
-# Stop server
-Get-Process -Name node | Stop-Process -Force
+===============================================
+FILES UPDATED
+===============================================
 
-# Clear browser cookies (or do manually in browser)
-# Chrome: Ctrl+Shift+Delete → Cookies → Clear
+✅ cloudbuild.yaml - Changed to deploy to "onlinecgames" in us-east1
 
-# Restart server
-cd C:\Users\smmoh\OneDrive\Documents\GitHub\Game
-node server.js
+Commit this change:
+git add cloudbuild.yaml
+git commit -m "Fix: Update auto-deploy to onlinecgames us-east1"
+git push
 
-# Open browser
-Start-Process "http://localhost:3000"
-
-═══════════════════════════════════════════════════════════════════
-
-STEP 6: TEST LOGIN
-───────────────────────────────────────────────────────────────────
-1. Go to http://localhost:3000
-2. Click "Login with Google"
-3. Select your Google account
-4. If you see "App not verified" → Click "Advanced" → "Go to app"
-5. ✅ You should be logged in!
-
-═══════════════════════════════════════════════════════════════════
-
-WHY THIS HAPPENED
-───────────────────────────────────────────────────────────────────
-The security audit didn't change OAuth config, but your Google OAuth
-client needs explicit permission for each callback URL. This is a 
-one-time setup step.
-
-═══════════════════════════════════════════════════════════════════
-
-COMMON MISTAKES TO AVOID
-───────────────────────────────────────────────────────────────────
-❌ Don't add: http://localhost:3000 (missing /auth/google/callback)
-❌ Don't add: https://localhost:3000/... (should be http in dev)
-❌ Don't forget to click SAVE
-❌ Don't skip the 5-10 minute wait period
-
-✅ Do add: http://localhost:3000/auth/google/callback
-✅ Do add: http://127.0.0.1:3000/auth/google/callback
-✅ Do click SAVE
-✅ Do wait 5-10 minutes before testing
-
-═══════════════════════════════════════════════════════════════════
-
+===============================================
 VERIFICATION
-───────────────────────────────────────────────────────────────────
-After adding URIs, verify they show in Google Console:
+===============================================
 
-APIs & Services → Credentials → [Your OAuth Client] → 
-Authorized redirect URIs should list:
-  • http://localhost:3000/auth/google/callback
-  • http://127.0.0.1:3000/auth/google/callback
-  • http://[YOUR_IP]:3000/auth/google/callback
+Check: https://onlinecgames-212973396288.us-east1.run.app/debug/oauth
 
-═══════════════════════════════════════════════════════════════════
-
-STILL NOT WORKING?
-───────────────────────────────────────────────────────────────────
-See: OAUTH_FIX_INSTRUCTIONS.md for detailed troubleshooting
-
-═══════════════════════════════════════════════════════════════════
-
-✅ AFTER THIS FIX:
-• All security audit fixes remain active
-• Login will work perfectly
-• No code changes needed
-• One-time Google Console setup only
-
-═══════════════════════════════════════════════════════════════════
+Should show:
+expectedCallbackUrl: https://onlinecgames-212973396288.us-east1.run.app/auth/google/callback
