@@ -38,6 +38,22 @@ function App() {
   // 1. Authentication & Persistence
   useEffect(() => {
     const initAuth = async () => {
+      // Development preview mode via URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      const previewMode = urlParams.get('preview');
+      
+      if (previewMode) {
+        setUser({ displayName: 'Demo User', chipBalance: 10000, avatar: null });
+        setRooms([
+          { id: '1', name: 'High Rollers', type: 'BLACKJACK', players: 3, maxPlayers: 5, minBet: 100 },
+          { id: '2', name: 'Casual War', type: 'WAR', players: 1, maxPlayers: 5, minBet: 10 },
+          { id: '3', name: 'Bingo Hall', type: 'BINGO', players: 12, maxPlayers: 50, minBet: 5 },
+        ]);
+        setView(previewMode);
+        setIsLoading(false);
+        return;
+      }
+      
       try {
         const userData = await api.getMe();
         setUser(userData);

@@ -159,16 +159,39 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
     }
   }, [gameState?.winner]);
 
-  if (!gameState) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center">
-        <div className="text-yellow-500 text-xl animate-pulse">Loading Bingo...</div>
-      </div>
-    );
-  }
+  // Demo state for preview mode
+  const demoState = {
+    phase: 'PLAYING',
+    drawnNumbers: [12, 45, 23, 67, 8, 34, 71, 19, 55, 3],
+    currentBall: 55,
+    pot: 25,
+    houseBankroll: 1000000,
+    winner: null
+  };
+  
+  const demoCard = [{
+    id: 'demo-card',
+    grid: [
+      [5, 22, 38, 51, 68],
+      [12, 19, 34, 55, 71],
+      [8, 28, 0, 46, 63],
+      [3, 23, 45, 59, 75],
+      [14, 30, 41, 60, 67]
+    ],
+    marked: [
+      [false, false, false, false, false],
+      [true, true, true, true, true],
+      [true, false, false, false, false],
+      [true, true, true, false, false],
+      [false, false, false, false, true]
+    ]
+  }];
 
-  const { phase, drawnNumbers = [], currentBall, pot, houseBankroll, winner } = gameState;
-  const hasCard = playerCard && playerCard.length > 0;
+  const state = gameState || demoState;
+  const cards = (playerCard && playerCard.length > 0) ? playerCard : demoCard;
+
+  const { phase, drawnNumbers = [], currentBall, pot, houseBankroll, winner } = state;
+  const hasCard = cards && cards.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 flex flex-col overflow-hidden">
@@ -214,7 +237,7 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
         <div className="flex-1 overflow-y-auto flex items-center justify-center py-2">
           {hasCard ? (
             <BingoCard 
-              card={playerCard[0]} 
+              card={cards[0]} 
               drawnNumbers={drawnNumbers}
               onClaim={onClaimBingo}
             />
