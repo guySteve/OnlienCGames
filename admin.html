@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Moe's Card Room</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .admin-container {
+      max-width: 1400px;
+      margin: 20px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+    }
+
+    .admin-header {
+      background: rgba(255, 215, 0, 0.1);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+      border: 2px solid #FFD700;
+    }
+
+    .admin-header h1 {
+      margin: 0;
+      color: #FFD700;
+      font-size: 2em;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-card h3 {
+      margin: 0 0 10px 0;
+      color: #FFA500;
+      font-size: 0.9em;
+      text-transform: uppercase;
+    }
+
+    .stat-card .value {
+      font-size: 2.5em;
+      color: white;
+      font-weight: bold;
+    }
+
+    .admin-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+      padding-bottom: 10px;
+    }
+
+    .admin-tab {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.7);
+      border: none;
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      transition: all 0.3s ease;
+    }
+
+    .admin-tab:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    .admin-tab.active {
+      background: rgba(255, 215, 0, 0.2);
+      color: #FFD700;
+      font-weight: bold;
+    }
+
+    .admin-content {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .user-table, .log-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .user-table th, .log-table th {
+      background: rgba(255, 215, 0, 0.2);
+      color: #FFD700;
+      padding: 12px;
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .user-table td, .log-table td {
+      background: rgba(0, 0, 0, 0.3);
+      color: white;
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .user-table tr:hover td, .log-table tr:hover td {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .action-btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9em;
+      margin: 0 4px;
+      transition: all 0.3s ease;
+    }
+
+    .ban-btn {
+      background: #FF6B6B;
+      color: white;
+    }
+
+    .ban-btn:hover {
+      background: #FF5252;
+    }
+
+    .unban-btn {
+      background: #51CF66;
+      color: white;
+    }
+
+    .unban-btn:hover {
+      background: #40C057;
+    }
+
+    .view-btn {
+      background: #4C9AFF;
+      color: white;
+    }
+
+    .view-btn:hover {
+      background: #3B8FFF;
+    }
+
+    .search-box {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 1em;
+      margin-bottom: 20px;
+    }
+
+    .online-users {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .online-user-card {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .online-user-card h4 {
+      margin: 0 0 10px 0;
+      color: #FFD700;
+    }
+
+    .online-user-card p {
+      margin: 5px 0;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9em;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+
+    .badge-admin {
+      background: #FFD700;
+      color: #1a1a2e;
+    }
+
+    .badge-banned {
+      background: #FF6B6B;
+      color: white;
+    }
+
+    .badge-warning {
+      background: #FFA500;
+      color: white;
+    }
+
+    .broadcast-section {
+      background: rgba(255, 215, 0, 0.1);
+      padding: 20px;
+      border-radius: 12px;
+      border: 2px solid #FFD700;
+      margin-bottom: 20px;
+    }
+
+    .broadcast-input {
+      width: 100%;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 1em;
+      margin-bottom: 10px;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .loading {
+      text-align: center;
+      color: white;
+      padding: 40px;
+      font-size: 1.2em;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .pagination button {
+      padding: 8px 16px;
+      background: rgba(255, 215, 0, 0.2);
+      border: 1px solid #FFD700;
+      color: #FFD700;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .pagination button:hover:not(:disabled) {
+      background: rgba(255, 215, 0, 0.4);
+    }
+
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pagination button.active {
+      background: #FFD700;
+      color: #1a1a2e;
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-container">
+    <div class="admin-header">
+      <h1>🎩 Admin Dashboard</h1>
+      <p style="color: white; margin: 10px 0 0 0;">Welcome, Administrator</p>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <h3>Online Users</h3>
+        <div class="value" id="onlineCount">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Total Users</h3>
+        <div class="value" id="totalUsers">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Banned Users</h3>
+        <div class="value" id="bannedCount">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Flagged Messages</h3>
+        <div class="value" id="flaggedMessages">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Active Rooms</h3>
+        <div class="value" id="activeRooms">-</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="showTab('online')">Online Users</button>
+      <button class="admin-tab" onclick="showTab('users')">All Users</button>
+      <button class="admin-tab" onclick="showTab('moderation')">Moderation Logs</button>
+      <button class="admin-tab" onclick="showTab('broadcast')">Broadcast</button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div class="admin-content">
+      <!-- Online Users Tab -->
+      <div id="onlineTab" class="tab-content">
+        <h2 style="color: white; margin-top: 0;">Currently Online</h2>
+        <div id="onlineUsersList" class="online-users"></div>
+      </div>
+
+      <!-- All Users Tab -->
+      <div id="usersTab" class="tab-content" style="display: none;">
+        <input type="text" class="search-box" id="userSearch" placeholder="Search users by email, name..." onkeyup="searchUsers()">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Display Name</th>
+              <th>Balance</th>
+              <th>Last Login</th>
+              <th>Warnings</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
+        <div class="pagination" id="usersPagination"></div>
+      </div>
+
+      <!-- Moderation Logs Tab -->
+      <div id="moderationTab" class="tab-content" style="display: none;">
+        <h2 style="color: white; margin-top: 0;">Moderation History</h2>
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Reason</th>
+              <th>Moderator</th>
+              <th>Auto</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody"></tbody>
+        </table>
+        <div class="pagination" id="logsPagination"></div>
+      </div>
+
+      <!-- Broadcast Tab -->
+      <div id="broadcastTab" class="tab-content" style="display: none;">
+        <div class="broadcast-section">
+          <h2 style="color: #FFD700; margin-top: 0;">📢 Broadcast Message to All Users</h2>
+          <textarea class="broadcast-input" id="broadcastMessage" placeholder="Type your announcement here..."></textarea>
+          <button class="btn btn-gold btn-large" onclick="sendBroadcast()">Send Broadcast</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'online';
+    let allUsers = [];
+    let currentPage = 1;
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch('/api/admin/dashboard');
+        const data = await response.json();
+
+        if (data.error) {
+          alert('Error: ' + data.error);
+          window.location.href = '/';
+          return;
+        }
+
+        // Update stats
+        document.getElementById('onlineCount').textContent = data.online.count;
+        document.getElementById('totalUsers').textContent = data.stats.totalUsers;
+        document.getElementById('bannedCount').textContent = data.stats.bannedUsers;
+        document.getElementById('flaggedMessages').textContent = data.stats.flaggedMessages;
+        document.getElementById('activeRooms').textContent = data.stats.activeRooms;
+
+        // Render online users
+        renderOnlineUsers(data.online.users);
+
+        // Render recent moderations
+        renderModerationLogs(data.recentModerations);
+
+      } catch (error) {
+        console.error('Failed to load dashboard:', error);
+        alert('Failed to load dashboard. Are you an admin?');
+        window.location.href = '/';
+      }
+    }
+
+    function renderOnlineUsers(users) {
+      const container = document.getElementById('onlineUsersList');
+      container.innerHTML = users.map(user => `
+        <div class="online-user-card">
+          <h4>${user.displayName || 'Guest'}</h4>
+          <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
+          <p><strong>IP:</strong> ${user.ipAddress}</p>
+          <p><strong>Socket:</strong> ${user.socketId}</p>
+          <p><strong>Connected:</strong> ${new Date(user.connectedAt).toLocaleTimeString()}</p>
+        </div>
+      `).join('');
+    }
+
+    async function loadUsers(page = 1) {
+      try {
+        const search = document.getElementById('userSearch').value;
+        const response = await fetch(`/api/admin/users?page=${page}&limit=50&search=${search}`);
+        const data = await response.json();
+
+        allUsers = data.users;
+        renderUsersTable(data.users);
+        renderPagination(data.pagination, 'usersPagination', loadUsers);
+      } catch (error) {
+        console.error('Failed to load users:', error);
+      }
+    }
+
+    function renderUsersTable(users) {
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = users.map(user => `
+        <tr>
+          <td>
+            ${user.email || 'N/A'}
+            ${user.isAdmin ? '<span class="badge badge-admin">ADMIN</span>' : ''}
+          </td>
+          <td>${user.displayName}</td>
+          <td>${Number(user.chipBalance).toLocaleString()}</td>
+          <td>${user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}</td>
+          <td>
+            ${user.warnCount > 0 ? `<span class="badge badge-warning">${user.warnCount}</span>` : '0'}
+          </td>
+          <td>
+            ${user.isBanned ? '<span class="badge badge-banned">BANNED</span>' : '<span style="color: #51CF66;">Active</span>'}
+          </td>
+          <td>
+            ${user.isBanned 
+              ? `<button class="action-btn unban-btn" onclick="unbanUser('${user.id}')">Unban</button>`
+              : `<button class="action-btn ban-btn" onclick="banUser('${user.id}', '${user.displayName}')">Ban</button>`
+            }
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderModerationLogs(logs) {
+      const tbody = document.getElementById('logsTableBody');
+      tbody.innerHTML = logs.map(log => `
+        <tr>
+          <td>${new Date(log.createdAt).toLocaleString()}</td>
+          <td>${log.User.displayName}</td>
+          <td><strong>${log.action}</strong></td>
+          <td>${log.reason || 'N/A'}</td>
+          <td>${log.Moderator?.displayName || 'SYSTEM'}</td>
+          <td>${log.autoModerated ? '✅' : '❌'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderPagination(pagination, containerId, callback) {
+      const container = document.getElementById(containerId);
+      const pages = [];
+
+      for (let i = 1; i <= pagination.pages; i++) {
+        pages.push(`
+          <button ${i === pagination.page ? 'class="active"' : ''} 
+                  onclick="${callback.name}(${i})">${i}</button>
+        `);
+      }
+
+      container.innerHTML = `
+        <button ${pagination.page === 1 ? 'disabled' : ''} 
+                onclick="${callback.name}(${pagination.page - 1})">Previous</button>
+        ${pages.join('')}
+        <button ${pagination.page === pagination.pages ? 'disabled' : ''} 
+                onclick="${callback.name}(${pagination.page + 1})">Next</button>
+      `;
+    }
+
+    async function banUser(userId, displayName) {
+      const reason = prompt(`Why are you banning ${displayName}?`);
+      if (!reason) return;
+
+      try {
+        const response = await fetch(`/api/admin/ban/${userId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        });
+
+        const data = await response.json();
+        if (data.ok) {
+          alert('User banned successfully');
+          loadUsers(currentPage);
+          loadDashboard();
+        } else {
+          alert('Failed to ban user: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Ban error:', error);
+        alert('Failed to ban user');
+      }
+    }
+
+    async function unbanUser(userId) {
+      if (!confirm('Are you sure you want to unban this user?')) return;
+
+      try {
+        const response = await fetch(`/api/admin/unban/${userId}`, {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+        if (data.ok) {
+          alert('User unbanned successfully');
+          loadUsers(currentPage);
+          loadDashboard();
+        } else {
+          alert('Failed to unban user: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Unban error:', error);
+        alert('Failed to unban user');
+      }
+    }
+
+    async function sendBroadcast() {
+      const message = document.getElementById('broadcastMessage').value;
+      if (!message) {
+        alert('Please enter a message');
+        return;
+      }
+
+      if (!confirm('Send this broadcast to all online users?')) return;
+
+      try {
+        const response = await fetch('/api/admin/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await response.json();
+        if (data.ok) {
+          alert('Broadcast sent!');
+          document.getElementById('broadcastMessage').value = '';
+        } else {
+          alert('Failed to send broadcast: ' + data.error);
+        }
+      } catch (error) {
+        console.error('Broadcast error:', error);
+        alert('Failed to send broadcast');
+      }
+    }
+
+    function showTab(tabName) {
+      currentTab = tabName;
+
+      // Update tab buttons
+      document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.style.display = 'none';
+      });
+
+      // Show selected tab
+      if (tabName === 'online') {
+        document.getElementById('onlineTab').style.display = 'block';
+      } else if (tabName === 'users') {
+        document.getElementById('usersTab').style.display = 'block';
+        loadUsers();
+      } else if (tabName === 'moderation') {
+        document.getElementById('moderationTab').style.display = 'block';
+      } else if (tabName === 'broadcast') {
+        document.getElementById('broadcastTab').style.display = 'block';
+      }
+    }
+
+    function searchUsers() {
+      loadUsers(1);
+    }
+
+    // Auto-refresh dashboard every 30 seconds
+    setInterval(loadDashboard, 30000);
+
+    // Initial load
+    loadDashboard();
+  </script>
+</body>
+</html>

@@ -12,6 +12,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const crypto = require('crypto');
 const { getOrCreateUser, checkDailyReset, updateUserChips, canUserPlay, prisma } = require('./src/db');
 const { getRoomKey, encryptMessage, decryptMessage, sanitizeMessage, deleteRoomKey } = require('./src/encryption');
+const { AutoModerationService } = require('./src/services/AutoModerationService');
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -53,6 +54,25 @@ app.set('trust proxy', 1);
 // Redis client for sessions
 let redisClient;
 let sessionStore;
+
+// Initialize Auto-Moderation
+const autoMod = new AutoModerationService(prisma);
+
+// Admin email
+const ADMIN_EMAIL = 'smmohamed60@gmail.com';
+
+// Middleware to check if user is admin
+function isAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  if (req.user.email !== ADMIN_EMAIL) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  next();
+}
 
 async function initializeSessionStore() {
   const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
@@ -147,13 +167,33 @@ async function initializeAuth() {
       
       console.log('✅ User authenticated:', dbUser.displayName, 'Balance:', Number(dbUser.chipBalance));
       
+      // Set admin flag if email matches
+      if (profile.emails && profile.emails[0] && profile.emails[0].value === ADMIN_EMAIL) {
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { isAdmin: true }
+        });
+        console.log('👑 Admin user logged in:', dbUser.displayName);
+      }
+
+      // Store IP address for admin tracking
+      await prisma.user.update({
+        where: { id: dbUser.id },
+        data: {
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('user-agent')
+        }
+      });
+      
       const user = {
         id: profile.id,
         dbId: dbUser.id,
+        email: profile.emails && profile.emails[0] ? profile.emails[0].value : null,
         displayName: profile.displayName,
         photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
         chipBalance: Number(dbUser.chipBalance),
         currentStreak: dbUser.currentStreak,
+        isAdmin: dbUser.isAdmin || (profile.emails && profile.emails[0] && profile.emails[0].value === ADMIN_EMAIL)
       };
       return done(null, user);
     } catch (error) {
@@ -182,12 +222,28 @@ app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 
+// API Request Logging Middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  const userId = req.user?.id || 'anonymous';
+  console.log(`[${timestamp}] ${req.method} ${req.url} - User: ${userId}`);
+  next();
+});
+
 // Welcome page for unauthenticated users
 app.get('/', (req, res) => {
   if (!req.user) {
     return res.sendFile(path.join(__dirname, 'welcome.html'));
   }
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Admin dashboard (restricted)
+app.get('/admin', (req, res) => {
+  if (!req.user || req.user.email !== ADMIN_EMAIL) {
+    return res.status(403).send('Access Denied');
+  }
+  res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
 app.use(express.static(path.join(__dirname, '.')));
@@ -569,6 +625,394 @@ app.post('/transfer-chips', express.json(), async (req, res) => {
   } catch (error) {
     console.error('Error transferring chips:', error);
     res.status(500).json({ error: 'Failed to transfer chips' });
+  }
+});
+
+// Tip the House endpoint
+app.post('/api/tip-moe', express.json(), async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  
+  const { amount, note } = req.body;
+  const tipAmount = Number(amount);
+  
+  if (!tipAmount || tipAmount <= 0) {
+    return res.status(400).json({ error: 'Invalid tip amount' });
+  }
+  
+  if (tipAmount < 1) {
+    return res.status(400).json({ error: 'Minimum tip is 1 chip' });
+  }
+  
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    
+    if (!dbUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Check if user has enough chips
+    if (dbUser.chipBalance < BigInt(tipAmount)) {
+      return res.status(400).json({ error: 'Insufficient chips' });
+    }
+    
+    // Deduct chips and log transaction (chips are removed from economy)
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id: dbUser.id },
+        data: { chipBalance: { decrement: BigInt(tipAmount) } }
+      });
+      
+      const tipTransaction = await tx.transaction.create({
+        data: {
+          userId: dbUser.id,
+          amount: -tipAmount,
+          type: 'TIP',
+          balanceBefore: dbUser.chipBalance,
+          balanceAfter: updatedUser.chipBalance,
+          description: `Tipped Moe ${tipAmount} chips${note ? ': ' + note.substring(0, 100) : ''}`,
+          metadata: { note: note || '', recipient: 'house' }
+        }
+      });
+      
+      return { updatedUser, tipTransaction };
+    });
+    
+    // Update session user chip balance
+    req.user.chipBalance = Number(result.updatedUser.chipBalance);
+    
+    console.log(`💰 ${dbUser.displayName} tipped the house ${tipAmount} chips${note ? ': ' + note : ''}`);
+    
+    res.json({ 
+      ok: true, 
+      newBalance: Number(result.updatedUser.chipBalance),
+      message: `Thank you! Moe appreciates your ${tipAmount} chip tip 🎩`
+    });
+  } catch (error) {
+    console.error('Error processing tip:', error);
+    res.status(500).json({ error: 'Failed to process tip' });
+  }
+});
+
+// ========== ADMIN API ENDPOINTS ==========
+
+// Get admin dashboard data
+app.get('/api/admin/dashboard', isAdmin, async (req, res) => {
+  try {
+    // Get online users
+    const onlineUsers = Array.from(io.sockets.sockets.values()).map(socket => {
+      const user = socket.request?.session?.passport?.user;
+      return {
+        socketId: socket.id,
+        userId: user?.id || 'guest',
+        displayName: user?.displayName || 'Guest',
+        email: user?.email || null,
+        ipAddress: socket.handshake.address,
+        userAgent: socket.handshake.headers['user-agent'],
+        connectedAt: socket.handshake.time
+      };
+    });
+
+    // Get total stats
+    const totalUsers = await prisma.user.count();
+    const bannedUsers = await prisma.user.count({ where: { isBanned: true } });
+    const totalMessages = await prisma.chatMessage.count();
+    const flaggedMessages = await prisma.chatMessage.count({ where: { isFlagged: true } });
+    
+    // Get recent moderation logs
+    const recentModerations = await prisma.moderationLog.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        User: { select: { displayName: true, email: true } },
+        Moderator: { select: { displayName: true } }
+      }
+    });
+
+    // Get active rooms
+    const activeRooms = Array.from(games.entries()).map(([roomId, game]) => ({
+      roomId,
+      type: game.getGameType ? game.getGameType() : 'WAR',
+      playerCount: game.getPlayers ? game.getPlayers().length : (game.seatedCount || 0),
+      pot: game.getPot ? game.getPot() : (game.pot || 0)
+    }));
+
+    res.json({
+      online: {
+        count: onlineUsers.length,
+        users: onlineUsers
+      },
+      stats: {
+        totalUsers,
+        bannedUsers,
+        totalMessages,
+        flaggedMessages,
+        activeRooms: activeRooms.length
+      },
+      recentModerations,
+      activeRooms
+    });
+  } catch (error) {
+    console.error('Admin dashboard error:', error);
+    res.status(500).json({ error: 'Failed to load dashboard' });
+  }
+});
+
+// Get all users (paginated)
+app.get('/api/admin/users', isAdmin, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const search = req.query.search || '';
+    
+    const where = search ? {
+      OR: [
+        { email: { contains: search, mode: 'insensitive' } },
+        { displayName: { contains: search, mode: 'insensitive' } },
+        { nickname: { contains: search, mode: 'insensitive' } }
+      ]
+    } : {};
+
+    const users = await prisma.user.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        nickname: true,
+        chipBalance: true,
+        createdAt: true,
+        lastLogin: true,
+        isBanned: true,
+        isAdmin: true,
+        warnCount: true,
+        totalHandsPlayed: true,
+        ipAddress: true
+      }
+    });
+
+    const total = await prisma.user.count({ where });
+
+    res.json({
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Failed to load users' });
+  }
+});
+
+// Ban user
+app.post('/api/admin/ban/:userId', isAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+
+    const bannedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isBanned: true,
+        bannedAt: new Date(),
+        bannedBy: dbUser.id,
+        banReason: reason || 'No reason provided'
+      }
+    });
+
+    // Log moderation action
+    await prisma.moderationLog.create({
+      data: {
+        moderatorId: dbUser.id,
+        userId,
+        action: 'BAN',
+        reason,
+        autoModerated: false
+      }
+    });
+
+    // Disconnect user's sockets
+    io.sockets.sockets.forEach(socket => {
+      const user = socket.request?.session?.passport?.user;
+      if (user?.id === bannedUser.googleId) {
+        socket.emit('banned', { reason });
+        socket.disconnect(true);
+      }
+    });
+
+    console.log(`🔨 Admin banned user ${userId}: ${reason}`);
+
+    res.json({ ok: true, user: bannedUser });
+  } catch (error) {
+    console.error('Ban user error:', error);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+// Unban user
+app.post('/api/admin/unban/:userId', isAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+
+    const unbannedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isBanned: false,
+        bannedAt: null,
+        bannedBy: null,
+        banReason: null,
+        warnCount: 0
+      }
+    });
+
+    await prisma.moderationLog.create({
+      data: {
+        moderatorId: dbUser.id,
+        userId,
+        action: 'UNBAN',
+        autoModerated: false
+      }
+    });
+
+    console.log(`✅ Admin unbanned user ${userId}`);
+
+    res.json({ ok: true, user: unbannedUser });
+  } catch (error) {
+    console.error('Unban user error:', error);
+    res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
+// Get user details
+app.get('/api/admin/user/:userId', isAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        ChatMessage: {
+          take: 50,
+          orderBy: { createdAt: 'desc' }
+        },
+        moderationLogs: {
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            Moderator: { select: { displayName: true } }
+          }
+        },
+        Transaction: {
+          take: 20,
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Get user details error:', error);
+    res.status(500).json({ error: 'Failed to load user details' });
+  }
+});
+
+// Get moderation logs
+app.get('/api/admin/moderation-logs', isAdmin, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+
+    const logs = await prisma.moderationLog.findMany({
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        User: { select: { displayName: true, email: true } },
+        Moderator: { select: { displayName: true } }
+      }
+    });
+
+    const total = await prisma.moderationLog.count();
+
+    res.json({
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get moderation logs error:', error);
+    res.status(500).json({ error: 'Failed to load logs' });
+  }
+});
+
+// Delete flagged message
+app.delete('/api/admin/message/:messageId', isAdmin, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+
+    const message = await prisma.chatMessage.findUnique({
+      where: { id: messageId }
+    });
+
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    await prisma.chatMessage.delete({
+      where: { id: messageId }
+    });
+
+    await prisma.moderationLog.create({
+      data: {
+        moderatorId: dbUser.id,
+        userId: message.userId,
+        action: 'MESSAGE_DELETED',
+        reason: 'Admin deleted message',
+        details: { messageId, message: message.message }
+      }
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
+// Broadcast admin message
+app.post('/api/admin/broadcast', isAdmin, async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    io.emit('admin_broadcast', {
+      message,
+      timestamp: Date.now()
+    });
+
+    console.log(`📢 Admin broadcast: ${message}`);
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Broadcast error:', error);
+    res.status(500).json({ error: 'Failed to broadcast' });
   }
 });
 
@@ -994,21 +1438,90 @@ async function runAutoRound(game) {
   io.to(roomId).emit('round_reset', { gameState: game.getState() });
 }
 
+// Helper function to get Bingo letter from number
+function getBingoLetter(num) {
+  if (num >= 1 && num <= 15) return 'B';
+  if (num >= 16 && num <= 30) return 'I';
+  if (num >= 31 && num <= 45) return 'N';
+  if (num >= 46 && num <= 60) return 'G';
+  if (num >= 61 && num <= 75) return 'O';
+  return '';
+}
+
+// Get Bingo rooms summary for lobby
+function getBingoRoomsSummary() {
+  const bingoRooms = Array.from(games.entries())
+    .filter(([id, game]) => game.getGameType && game.getGameType() === 'BINGO')
+    .map(([id, game]) => ({
+      roomId: id,
+      type: 'BINGO',
+      playerCount: game.getPlayers ? game.getPlayers().length : 0,
+      phase: game.getGameState().phase,
+      pot: game.getPot()
+    }));
+  return bingoRooms;
+}
+
 io.on('connection', (socket) => {
   // Join lobby channel and send existing rooms
   socket.join('lobby');
   io.to(socket.id).emit('rooms_list', getRoomsSummary());
 
-  // Lobby chat
+  // Lobby chat with auto-moderation
   socket.on('lobby_chat', async (msg) => {
     const user = socket.request?.session?.passport?.user;
+    
     if (!user) {
-      const name = 'Guest';
-      const photo = null;
-      io.to('lobby').emit('lobby_message', { from: name, photo, msg, at: Date.now() });
-    } else {
+      // Guests can't chat
+      return io.to(socket.id).emit('error', { message: 'Please log in to chat' });
+    }
+
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      if (!dbUser) return;
+
+      // Auto-moderate message
+      const modResult = await autoMod.filterMessage(dbUser.id, msg, 'lobby');
+
+      if (!modResult.allowed) {
+        // Message blocked
+        io.to(socket.id).emit('chat_filtered', { 
+          reason: modResult.reason,
+          severity: modResult.severity
+        });
+        return;
+      }
+
+      // Save to database
+      await autoMod.saveChatMessage(
+        dbUser.id, 
+        modResult.filtered, 
+        'lobby', 
+        modResult.filtered !== msg,
+        modResult.reason
+      );
+
       const profile = await getUserProfile(user.id);
-      io.to('lobby').emit('lobby_message', { from: profile.nickname, photo: profile.avatar, msg, at: Date.now() });
+      
+      // Broadcast filtered message
+      io.to('lobby').emit('lobby_message', { 
+        from: profile.nickname, 
+        photo: profile.avatar, 
+        msg: modResult.filtered, 
+        at: Date.now(),
+        filtered: modResult.filtered !== msg
+      });
+
+      // Notify user if their message was filtered
+      if (modResult.filtered !== msg) {
+        io.to(socket.id).emit('chat_filtered', {
+          reason: modResult.reason,
+          severity: 'low',
+          message: 'Your message was filtered for profanity'
+        });
+      }
+    } catch (error) {
+      console.error('Lobby chat error:', error);
     }
   });
   socket.on('get_rooms', () => io.to(socket.id).emit('rooms_list', getRoomsSummary()));
@@ -1087,18 +1600,64 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Room chat
+  // Room chat with auto-moderation
   socket.on('room_chat', async (msg) => {
     const roomId = playerToGame.get(socket.id);
     if (!roomId) return;
+    
     const user = socket.request?.session?.passport?.user;
     if (!user) {
-      const name = 'Guest';
-      const photo = null;
-      io.to(roomId).emit('room_message', { from: name, photo, msg, at: Date.now() });
-    } else {
+      return io.to(socket.id).emit('error', { message: 'Please log in to chat' });
+    }
+
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      if (!dbUser) return;
+
+      // Auto-moderate message
+      const modResult = await autoMod.filterMessage(dbUser.id, msg, roomId);
+
+      if (!modResult.allowed) {
+        // Message blocked
+        io.to(socket.id).emit('chat_filtered', { 
+          reason: modResult.reason,
+          severity: modResult.severity
+        });
+        return;
+      }
+
+      // Save to database
+      await autoMod.saveChatMessage(
+        dbUser.id, 
+        modResult.filtered, 
+        roomId, 
+        modResult.filtered !== msg,
+        modResult.reason
+      );
+
       const profile = await getUserProfile(user.id);
-      io.to(roomId).emit('room_message', { from: profile.nickname, photo: profile.avatar, msg, at: Date.now() });
+      
+      // Broadcast filtered message
+      io.to(roomId).emit('room_message', { 
+        from: profile.nickname, 
+        photo: profile.avatar, 
+        msg: modResult.filtered, 
+        at: Date.now(),
+        filtered: modResult.filtered !== msg
+      });
+
+      // Notify user if their message was filtered
+      if (modResult.filtered !== msg) {
+        io.to(socket.id).emit('chat_filtered', {
+          reason: modResult.reason,
+          severity: 'low',
+          message: 'Your message was filtered for profanity'
+        });
+      }
+    } catch (error) {
+      console.error('Room chat error:', error);
+    }
+  });
     }
   });
 
@@ -1228,6 +1787,175 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error accepting invite:', error);
       io.to(socket.id).emit('error', { message: 'Failed to accept invite' });
+    }
+  });
+
+  // ===== BINGO GAME HANDLERS =====
+  
+  // Create Bingo room
+  socket.on('create_bingo_room', async (data = {}) => {
+    const roomId = 'bingo_' + crypto.randomBytes(4).toString('hex');
+    const user = socket.request?.session?.passport?.user;
+    
+    if (!user) {
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to create Bingo room' });
+    }
+    
+    try {
+      const BingoEngine = require('./src/engines/BingoEngine').BingoEngine;
+      const EngagementService = require('./src/services/EngagementService').EngagementService;
+      
+      const engagement = new EngagementService(prisma, redisClient || null);
+      const bingoGame = new BingoEngine(
+        { roomId, minBet: 1, maxBet: 5, maxPlayers: 50 },
+        prisma,
+        redisClient || null,
+        engagement
+      );
+      
+      // Set up ball call callback for voice announcements
+      bingoGame.setBallCallCallback((ball) => {
+        io.to(roomId).emit('bingo_ball_called', { 
+          ball, 
+          letter: getBingoLetter(ball),
+          gameState: bingoGame.getGameState() 
+        });
+      });
+      
+      // Set up game end callback
+      bingoGame.setGameEndCallback((winner) => {
+        io.to(roomId).emit('bingo_winner', winner);
+      });
+      
+      games.set(roomId, bingoGame);
+      playerToGame.set(socket.id, roomId);
+      socket.join(roomId);
+      
+      const profile = await getUserProfile(user.id);
+      io.to(socket.id).emit('bingo_room_created', { 
+        roomId, 
+        gameState: bingoGame.getGameState(),
+        profile: profile
+      });
+      io.to('lobby').emit('rooms_update', getBingoRoomsSummary());
+      
+      // Auto-start game after 30 seconds
+      setTimeout(async () => {
+        if (games.has(roomId)) {
+          await bingoGame.startNewHand();
+          io.to(roomId).emit('bingo_game_started', { gameState: bingoGame.getGameState() });
+        }
+      }, 30000);
+      
+    } catch (error) {
+      console.error('Error creating Bingo room:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to create Bingo room' });
+    }
+  });
+  
+  // Join Bingo room
+  socket.on('join_bingo_room', async (data = {}) => {
+    const { roomId } = data;
+    const bingoGame = games.get(roomId);
+    
+    if (!bingoGame || bingoGame.getGameType() !== 'BINGO') {
+      return io.to(socket.id).emit('error', { message: 'Bingo room not found' });
+    }
+    
+    const user = socket.request?.session?.passport?.user;
+    if (!user) {
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to play Bingo' });
+    }
+    
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      await bingoGame.addPlayer(dbUser.id);
+      
+      playerToGame.set(socket.id, roomId);
+      socket.join(roomId);
+      
+      const profile = await getUserProfile(user.id);
+      io.to(socket.id).emit('bingo_room_joined', { 
+        roomId, 
+        gameState: bingoGame.getGameState(),
+        cards: bingoGame.getPlayerCards(dbUser.id),
+        profile: profile
+      });
+      io.to(roomId).emit('bingo_player_joined', { gameState: bingoGame.getGameState() });
+    } catch (error) {
+      console.error('Error joining Bingo room:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to join Bingo room' });
+    }
+  });
+  
+  // Buy Bingo card
+  socket.on('buy_bingo_card', async (data = {}) => {
+    const roomId = playerToGame.get(socket.id);
+    const bingoGame = games.get(roomId);
+    
+    if (!bingoGame || bingoGame.getGameType() !== 'BINGO') {
+      return io.to(socket.id).emit('error', { message: 'Not in a Bingo room' });
+    }
+    
+    const user = socket.request?.session?.passport?.user;
+    if (!user) return;
+    
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      const success = await bingoGame.placeBet(dbUser.id, 1);
+      
+      if (success) {
+        const cards = bingoGame.getPlayerCards(dbUser.id);
+        io.to(socket.id).emit('bingo_card_purchased', { 
+          cards,
+          gameState: bingoGame.getGameState()
+        });
+        io.to(roomId).emit('bingo_pot_updated', { gameState: bingoGame.getGameState() });
+      } else {
+        io.to(socket.id).emit('error', { message: 'Cannot buy card (insufficient chips, max cards reached, or wrong phase)' });
+      }
+    } catch (error) {
+      console.error('Error buying Bingo card:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to buy Bingo card' });
+    }
+  });
+  
+  // Claim BINGO
+  socket.on('claim_bingo', async (data = {}) => {
+    const roomId = playerToGame.get(socket.id);
+    const bingoGame = games.get(roomId);
+    
+    if (!bingoGame || bingoGame.getGameType() !== 'BINGO') {
+      return io.to(socket.id).emit('error', { message: 'Not in a Bingo room' });
+    }
+    
+    const user = socket.request?.session?.passport?.user;
+    if (!user) return;
+    
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      const { cardId } = data;
+      
+      const result = await bingoGame.claimBingo(dbUser.id, cardId);
+      
+      if (result.valid) {
+        const profile = await getUserProfile(user.id);
+        io.to(roomId).emit('bingo_winner', {
+          winner: {
+            userId: dbUser.id,
+            name: profile.nickname,
+            photo: profile.avatar,
+            cardId,
+            pattern: result.pattern
+          },
+          gameState: bingoGame.getGameState()
+        });
+      } else {
+        io.to(socket.id).emit('error', { message: 'Invalid BINGO claim - pattern not complete!' });
+      }
+    } catch (error) {
+      console.error('Error claiming BINGO:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to claim BINGO' });
     }
   });
 

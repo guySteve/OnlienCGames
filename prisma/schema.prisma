@@ -117,16 +117,75 @@ model User {
   publicWins            Int               @default(0)
   biggestWin            BigInt            @default(0)
   biggestWinGameId      String?
+  isAdmin               Boolean           @default(false)
+  isBanned              Boolean           @default(false)
+  bannedAt              DateTime?
+  bannedBy              String?
+  banReason             String?
+  warnCount             Int               @default(0)
+  lastWarningAt         DateTime?
+  ipAddress             String?
+  userAgent             String?
   GameSession           GameSession[]
   Transaction           Transaction[]
   UserAchievement       UserAchievement[]
   friendsInitiated      Friendship[]      @relation("FriendInitiator")
   friendsReceived       Friendship[]      @relation("FriendReceiver")
+  ChatMessage           ChatMessage[]
+  moderationLogs        ModerationLog[]   @relation("ModeratedUser")
+  moderationActions     ModerationLog[]   @relation("Moderator")
 
   @@index([currentStreak])
   @@index([email])
   @@index([googleId])
   @@index([lastLogin])
+  @@index([isBanned])
+  @@index([isAdmin])
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  userId      String
+  roomId      String?
+  message     String   @db.Text
+  isFiltered  Boolean  @default(false)
+  isFlagged   Boolean  @default(false)
+  flagReason  String?
+  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([roomId])
+  @@index([createdAt])
+  @@index([isFlagged])
+}
+
+model ModerationLog {
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+  moderatorId   String?
+  userId        String
+  action        ModAction
+  reason        String?
+  details       Json?
+  autoModerated Boolean        @default(false)
+  Moderator     User?          @relation("Moderator", fields: [moderatorId], references: [id])
+  User          User           @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([moderatorId])
+  @@index([createdAt])
+  @@index([action])
+}
+
+enum ModAction {
+  WARN
+  MUTE
+  KICK
+  BAN
+  UNBAN
+  MESSAGE_DELETED
+  AUTO_FILTER
 }
 
 model Friendship {
@@ -186,6 +245,7 @@ model UserAchievement {
 enum GameType {
   WAR
   BLACKJACK
+  BINGO
 }
 
 enum HandResult {
@@ -212,6 +272,7 @@ enum TransactionType {
   CORRECTION
   TRANSFER_SENT
   TRANSFER_RECEIVED
+  TIP
 }
 
 enum VipTier {

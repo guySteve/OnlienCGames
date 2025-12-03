@@ -76,6 +76,58 @@ function initSocket() {
   socket.on('room_message', addRoomMessage);
   socket.on('player_disconnected', (data) => { gameState = data.gameState; updateMySeats(); renderTable(); addRoomMessage({from:'System', msg:'A player disconnected', at:Date.now()}); });
   socket.on('error', (e) => alert(e.message));
+  
+  // Bingo events
+  socket.on('bingo_room_created', (data) => {
+    roomId = data.roomId;
+    bingoGameState = data.gameState;
+    bingoCards = [];
+    showBingoGame();
+  });
+  socket.on('bingo_room_joined', (data) => {
+    roomId = data.roomId;
+    bingoGameState = data.gameState;
+    bingoCards = data.cards || [];
+    showBingoGame();
+    renderBingoCards();
+  });
+  socket.on('bingo_card_purchased', (data) => {
+    bingoCards = data.cards;
+    bingoGameState = data.gameState;
+    renderBingoCards();
+    auth.user.chipBalance -= 1; // Optimistic update
+    renderAuth();
+  });
+  socket.on('bingo_ball_called', handleBingoBallCalled);
+  socket.on('bingo_game_started', (data) => {
+    bingoGameState = data.gameState;
+    alert('Bingo game starting! Get ready!');
+  });
+  socket.on('bingo_winner', (data) => {
+    bingoGameState = data.gameState;
+    alert(`BINGO! ${data.winner.name} wins with ${data.winner.pattern}!`);
+  });
+  socket.on('bingo_pot_updated', (data) => {
+    bingoGameState = data.gameState;
+  });
+  
+  // Admin events
+  socket.on('banned', (data) => {
+    alert(`You have been banned. Reason: ${data.reason}`);
+    window.location.href = '/';
+  });
+  
+  socket.on('admin_broadcast', (data) => {
+    showNotification(`📢 Admin Announcement: ${data.message}`);
+  });
+  
+  socket.on('chat_filtered', (data) => {
+    if (data.severity === 'low') {
+      console.warn('Your message was filtered:', data.reason);
+    } else {
+      showNotification(`⚠️ ${data.reason}`);
+    }
+  });
 }
 
 // Update mySeats array based on current gameState
@@ -94,16 +146,27 @@ function renderAuth() {
   const btn = document.getElementById('loginBtn');
   const prof = document.getElementById('profile');
   const editBtn = document.getElementById('editProfileBtn');
+  const adminBtn = document.getElementById('adminBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  
   if (auth.authenticated) {
     btn.style.display = 'none';
     prof.style.display = 'flex';
     prof.querySelector('img').src = auth.user.customAvatar || auth.user.photo || '';
     prof.querySelector('span').textContent = auth.user.nickname || auth.user.displayName;
     if (editBtn) editBtn.style.display = 'inline-block';
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    
+    // Show admin button if user is admin
+    if (adminBtn && auth.user.isAdmin) {
+      adminBtn.style.display = 'inline-block';
+    }
   } else {
     btn.style.display = 'inline-block';
     prof.style.display = 'none';
     if (editBtn) editBtn.style.display = 'none';
+    if (adminBtn) adminBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
   }
 }
 
@@ -887,10 +950,295 @@ function handleChipsReceived(data) {
   fetchMe();
 }
 
+// ========== BINGO FUNCTIONALITY ==========
+
+let bingoCards = [];
+let bingoGameState = null;
+let bingoVoice = null;
+
+// Initialize speech synthesis for Bingo caller
+function initBingoVoice() {
+  if (!window.speechSynthesis) {
+    console.warn('Speech synthesis not supported');
+    return;
+  }
+  
+  // Wait for voices to load
+  speechSynthesis.onvoiceschanged = () => {
+    const voices = speechSynthesis.getVoices();
+    // Try to find a female voice
+    bingoVoice = voices.find(v => v.name.includes('Female') || v.name.includes('female') || v.lang.startsWith('en'));
+    if (!bingoVoice) bingoVoice = voices[0];
+  };
+}
+
+// Announce ball with smoky voice
+function announceBall(ball, letter) {
+  if (!bingoVoice || !window.speechSynthesis) return;
+  
+  const utterance = new SpeechSynthesisUtterance(`${letter} ${ball}`);
+  utterance.voice = bingoVoice;
+  utterance.pitch = 0.7; // Lower pitch for "smoky" sound
+  utterance.rate = 0.8; // Slower, deliberate pace
+  utterance.volume = 1.0;
+  
+  speechSynthesis.speak(utterance);
+}
+
+// Render Bingo card
+function renderBingoCard(card, container) {
+  const cardEl = document.createElement('div');
+  cardEl.className = 'bingo-card';
+  cardEl.dataset.cardId = card.id;
+  cardEl.onclick = () => selectBingoCard(card.id);
+  
+  // Header with BINGO letters
+  const header = document.createElement('div');
+  header.className = 'bingo-header';
+  ['B', 'I', 'N', 'G', 'O'].forEach(letter => {
+    const letterEl = document.createElement('div');
+    letterEl.className = 'bingo-letter';
+    letterEl.textContent = letter;
+    header.appendChild(letterEl);
+  });
+  cardEl.appendChild(header);
+  
+  // Grid
+  const grid = document.createElement('div');
+  grid.className = 'bingo-grid';
+  
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 5; col++) {
+      const cell = document.createElement('div');
+      cell.className = 'bingo-cell';
+      
+      const num = card.grid[col][row];
+      if (num === 0) {
+        cell.classList.add('free-space');
+        cell.textContent = 'FREE';
+      } else {
+        cell.textContent = num;
+      }
+      
+      if (card.marked[col][row]) {
+        cell.classList.add('marked');
+      }
+      
+      grid.appendChild(cell);
+    }
+  }
+  cardEl.appendChild(grid);
+  
+  container.appendChild(cardEl);
+}
+
+let selectedBingoCard = null;
+
+// Select a Bingo card for claiming
+function selectBingoCard(cardId) {
+  selectedBingoCard = cardId;
+  // Highlight selected card
+  document.querySelectorAll('.bingo-card').forEach(card => {
+    if (card.dataset.cardId === cardId) {
+      card.classList.add('selected');
+    } else {
+      card.classList.remove('selected');
+    }
+  });
+}
+
+// Handle Bingo ball called
+function handleBingoBallCalled(data) {
+  bingoGameState = data.gameState;
+  announceBall(data.ball, data.letter);
+  
+  // Update big ball display
+  const bigBall = document.getElementById('bingoBigBall');
+  if (bigBall) {
+    bigBall.textContent = `${data.letter}-${data.ball}`;
+    bigBall.classList.add('animate-ball');
+    setTimeout(() => bigBall.classList.remove('animate-ball'), 1000);
+  }
+  
+  // Re-render cards to show marked numbers
+  renderBingoCards();
+}
+
+// Render all player's Bingo cards
+function renderBingoCards() {
+  const container = document.getElementById('bingoCardsContainer');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  bingoCards.forEach(card => renderBingoCard(card, container));
+}
+
+// Claim BINGO
+function claimBingo() {
+  if (!socket || !roomId) return;
+  if (!selectedBingoCard) {
+    alert('Please select a card first by clicking on it!');
+    return;
+  }
+  socket.emit('claim_bingo', { cardId: selectedBingoCard });
+}
+
+// Buy Bingo card
+function buyBingoCard() {
+  if (!socket || !roomId) return;
+  if (bingoGameState && bingoGameState.phase !== 'BUYING') {
+    alert('Can only buy cards during buying phase');
+    return;
+  }
+  socket.emit('buy_bingo_card', {});
+}
+
+// Create Bingo room
+function createBingoRoom() {
+  if (!auth.authenticated) {
+    alert('Please log in to play Bingo');
+    return;
+  }
+  socket.emit('create_bingo_room', {});
+}
+
+// Show Bingo game screen
+function showBingoGame() {
+  document.getElementById('lobbyScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('bingoScreen').style.display = 'block';
+  renderBingoUI();
+}
+
+// Leave Bingo room
+function leaveBingoRoom() {
+  if (roomId) {
+    socket.emit('leave_room', { roomId });
+  }
+  roomId = null;
+  bingoCards = [];
+  bingoGameState = null;
+  showLobby();
+}
+
+// Render Bingo UI
+function renderBingoUI() {
+  if (!bingoGameState) return;
+  
+  // Update pot and phase
+  document.getElementById('bingoPot').textContent = `Pot: ${bingoGameState.pot}`;
+  document.getElementById('bingoPhase').textContent = `Phase: ${bingoGameState.phase}`;
+  
+  // Update called numbers display
+  const calledNumbersEl = document.getElementById('bingoCalledNumbers');
+  if (calledNumbersEl && bingoGameState.drawnNumbers) {
+    calledNumbersEl.innerHTML = bingoGameState.drawnNumbers
+      .slice(-10) // Show last 10
+      .map(n => `<span class="called-number">${getBingoLetterFromNum(n)}-${n}</span>`)
+      .join('');
+  }
+  
+  // Enable/disable BINGO button
+  const bingoBtn = document.getElementById('bingoButton');
+  if (bingoBtn) {
+    bingoBtn.disabled = bingoGameState.phase !== 'PLAYING';
+  }
+  
+  renderBingoCards();
+}
+
+// Helper to get Bingo letter from number
+function getBingoLetterFromNum(num) {
+  if (num >= 1 && num <= 15) return 'B';
+  if (num >= 16 && num <= 30) return 'I';
+  if (num >= 31 && num <= 45) return 'N';
+  if (num >= 46 && num <= 60) return 'G';
+  if (num >= 61 && num <= 75) return 'O';
+  return '';
+}
+
+// ========== INFO MODAL FUNCTIONALITY ==========
+
+let currentInfoTab = 'rules';
+
+function openInfoModal() {
+  document.getElementById('infoModal').style.display = 'flex';
+  showInfoTab('rules');
+}
+
+function closeInfoModal() {
+  document.getElementById('infoModal').style.display = 'none';
+}
+
+function showInfoTab(tabName) {
+  currentInfoTab = tabName;
+  
+  // Update tab buttons
+  const tabs = document.querySelectorAll('.info-tab-btn');
+  tabs.forEach(tab => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  
+  // Show selected content
+  const contents = document.querySelectorAll('.info-tab-content');
+  contents.forEach(content => {
+    if (content.dataset.tab === tabName) {
+      content.style.display = 'block';
+    } else {
+      content.style.display = 'none';
+    }
+  });
+}
+
+async function submitTip() {
+  const amount = Number(document.getElementById('tipAmount').value);
+  const note = document.getElementById('tipNote').value;
+  
+  if (!amount || amount <= 0) {
+    alert('Please enter a valid amount');
+    return;
+  }
+  
+  if (amount < 1) {
+    alert('Minimum tip is 1 chip');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/tip-moe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, note })
+    });
+    
+    const data = await response.json();
+    
+    if (data.ok) {
+      auth.user.chipBalance = data.newBalance;
+      renderAuth();
+      alert(data.message);
+      document.getElementById('tipAmount').value = '';
+      document.getElementById('tipNote').value = '';
+      closeInfoModal();
+    } else {
+      alert(data.error || 'Failed to send tip');
+    }
+  } catch (e) {
+    console.error('Tip error:', e);
+    alert('Error sending tip');
+  }
+}
+
 window.addEventListener('load', () => {
-  fetchMe(); 
-  showLobby(); 
-  initSocket(); 
+  fetchMe();
+  showLobby();
+  initSocket();
+  initBingoVoice();
+  
   if (auth.authenticated) {
     loadFriends();
     loadFriendRequests();
