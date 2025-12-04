@@ -14,6 +14,14 @@ const { getOrCreateUser, checkDailyReset, updateUserChips, canUserPlay, prisma }
 const { getRoomKey, encryptMessage, decryptMessage, sanitizeMessage, deleteRoomKey } = require('./src/encryption');
 const { AutoModerationService } = require('./src/services/AutoModerationService');
 
+// Social 2.0 Services
+const { initSyndicateService, getSyndicateService } = require('./src/services/SyndicateService');
+const { initReferralService, getReferralService } = require('./src/services/ReferralService');
+const { initGenerosityService, getGenerosityService } = require('./src/services/GenerosityService');
+const { initEngagementServiceV2, getEngagementServiceV2 } = require('./src/services/EngagementServiceV2');
+const { createDividendDistributor } = require('./src/jobs/DividendDistributor');
+const { createHappyHourScheduler } = require('./src/jobs/HappyHourScheduler');
+
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
@@ -1052,6 +1060,232 @@ app.post('/api/admin/broadcast', isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Broadcast error:', error);
     res.status(500).json({ error: 'Failed to broadcast' });
+  }
+});
+
+// =============================================================================
+// SOCIAL 2.0 API ROUTES
+// =============================================================================
+
+// --- Syndicate Routes ---
+app.get('/api/syndicate/my', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const membership = await getSyndicateService().getUserSyndicate(dbUser.id);
+    res.json(membership || null);
+  } catch (error) {
+    console.error('Get syndicate error:', error);
+    res.status(500).json({ error: 'Failed to get syndicate' });
+  }
+});
+
+app.get('/api/syndicates', async (req, res) => {
+  try {
+    const { query, page, limit, sortBy } = req.query;
+    const result = await getSyndicateService().searchSyndicates(query, {
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      sortBy: sortBy || 'weeklyXP'
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Search syndicates error:', error);
+    res.status(500).json({ error: 'Failed to search syndicates' });
+  }
+});
+
+app.get('/api/syndicate/:id', async (req, res) => {
+  try {
+    const dbUser = req.user ? await prisma.user.findUnique({ where: { googleId: req.user.id } }) : null;
+    const syndicate = await getSyndicateService().getSyndicate(req.params.id, dbUser?.id);
+    if (!syndicate) return res.status(404).json({ error: 'Syndicate not found' });
+    res.json(syndicate);
+  } catch (error) {
+    console.error('Get syndicate error:', error);
+    res.status(500).json({ error: 'Failed to get syndicate' });
+  }
+});
+
+app.post('/api/syndicate/create', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const { name, tag, description, isPublic, minLevelToJoin } = req.body;
+    const result = await getSyndicateService().createSyndicate(dbUser.id, name, tag, {
+      description, isPublic, minLevelToJoin
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Create syndicate error:', error);
+    res.status(500).json({ error: 'Failed to create syndicate' });
+  }
+});
+
+app.post('/api/syndicate/join/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const result = await getSyndicateService().joinSyndicate(dbUser.id, req.params.id);
+    res.json(result);
+  } catch (error) {
+    console.error('Join syndicate error:', error);
+    res.status(500).json({ error: 'Failed to join syndicate' });
+  }
+});
+
+app.post('/api/syndicate/leave', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const result = await getSyndicateService().leaveSyndicate(dbUser.id);
+    res.json(result);
+  } catch (error) {
+    console.error('Leave syndicate error:', error);
+    res.status(500).json({ error: 'Failed to leave syndicate' });
+  }
+});
+
+app.post('/api/syndicate/donate', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const { amount } = req.body;
+    const result = await getSyndicateService().donateToTreasury(dbUser.id, parseInt(amount));
+    res.json(result);
+  } catch (error) {
+    console.error('Donate error:', error);
+    res.status(500).json({ error: 'Failed to donate' });
+  }
+});
+
+app.get('/api/syndicate/leaderboard', async (req, res) => {
+  try {
+    const { sortBy, limit } = req.query;
+    const leaderboard = await getSyndicateService().getSyndicateLeaderboard(sortBy, parseInt(limit) || 50);
+    res.json(leaderboard);
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to get leaderboard' });
+  }
+});
+
+// --- Referral Routes ---
+app.get('/api/referral/code', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const code = await getReferralService().getUserReferralCode(dbUser.id);
+    res.json(code);
+  } catch (error) {
+    console.error('Get referral code error:', error);
+    res.status(500).json({ error: 'Failed to get referral code' });
+  }
+});
+
+app.get('/api/referral/stats', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const stats = await getReferralService().getReferralStats(dbUser.id);
+    res.json(stats);
+  } catch (error) {
+    console.error('Get referral stats error:', error);
+    res.status(500).json({ error: 'Failed to get referral stats' });
+  }
+});
+
+app.post('/api/referral/validate', async (req, res) => {
+  try {
+    const { code } = req.body;
+    const result = await getReferralService().validateCode(code);
+    res.json(result);
+  } catch (error) {
+    console.error('Validate referral error:', error);
+    res.status(500).json({ error: 'Failed to validate code' });
+  }
+});
+
+app.get('/api/referral/leaderboard', async (req, res) => {
+  try {
+    const { period, limit } = req.query;
+    const leaderboard = await getReferralService().getReferralLeaderboard(period || 'all', parseInt(limit) || 20);
+    res.json(leaderboard);
+  } catch (error) {
+    console.error('Referral leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to get leaderboard' });
+  }
+});
+
+// --- Generosity Routes ---
+app.post('/api/generosity/tip', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const { amount, message, isAnonymous } = req.body;
+    const result = await getGenerosityService().tipTheHouse(dbUser.id, parseInt(amount), { message, isAnonymous });
+    res.json(result);
+  } catch (error) {
+    console.error('Tip error:', error);
+    res.status(500).json({ error: 'Failed to tip' });
+  }
+});
+
+app.get('/api/generosity/stats', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const stats = await getGenerosityService().getUserGenerosityStats(dbUser.id);
+    res.json(stats);
+  } catch (error) {
+    console.error('Get generosity stats error:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+app.get('/api/generosity/leaderboard', async (req, res) => {
+  try {
+    const leaderboard = await getGenerosityService().getWeeklyLeaderboard(20);
+    res.json(leaderboard);
+  } catch (error) {
+    console.error('Generosity leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to get leaderboard' });
+  }
+});
+
+app.get('/api/generosity/feed', async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const feed = await getGenerosityService().getRecentTips(parseInt(limit) || 20);
+    res.json(feed);
+  } catch (error) {
+    console.error('Tip feed error:', error);
+    res.status(500).json({ error: 'Failed to get feed' });
+  }
+});
+
+// --- Happy Hour Routes ---
+app.get('/api/happy-hour/status', async (req, res) => {
+  try {
+    const engagement = getEngagementServiceV2();
+    const active = await engagement.getActiveHappyHour();
+    res.json({ active: !!active, ...active });
+  } catch (error) {
+    console.error('Happy hour status error:', error);
+    res.status(500).json({ error: 'Failed to get status' });
+  }
+});
+
+// --- Streak Routes (Enhanced) ---
+app.get('/api/streak/status', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { googleId: req.user.id } });
+    const status = await getEngagementServiceV2().getStreakStatus(dbUser.id);
+    res.json(status);
+  } catch (error) {
+    console.error('Streak status error:', error);
+    res.status(500).json({ error: 'Failed to get streak status' });
   }
 });
 
@@ -2139,6 +2373,36 @@ function startServer() {
           if (!dbConnected) {
             console.warn('⚠️  Database connection failed. Some features may not work.');
           } else {
+            // Initialize Social 2.0 Services
+            try {
+              const redis = redisClient || {
+                setex: () => Promise.resolve(),
+                get: () => Promise.resolve(null),
+                del: () => Promise.resolve(),
+                lpush: () => Promise.resolve(),
+                ltrim: () => Promise.resolve(),
+                expire: () => Promise.resolve(),
+                incrby: () => Promise.resolve(),
+                publish: () => Promise.resolve()
+              };
+
+              initSyndicateService(prisma, redis, io);
+              initEngagementServiceV2(prisma, redis, getSyndicateService());
+              initReferralService(prisma, redis, getSyndicateService());
+              initGenerosityService(prisma, redis, io);
+
+              // Start background jobs
+              const dividendDistributor = createDividendDistributor(prisma, redis, getSyndicateService(), io);
+              dividendDistributor.start();
+
+              const happyHourScheduler = createHappyHourScheduler(prisma, redis, io);
+              happyHourScheduler.start();
+
+              console.log('✅ Social 2.0 services initialized');
+            } catch (serviceErr) {
+              console.error('⚠️  Social 2.0 services failed to initialize:', serviceErr.message);
+            }
+
             console.log('✅ All systems ready');
           }
         } catch (dbErr) {
