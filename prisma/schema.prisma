@@ -135,6 +135,23 @@ model User {
   moderationLogs        ModerationLog[]   @relation("ModeratedUser")
   moderationActions     ModerationLog[]   @relation("Moderator")
 
+  // Social 2.0 Relations
+  syndicateMembership   SyndicateMember?
+  referralCodes         ReferralCode[]
+  referralsGiven        Referral[]        @relation("Referrer")
+  referralReceived      Referral?         @relation("Referee")
+  tipRecords            TipRecord[]
+  patronBadges          UserPatronBadge[]
+
+  // Referral tracking
+  referredBy            String?           // User ID who referred this user
+  referralCode          String?           // Code used during signup
+
+  // Generosity stats
+  totalTipped           BigInt            @default(0)
+  tipStreak             Int               @default(0)
+  lastTipDate           DateTime?
+
   @@index([currentStreak])
   @@index([email])
   @@index([googleId])
@@ -281,4 +298,325 @@ enum VipTier {
   GOLD
   PLATINUM
   DIAMOND
+}
+
+// =============================================================================
+// SOCIAL 2.0: SYNDICATE (GUILD) SYSTEM
+// =============================================================================
+
+model Syndicate {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Identity
+  name            String            @unique @db.VarChar(30)
+  tag             String            @unique @db.VarChar(6) // e.g., [ACES]
+  description     String?           @db.VarChar(500)
+  iconUrl         String?           @db.VarChar(500)
+  bannerUrl       String?           @db.VarChar(500)
+
+  // Treasury
+  treasuryBalance BigInt            @default(0)
+  lifetimeEarnings BigInt           @default(0)
+  taxRate         Float             @default(0.01) // 1% default tax
+
+  // Stats
+  totalMembers    Int               @default(1)
+  totalWins       BigInt            @default(0)
+  weeklyXP        Int               @default(0)
+
+  // Settings
+  isPublic        Boolean           @default(true)
+  minLevelToJoin  Int               @default(1)
+  maxMembers      Int               @default(50)
+
+  // Relationships
+  members         SyndicateMember[]
+  transactions    SyndicateTransaction[]
+  dividends       SyndicateDividend[]
+  invites         SyndicateInvite[]
+
+  @@index([name])
+  @@index([isPublic, minLevelToJoin])
+  @@index([weeklyXP])
+}
+
+model SyndicateMember {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  syndicateId     String
+  userId          String
+
+  // Role hierarchy: MEMBER < OFFICER < LEADER
+  role            SyndicateRole     @default(MEMBER)
+
+  // Contribution tracking
+  contributedChips BigInt           @default(0)
+  weeklyContribution BigInt         @default(0)
+  dividendsReceived BigInt          @default(0)
+
+  // Activity
+  lastActive      DateTime          @default(now())
+  gamesPlayed     Int               @default(0)
+
+  syndicate       Syndicate         @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([syndicateId, userId])
+  @@index([userId])
+  @@index([syndicateId, role])
+  @@index([syndicateId, weeklyContribution])
+}
+
+model SyndicateTransaction {
+  id              String                    @id @default(cuid())
+  createdAt       DateTime                  @default(now())
+
+  syndicateId     String
+  userId          String?                   // null for system transactions
+
+  amount          BigInt
+  type            SyndicateTransactionType
+  balanceBefore   BigInt
+  balanceAfter    BigInt
+
+  description     String?
+  metadata        Json?
+
+  syndicate       Syndicate                 @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+
+  @@index([syndicateId, createdAt])
+  @@index([userId])
+  @@index([type])
+}
+
+model SyndicateDividend {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  syndicateId     String
+
+  // Distribution details
+  totalAmount     BigInt
+  memberCount     Int
+  amountPerMember BigInt
+
+  // Eligibility criteria snapshot
+  minContribution BigInt            @default(0)
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  metadata        Json?             // Contains per-member breakdown
+
+  syndicate       Syndicate         @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+
+  @@index([syndicateId, createdAt])
+}
+
+model SyndicateInvite {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  syndicateId     String
+  fromUserId      String
+  toUserId        String
+
+  status          InviteStatus      @default(PENDING)
+  expiresAt       DateTime
+
+  syndicate       Syndicate         @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId, status])
+  @@index([syndicateId])
+}
+
+enum SyndicateRole {
+  MEMBER
+  OFFICER
+  LEADER
+}
+
+enum SyndicateTransactionType {
+  TAX_CONTRIBUTION      // Auto-deducted from big wins
+  MANUAL_DONATION       // Player voluntary donation
+  DIVIDEND_PAYOUT       // Weekly distribution to members
+  LEADER_WITHDRAWAL     // Leader withdraws for events
+  REFERRAL_BONUS        // Bonus from member referrals
+  WEEKLY_RESET          // Weekly contribution reset
+}
+
+// =============================================================================
+// SOCIAL 2.0: REFERRAL SYSTEM
+// =============================================================================
+
+model Referral {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  referrerId      String            // User who shared the code
+  refereeId       String            @unique // New user who signed up
+
+  // Referral code used
+  code            String
+
+  // Syndicate bonus (if referrer is in a syndicate)
+  syndicateId     String?
+  syndicateBonusPaid BigInt         @default(0)
+
+  // Rewards tracking
+  referrerReward  BigInt            @default(0)
+  refereeReward   BigInt            @default(0)
+
+  // Milestones
+  refereeFirstGame DateTime?
+  refereeLevelFive DateTime?        // Unlocks bonus rewards
+
+  status          ReferralStatus    @default(PENDING)
+
+  referrer        User              @relation("Referrer", fields: [referrerId], references: [id])
+  referee         User              @relation("Referee", fields: [refereeId], references: [id])
+
+  @@index([referrerId])
+  @@index([code])
+  @@index([syndicateId])
+}
+
+model ReferralCode {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  userId          String
+  code            String            @unique @db.VarChar(12)
+
+  // Usage tracking
+  usageCount      Int               @default(0)
+  maxUses         Int?              // null = unlimited
+
+  // Rewards
+  referrerBonus   Int               @default(500)   // Chips for referrer
+  refereeBonus    Int               @default(1000)  // Chips for new user
+  syndicateBonus  Int               @default(100)   // Chips to syndicate treasury
+
+  isActive        Boolean           @default(true)
+  expiresAt       DateTime?
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+}
+
+enum ReferralStatus {
+  PENDING         // Signed up but not played
+  ACTIVATED       // Played first game
+  COMPLETED       // Reached level 5
+  EXPIRED         // Never activated within 7 days
+}
+
+// =============================================================================
+// SOCIAL 2.0: GENEROSITY LEADERBOARD (TIP THE HOUSE)
+// =============================================================================
+
+model TipRecord {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  userId          String
+  amount          Int
+
+  // Visibility
+  isAnonymous     Boolean           @default(false)
+  message         String?           @db.VarChar(100)
+
+  // Period tracking for leaderboards
+  weekNumber      Int               // ISO week number
+  yearNumber      Int
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([yearNumber, weekNumber])
+  @@index([createdAt])
+}
+
+model PatronBadge {
+  id              String            @id @default(cuid())
+
+  // Badge definition
+  key             String            @unique
+  name            String
+  description     String
+  iconUrl         String
+  tier            PatronTier
+
+  // Requirements
+  minTotalTips    BigInt            @default(0)
+  minWeeklyTips   Int               @default(0)
+  minTipStreak    Int               @default(0)
+
+  // Display
+  frameColor      String?           // CSS color for avatar frame
+  chatBadge       String?           // Emoji/icon shown in chat
+
+  @@index([tier])
+}
+
+model UserPatronBadge {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  userId          String
+  badgeId         String
+
+  // For time-limited badges
+  expiresAt       DateTime?
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge           PatronBadge       @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+enum PatronTier {
+  SUPPORTER       // 100+ total tips
+  BENEFACTOR      // 1000+ total tips
+  PHILANTHROPIST  // 5000+ total tips
+  LEGEND          // 25000+ total tips
+}
+
+// =============================================================================
+// SOCIAL 2.0: HAPPY HOUR ENHANCEMENTS
+// =============================================================================
+
+model HappyHourSchedule {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+
+  // Scheduling
+  dayOfWeek       Int?              // 0-6 (null = any day)
+  hourOfDay       Int?              // 0-23 (null = random)
+
+  // Event config
+  durationMinutes Int               @default(60)
+  multiplier      Float             @default(1.5)
+  bonusType       HappyHourBonus    @default(XP_BOOST)
+
+  // Randomization
+  isRandom        Boolean           @default(false)
+  minGapHours     Int               @default(4) // Min hours between random events
+
+  isActive        Boolean           @default(true)
+
+  @@index([isActive, dayOfWeek, hourOfDay])
+}
+
+enum HappyHourBonus {
+  XP_BOOST        // Multiplied XP
+  CHIP_BOOST      // Multiplied chip wins
+  MYSTERY_BOOST   // Increased mystery drop rate
+  STREAK_PROTECT  // Streak cannot be lost
 }
