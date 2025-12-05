@@ -9,10 +9,12 @@
  * - Safe area inset support for notched devices
  * - Visual feedback (glow effects) instead of text overlays
  * - Chip animations for wins/losses
+ * - Immersive sound effects for player events
  */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useGameAnimations } from '../hooks/useGameAnimations';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 
 // Card component with no framer-motion
 const Card = ({ rank, suit, hidden, index = 0, size = 'normal', isWinner, isLoser, cardRef, fourColorMode = false }) => {
@@ -106,7 +108,7 @@ const ChipStack = ({ amount, chipRef }) => {
   );
 };
 
-// Player Seat component
+// Player Seat component with entrance animation
 const PlayerSeat = ({
   seat,
   seatIndex,
@@ -117,9 +119,20 @@ const PlayerSeat = ({
   isWinner,
   isLoser,
   seatRef,
-  cardRef
+  cardRef,
+  isNewlyJoined = false
 }) => {
   const isEmpty = !seat || seat.empty;
+  const [showEntrance, setShowEntrance] = useState(isNewlyJoined);
+
+  // Clear entrance animation after it plays
+  useEffect(() => {
+    if (isNewlyJoined) {
+      setShowEntrance(true);
+      const timer = setTimeout(() => setShowEntrance(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isNewlyJoined]);
 
   // Position styles for curved table layout
   const positionStyles = {
@@ -148,6 +161,11 @@ const PlayerSeat = ({
     );
   }
 
+  // Entrance animation classes
+  const entranceClasses = showEntrance 
+    ? 'animate-player-enter scale-100 opacity-100' 
+    : 'scale-100 opacity-100';
+
   return (
     <div
       ref={seatRef}
@@ -156,14 +174,24 @@ const PlayerSeat = ({
         ${isMe ? 'z-20' : 'z-10'}
         ${isWinner ? 'scale-105' : ''}
         ${isLoser ? 'opacity-70 scale-95' : ''}
+        ${entranceClasses}
       `}
-      style={positionStyles[seatIndex]}
+      style={{
+        ...positionStyles[seatIndex],
+        animation: showEntrance ? 'playerEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'
+      }}
     >
+      {/* Entrance glow effect */}
+      {showEntrance && (
+        <div className="absolute inset-0 -m-4 rounded-full bg-yellow-400/30 animate-ping pointer-events-none" />
+      )}
+
       {/* Avatar */}
       <div className={`
         relative w-14 h-14 rounded-full overflow-hidden border-3
         ${isMe ? 'border-yellow-400 shadow-lg shadow-yellow-400/30' : 'border-white/30'}
         ${isWinner ? 'ring-4 ring-yellow-400 animate-pulse' : ''}
+        ${showEntrance ? 'ring-2 ring-emerald-400 ring-opacity-75' : ''}
       `}>
         {seat.photo ? (
           <img src={seat.photo} alt={seat.name} className="w-full h-full object-cover" />
@@ -235,11 +263,98 @@ const PlayerSeat = ({
 // Main GameTable Component
 const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
   const animations = useGameAnimations();
+  const { playPlayerJoin, playPlayerLeave, playCardDeal, playWin, playLose, initAudio } = useSoundEffects();
   const tableRef = useRef(null);
   const dealerCardRef = useRef(null);
   const potRef = useRef(null);
   const seatRefs = useRef([]);
   const cardRefs = useRef([]);
+  
+  // Track newly joined players for entrance animation
+  const [newlyJoinedSeats, setNewlyJoinedSeats] = useState(new Set());
+  const prevSeatsRef = useRef(null);
+  const prevCardCountRef = useRef(0);
+
+  // Initialize audio on first interaction
+  useEffect(() => {
+    const handleInteraction = () => {
+      initAudio();
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
+  }, [initAudio]);
+
+  // Detect new players joining and play sounds
+  useEffect(() => {
+    if (!gameState?.seats || !prevSeatsRef.current) {
+      prevSeatsRef.current = gameState?.seats?.map(s => s?.socketId || null) || [];
+      return;
+    }
+
+    const currentSeats = gameState.seats.map(s => s?.socketId || null);
+    const prevSeats = prevSeatsRef.current;
+    
+    const newJoins = new Set();
+    
+    currentSeats.forEach((socketId, idx) => {
+      const wasEmpty = !prevSeats[idx];
+      const isOccupied = socketId && !gameState.seats[idx]?.empty;
+      
+      if (wasEmpty && isOccupied) {
+        // New player joined this seat
+        newJoins.add(idx);
+        playPlayerJoin();
+      }
+    });
+
+    // Check for players leaving
+    prevSeats.forEach((socketId, idx) => {
+      const wasOccupied = socketId;
+      const isEmpty = !currentSeats[idx] || gameState.seats[idx]?.empty;
+      
+      if (wasOccupied && isEmpty) {
+        playPlayerLeave();
+      }
+    });
+
+    if (newJoins.size > 0) {
+      setNewlyJoinedSeats(newJoins);
+      // Clear the newly joined state after animation
+      setTimeout(() => setNewlyJoinedSeats(new Set()), 1500);
+    }
+
+    prevSeatsRef.current = currentSeats;
+  }, [gameState?.seats, playPlayerJoin, playPlayerLeave]);
+
+  // Play card deal sound when new cards are dealt
+  useEffect(() => {
+    // Count total cards on table
+    const dealerCards = gameState?.houseCard ? 1 : (gameState?.dealerHand?.length || 0);
+    const playerCards = gameState?.seats?.reduce((sum, seat) => {
+      if (seat?.card) return sum + 1;
+      if (seat?.hand?.length) return sum + seat.hand.length;
+      return sum;
+    }, 0) || 0;
+    
+    const currentCardCount = dealerCards + playerCards;
+    
+    // Play sound if more cards appeared
+    if (currentCardCount > prevCardCountRef.current && prevCardCountRef.current >= 0) {
+      const newCards = currentCardCount - prevCardCountRef.current;
+      // Play deal sound for each new card with slight delay
+      for (let i = 0; i < newCards; i++) {
+        setTimeout(() => playCardDeal(), i * 150);
+      }
+    }
+    
+    prevCardCountRef.current = currentCardCount;
+  }, [gameState?.houseCard, gameState?.dealerHand, gameState?.seats, playCardDeal]);
 
   // Determine winner/loser for visual feedback
   const getWinnerLoserState = useCallback(() => {
@@ -276,20 +391,22 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
     }
   }, [gameState?.pot, animations]);
 
-  // Handle win animations
+  // Handle win animations with sound
   useEffect(() => {
     Object.entries(winLoseState).forEach(([seatIdx, state]) => {
       const seatRef = seatRefs.current[seatIdx];
       if (state === 'winner' && seatRef) {
         animations.winGlow(seatRef);
+        playWin();
         // Confetti for winners
         const center = animations.getElementCenter(seatRef);
         animations.confetti(center, 30);
       } else if (state === 'loser' && seatRef) {
         animations.lossShake(seatRef);
+        playLose();
       }
     });
-  }, [winLoseState, animations]);
+  }, [winLoseState, animations, playWin, playLose]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -308,38 +425,77 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
       <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black/60" />
 
       {/* Top Bar - Dealer/House Area (Respects Safe Area) */}
-      <div className="absolute top-0 left-0 right-0 h-28 flex items-center justify-center z-30 pt-[var(--safe-area-top)]">
-        <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md rounded-2xl px-6 py-3 border border-yellow-500/20">
-          {/* Dealer Avatar */}
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-2xl shadow-lg">
-            {gameState?.gameType === 'BLACKJACK' ? '21' : '🎰'}
+      <div className="absolute top-0 left-0 right-0 h-36 flex items-center justify-center z-30 pt-[var(--safe-area-top)]">
+        <div className="flex flex-col items-center gap-2">
+          {/* Dealer Title */}
+          <div className="text-xs font-bold text-yellow-500/60 uppercase tracking-widest">
+            Dealer
           </div>
+          
+          <div className="flex items-center gap-4 bg-black/50 backdrop-blur-md rounded-2xl px-6 py-4 border border-yellow-500/30 shadow-2xl">
+            {/* Dealer Avatar - More prominent */}
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 flex items-center justify-center text-3xl shadow-xl border-2 border-yellow-300/50 animate-pulse-slow">
+                {gameState?.gameType === 'BLACKJACK' ? '🎩' : '🃏'}
+              </div>
+              {/* Online indicator */}
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-black animate-pulse" />
+            </div>
 
-          {/* Dealer Card */}
-          <div ref={dealerCardRef} className="flex gap-1">
-            {gameState?.houseCard ? (
-              <Card {...gameState.houseCard} size="compact" />
-            ) : gameState?.dealerHand?.length > 0 ? (
-              gameState.dealerHand.map((card, i) => (
-                <Card key={i} {...card} index={i} size="compact" />
-              ))
-            ) : (
-              <div className="w-12 h-16 rounded-lg border-2 border-dashed border-white/20 bg-black/30 flex items-center justify-center">
-                <span className="text-white/30 text-xs">DECK</span>
+            {/* Dealer Card(s) with dealing animation */}
+            <div ref={dealerCardRef} className="flex gap-2 min-w-[120px] justify-center">
+              {gameState?.houseCard ? (
+                <div className="animate-deal-card">
+                  <Card {...gameState.houseCard} size="normal" />
+                </div>
+              ) : gameState?.dealerHand?.length > 0 ? (
+                gameState.dealerHand.map((card, i) => (
+                  <div 
+                    key={i} 
+                    className="animate-deal-card"
+                    style={{ animationDelay: `${i * 150}ms` }}
+                  >
+                    <Card {...card} index={i} size="normal" hidden={i === 1 && gameState?.dealerHand?.length === 2 && gameState?.status !== 'RESOLVING'} />
+                  </div>
+                ))
+              ) : (
+                /* Card Shoe / Deck */
+                <div className="relative">
+                  <div className="w-16 h-22 rounded-lg bg-gradient-to-br from-blue-900 to-blue-950 border-2 border-blue-400/30 flex items-center justify-center shadow-xl">
+                    <div className="w-12 h-16 rounded border border-blue-400/20 bg-blue-900/50 flex items-center justify-center">
+                      <span className="text-blue-400/60 text-xs font-bold">DECK</span>
+                    </div>
+                  </div>
+                  {/* Stacked cards effect */}
+                  <div className="absolute -top-1 -left-1 w-16 h-22 rounded-lg bg-blue-950 border border-blue-400/20 -z-10" />
+                  <div className="absolute -top-2 -left-2 w-16 h-22 rounded-lg bg-blue-950/80 border border-blue-400/10 -z-20" />
+                </div>
+              )}
+            </div>
+
+            {/* Pot Display */}
+            {gameState?.pot > 0 && (
+              <div
+                ref={potRef}
+                className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full px-5 py-3 border border-yellow-500/40 shadow-lg shadow-yellow-500/10"
+              >
+                <span className="text-yellow-400 font-mono font-bold text-xl">
+                  ${gameState.pot.toLocaleString()}
+                </span>
+                <span className="text-yellow-500/60 text-xs ml-1">POT</span>
               </div>
             )}
           </div>
-
-          {/* Pot Display */}
-          {gameState?.pot > 0 && (
-            <div
-              ref={potRef}
-              className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full px-4 py-2 border border-yellow-500/30"
-            >
-              <span className="text-yellow-400 font-mono font-bold text-lg">
-                ${gameState.pot.toLocaleString()}
-              </span>
-              <span className="text-yellow-500/60 text-xs ml-1">POT</span>
+          
+          {/* Dealer Status Message */}
+          {gameState?.status && (
+            <div className="text-sm font-medium text-white/80 bg-black/40 px-4 py-1 rounded-full">
+              {gameState.status === 'PLACING_BETS' && '💰 Place your bets!'}
+              {gameState.status === 'DEALING' && '🎴 Dealing cards...'}
+              {gameState.status === 'PLAYER_TURN' && '🤔 Your turn'}
+              {gameState.status === 'DEALER_TURN' && '🎩 Dealer\'s turn'}
+              {gameState.status === 'RESOLVING' && '✨ Revealing...'}
+              {gameState.status === 'COMPLETE' && '🏆 Round complete!'}
             </div>
           )}
         </div>
@@ -348,7 +504,7 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
       {/* Center Table Area - Curved Felt */}
       <div
         ref={tableRef}
-        className="absolute inset-x-0 top-28 bottom-24 flex items-center justify-center"
+        className="absolute inset-x-0 top-36 bottom-24 flex items-center justify-center"
       >
         {/* Table Surface - Elliptical */}
         <div className="relative w-full max-w-4xl h-full mx-4">
@@ -388,6 +544,7 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
                 onLeave={onLeave}
                 isWinner={winLoseState[seatIndex] === 'winner'}
                 isLoser={winLoseState[seatIndex] === 'loser'}
+                isNewlyJoined={newlyJoinedSeats.has(seatIndex)}
                 seatRef={(el) => seatRefs.current[seatIndex] = el}
                 cardRef={(el) => cardRefs.current[seatIndex] = el}
               />

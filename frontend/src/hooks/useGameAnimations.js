@@ -241,26 +241,54 @@ export const useGameAnimations = () => {
   }, []);
 
   /**
-   * Bingo ball roll animation
+   * Bingo ball roll animation - realistic tumbling motion from cage
    * @param {HTMLElement} ballElement - The ball element
    */
   const rollBingoBall = useCallback((ballElement) => {
     if (!ballElement) return null;
 
+    // Create a more dynamic, tumbling ball animation
     const animation = anime.timeline({
-      easing: 'easeOutBounce'
+      easing: 'easeOutElastic(1, 0.5)'
     })
+    // Phase 1: Ball tumbles in from above left (like coming out of cage)
     .add({
       targets: ballElement,
-      translateY: [-200, 0],
-      rotate: [720, 0],
-      scale: [0, 1],
-      duration: 1000
+      translateX: [-150, 0],
+      translateY: [-100, 0],
+      rotate: [1080, 0], // 3 full rotations
+      scale: [0.3, 1],
+      opacity: [0, 1],
+      duration: 800,
+      easing: 'easeOutQuart'
     })
+    // Phase 2: Settle bounce
+    .add({
+      targets: ballElement,
+      translateY: [0, -20, 0],
+      scale: [1, 1.1, 1],
+      rotate: [0, -15, 0],
+      duration: 400,
+      easing: 'easeOutBounce'
+    })
+    // Phase 3: Gentle wobble to rest
+    .add({
+      targets: ballElement,
+      rotate: [0, 5, -3, 0],
+      duration: 300,
+      easing: 'easeOutSine'
+    })
+    // Phase 4: Emphasis pulse
     .add({
       targets: ballElement,
       scale: [1, 1.15, 1],
-      duration: 300
+      boxShadow: [
+        '0 0 0px rgba(255,215,0,0)',
+        '0 0 30px rgba(255,215,0,0.8)',
+        '0 0 10px rgba(255,215,0,0.3)'
+      ],
+      duration: 400,
+      easing: 'easeOutQuad'
     });
 
     activeAnimations.current.push(animation);

@@ -6,10 +6,12 @@
  * - Anime.js powered ball animations
  * - Real-time ball calling via socket events
  * - Visual feedback for marked numbers
+ * - Ball rolling sound effects
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameAnimations } from '../hooks/useGameAnimations';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 
 const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
 const LETTER_COLORS = {
@@ -119,17 +121,31 @@ const BingoCard = ({ card, drawnNumbers, onClaim, animations }) => {
 };
 
 // Ball Display Component
-const BallDisplay = ({ currentBall, drawnNumbers, animations }) => {
+const BallDisplay = ({ currentBall, drawnNumbers, animations, sounds }) => {
   const ballRef = useRef(null);
   const prevBallRef = useRef(null);
 
-  // Animate new ball
+  // Animate and play sound for new ball
   useEffect(() => {
-    if (currentBall && currentBall !== prevBallRef.current && ballRef.current && animations) {
-      animations.rollBingoBall(ballRef.current);
+    if (currentBall && currentBall !== prevBallRef.current && ballRef.current) {
+      // Play ball rolling sound first (cage tumbling)
+      if (sounds?.playBallRoll) {
+        sounds.playBallRoll();
+      }
+      
+      // After a brief delay, play pop sound and animate (ball emerging)
+      setTimeout(() => {
+        if (sounds?.playBallPop) {
+          sounds.playBallPop();
+        }
+        if (animations) {
+          animations.rollBingoBall(ballRef.current);
+        }
+      }, 600); // Delay for cage rolling sound
+      
       prevBallRef.current = currentBall;
     }
-  }, [currentBall, animations]);
+  }, [currentBall, animations, sounds]);
 
   return (
     <div className="bg-gradient-to-r from-slate-800/90 to-slate-900/90 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-white/10">
@@ -184,12 +200,29 @@ const BallDisplay = ({ currentBall, drawnNumbers, animations }) => {
 const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) => {
   const [showWinner, setShowWinner] = useState(false);
   const animations = useGameAnimations();
+  const sounds = useSoundEffects();
   const winnerRef = useRef(null);
+
+  // Initialize audio on first interaction
+  useEffect(() => {
+    const handleInteraction = () => {
+      sounds.initAudio();
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
+  }, [sounds]);
 
   useEffect(() => {
     if (gameState?.winner) {
       setShowWinner(true);
-      // Confetti for winner
+      // Play win sound and confetti for winner
+      sounds.playWin();
       if (winnerRef.current) {
         const center = animations.getElementCenter(winnerRef.current);
         animations.confetti(center, 80);
@@ -197,7 +230,7 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
       const timer = setTimeout(() => setShowWinner(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [gameState?.winner, animations]);
+  }, [gameState?.winner, animations, sounds]);
 
   // Cleanup
   useEffect(() => {
@@ -251,6 +284,7 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
             currentBall={currentBall}
             drawnNumbers={drawnNumbers}
             animations={animations}
+            sounds={sounds}
           />
         </div>
 

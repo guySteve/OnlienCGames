@@ -36,6 +36,7 @@ function App() {
   const [bingoCards, setBingoCards] = useState([]); // Bingo cards for the player
   const [syndicateExpanded, setSyndicateExpanded] = useState(false);
   const [showProvablyFair, setShowProvablyFair] = useState(false);
+  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
   // Socket Hook
   const { gameState, isConnected, lastEvent, emit, socket } = useGameSocket();
@@ -96,6 +97,19 @@ function App() {
           setBingoCards(lastEvent.data.cards);
         }
         break;
+      case 'room_created':
+        // Handle successful room creation
+        console.log('Room created:', lastEvent.data);
+        setCurrentRoomId(lastEvent.data.roomId);
+        setShowCreateRoomModal(false);
+        setView('game');
+        break;
+      case 'bingo_room_created':
+        console.log('Bingo room created:', lastEvent.data);
+        setCurrentRoomId(lastEvent.data.roomId);
+        setShowCreateRoomModal(false);
+        setView('bingo');
+        break;
       default:
         break;
     }
@@ -133,6 +147,23 @@ function App() {
     mySeats.forEach(seatIdx => {
       emit('place_bet', { seatIndex: seatIdx, betAmount: amount });
     });
+  };
+
+  const handleCreateRoom = (gameType) => {
+    console.log('Creating room of type:', gameType);
+    switch (gameType) {
+      case 'BLACKJACK':
+        emit('create_blackjack_room', {});
+        break;
+      case 'BINGO':
+        emit('create_bingo_room', {});
+        break;
+      case 'WAR':
+      default:
+        emit('create_room', {});
+        break;
+    }
+    setShowCreateRoomModal(false);
   };
 
   const handleExitGame = () => {
@@ -203,8 +234,63 @@ function App() {
         <Lobby
           rooms={rooms}
           onJoin={handleJoinRoom}
-          onCreate={() => console.log('Create room')}
+          onCreate={() => setShowCreateRoomModal(true)}
         />
+
+        {/* Create Room Modal */}
+        <AnimatePresence>
+          {showCreateRoomModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={() => setShowCreateRoomModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-slate-800 rounded-2xl p-6 max-w-md w-full border border-white/10 shadow-2xl"
+              >
+                <h2 className="text-2xl font-bold text-white mb-6 text-center">Create Game Room</h2>
+                <div className="grid grid-cols-1 gap-4">
+                  <button
+                    onClick={() => handleCreateRoom('BLACKJACK')}
+                    className="p-4 bg-gradient-to-r from-emerald-600/30 to-emerald-800/30 border border-emerald-500/40 rounded-xl hover:border-emerald-400 transition-all group"
+                  >
+                    <div className="text-3xl mb-2">🃏</div>
+                    <div className="text-lg font-bold text-white group-hover:text-emerald-400">Blackjack</div>
+                    <div className="text-sm text-slate-400">Beat the dealer to 21</div>
+                  </button>
+                  <button
+                    onClick={() => handleCreateRoom('WAR')}
+                    className="p-4 bg-gradient-to-r from-red-600/30 to-red-800/30 border border-red-500/40 rounded-xl hover:border-red-400 transition-all group"
+                  >
+                    <div className="text-3xl mb-2">⚔️</div>
+                    <div className="text-lg font-bold text-white group-hover:text-red-400">Casino War</div>
+                    <div className="text-sm text-slate-400">High card wins</div>
+                  </button>
+                  <button
+                    onClick={() => handleCreateRoom('BINGO')}
+                    className="p-4 bg-gradient-to-r from-purple-600/30 to-purple-800/30 border border-purple-500/40 rounded-xl hover:border-purple-400 transition-all group"
+                  >
+                    <div className="text-3xl mb-2">🎱</div>
+                    <div className="text-lg font-bold text-white group-hover:text-purple-400">Bingo</div>
+                    <div className="text-sm text-slate-400">Classic 75-ball bingo</div>
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowCreateRoomModal(false)}
+                  className="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }

@@ -264,20 +264,42 @@ body {
   animation: bounce-in 0.5s ease-out forwards;
 }
 
-/* Card deal animation */
+/* Card deal animation - smooth arc from deck */
 @keyframes deal-card {
   0% {
-    transform: translateY(-100px) scale(0.5) rotateY(180deg);
+    transform: translateX(-60px) translateY(-40px) scale(0.3) rotateY(180deg) rotateZ(-20deg);
     opacity: 0;
+    filter: blur(2px);
+  }
+  30% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  70% {
+    transform: translateX(5px) translateY(5px) scale(1.05) rotateY(0) rotateZ(2deg);
   }
   100% {
-    transform: translateY(0) scale(1) rotateY(0);
+    transform: translateX(0) translateY(0) scale(1) rotateY(0) rotateZ(0);
     opacity: 1;
   }
 }
 
-.animate-deal {
-  animation: deal-card 0.4s ease-out forwards;
+.animate-deal-card {
+  animation: deal-card 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Slower pulse for dealer avatar */
+@keyframes pulse-slow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px rgba(251, 191, 36, 0.2);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
 }
 
 /* Chip slide animation */
@@ -294,6 +316,45 @@ body {
 
 .animate-chip-slide {
   animation: chip-slide 0.3s ease-out forwards;
+}
+
+/* Player entrance animation - smooth pop-in with bounce */
+@keyframes playerEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.1);
+  }
+  70% {
+    transform: translateY(5px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-player-enter {
+  animation: playerEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Player exit animation - fade out and slide down */
+@keyframes playerExit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+}
+
+.animate-player-exit {
+  animation: playerExit 0.3s ease-in forwards;
 }
 
 /* ============================================================
