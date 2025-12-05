@@ -4,6 +4,9 @@ import GameTable from './components/GameTable';
 import Lobby from './components/Lobby';
 import BingoGame from './components/BingoGame';
 import BettingControls from './components/BettingControls';
+import SyndicateHUD from './components/SyndicateHUD';
+import HappyHourBanner from './components/HappyHourBanner';
+import ProvablyFairVerifier from './components/ProvablyFairVerifier';
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Mock API for demo purposes - in real app, use axios/fetch
@@ -31,9 +34,11 @@ function App() {
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [mySeats, setMySeats] = useState([]); // Array of seat indexes I occupy
   const [bingoCards, setBingoCards] = useState([]); // Bingo cards for the player
+  const [syndicateExpanded, setSyndicateExpanded] = useState(false);
+  const [showProvablyFair, setShowProvablyFair] = useState(false);
 
   // Socket Hook
-  const { gameState, isConnected, lastEvent, emit } = useGameSocket();
+  const { gameState, isConnected, lastEvent, emit, socket } = useGameSocket();
 
   // 1. Authentication & Persistence
   useEffect(() => {
@@ -191,11 +196,16 @@ function App() {
 
   if (view === 'lobby') {
     return (
-      <Lobby 
-        rooms={rooms} 
-        onJoin={handleJoinRoom} 
-        onCreate={() => console.log('Create room')} 
-      />
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
+        {/* Happy Hour Banner in Lobby */}
+        <HappyHourBanner socket={socket} />
+
+        <Lobby
+          rooms={rooms}
+          onJoin={handleJoinRoom}
+          onCreate={() => console.log('Create room')}
+        />
+      </div>
     );
   }
 
@@ -214,6 +224,27 @@ function App() {
   // Default: Card Game View (War/Blackjack)
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900 overflow-hidden flex flex-col">
+      {/* Happy Hour Banner */}
+      <HappyHourBanner socket={socket} />
+
+      {/* Syndicate HUD */}
+      {user && (
+        <SyndicateHUD
+          socket={socket}
+          userId={user?.dbId}
+          isExpanded={syndicateExpanded}
+          onToggle={() => setSyndicateExpanded(!syndicateExpanded)}
+        />
+      )}
+
+      {/* Provably Fair Modal */}
+      <ProvablyFairVerifier
+        gameState={gameState}
+        gameSessionId={currentRoomId}
+        isOpen={showProvablyFair}
+        onClose={() => setShowProvablyFair(false)}
+      />
+
       {/* Top Bar */}
       <header className="flex-shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-white/5 px-4 py-3 sm:px-6 sm:py-4 z-50 safe-area-top">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -231,6 +262,16 @@ function App() {
             </span>
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
+            {/* Provably Fair Button */}
+            <button
+              onClick={() => setShowProvablyFair(true)}
+              className="p-2 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+              title="Verify Game Fairness"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </button>
             <div className="bg-black/30 px-3 py-1.5 rounded-full border border-yellow-500/20 text-yellow-400 font-mono text-sm sm:text-base">
               ${user?.chipBalance?.toLocaleString() || 0}
             </div>

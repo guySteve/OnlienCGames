@@ -348,7 +348,7 @@ model SyndicateMember {
   updatedAt       DateTime          @updatedAt
 
   syndicateId     String
-  userId          String
+  userId          String            @unique
 
   // Role hierarchy: MEMBER < OFFICER < LEADER
   role            SyndicateRole     @default(MEMBER)
@@ -560,6 +560,9 @@ model PatronBadge {
   // Display
   frameColor      String?           // CSS color for avatar frame
   chatBadge       String?           // Emoji/icon shown in chat
+
+  // Relations
+  userBadges      UserPatronBadge[]
 
   @@index([tier])
 }
