@@ -2130,14 +2130,15 @@ io.on('connection', (socket) => {
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
       const chips = Number(data.chips) || Number(dbUser?.chipBalance) || 1000;
 
-      // Sit creator at seat 0
-      warGame.sitAtSeat(socket.id, 0, profile.nickname, profile.avatar, chips);
+      // Join game as a player (new multi-spot API)
+      const joinResult = warGame.joinGame(socket.id, profile.nickname, profile.avatar, chips);
 
       io.to(socket.id).emit('private_war_created', {
         roomId,
         tableCode: warGame.getTableCode(),
         gameState: warGame.getGameState(),
-        profile: profile
+        profile: profile,
+        playerColor: joinResult.color
       });
 
       console.log(`🎴 Private War room created: ${roomId} with code ${warGame.getTableCode()}`);
@@ -2180,11 +2181,11 @@ io.on('connection', (socket) => {
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
       const chips = Number(data.chips) || Number(dbUser?.chipBalance) || 1000;
 
-      // Sit joiner at seat 1
-      const result = warGame.sitAtSeat(socket.id, 1, profile.nickname, profile.avatar, chips);
+      // Join game as a player (new multi-spot API)
+      const joinResult = warGame.joinGame(socket.id, profile.nickname, profile.avatar, chips);
 
-      if (!result.success) {
-        return io.to(socket.id).emit('error', { message: result.error || 'Could not join game' });
+      if (!joinResult.success) {
+        return io.to(socket.id).emit('error', { message: joinResult.error || 'Could not join game' });
       }
 
       playerToGame.set(socket.id, roomId);
@@ -2193,7 +2194,8 @@ io.on('connection', (socket) => {
       io.to(socket.id).emit('private_war_joined', {
         roomId,
         gameState: warGame.getGameState(),
-        profile: profile
+        profile: profile,
+        playerColor: joinResult.color
       });
 
       // Notify both players that opponent has arrived
@@ -2207,6 +2209,101 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error joining private War room:', error);
       io.to(socket.id).emit('error', { message: 'Failed to join game' });
+    }
+  });
+
+  // Place bet on War betting spot (new multi-spot API)
+  socket.on('place_war_bet', async (data = {}) => {
+    const roomId = playerToGame.get(socket.id);
+    const game = games.get(roomId);
+
+    if (!game || game.getGameType() !== 'WAR') {
+      return io.to(socket.id).emit('error', { message: 'Not in a War game' });
+    }
+
+    const { seatIndex, spotIndex, betAmount } = data;
+
+    if (seatIndex === undefined || spotIndex === undefined || !betAmount) {
+      return io.to(socket.id).emit('error', { message: 'Missing bet parameters' });
+    }
+
+    try {
+      const success = await game.placeBet(socket.id, Number(betAmount), Number(seatIndex), Number(spotIndex));
+
+      if (!success) {
+        return io.to(socket.id).emit('error', { message: 'Failed to place bet' });
+      }
+
+      // Broadcast updated game state to all players
+      io.to(roomId).emit('war_bet_placed', {
+        gameState: game.getGameState(),
+        seatIndex: Number(seatIndex),
+        spotIndex: Number(spotIndex)
+      });
+
+      // Auto-start if there are active bets
+      if (game.hasActiveBets()) {
+        setTimeout(async () => {
+          if (game.hasActiveBets() && game.bettingPhase) {
+            await game.startNewHand();
+            io.to(roomId).emit('war_hand_started', { gameState: game.getGameState() });
+
+            // Resolve after a delay
+            setTimeout(async () => {
+              const results = await game.resolveHand();
+              io.to(roomId).emit('war_hand_resolved', {
+                gameState: game.getGameState(),
+                results
+              });
+
+              // Reset for next round
+              setTimeout(async () => {
+                await game.resetForNextRound();
+                io.to(roomId).emit('war_round_reset', { gameState: game.getGameState() });
+              }, 3000);
+            }, 2000);
+          }
+        }, 3000); // 3 second delay to let players place more bets
+      }
+
+    } catch (error) {
+      console.error('Error placing War bet:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to place bet' });
+    }
+  });
+
+  // Remove bet from War betting spot
+  socket.on('remove_war_bet', async (data = {}) => {
+    const roomId = playerToGame.get(socket.id);
+    const game = games.get(roomId);
+
+    if (!game || game.getGameType() !== 'WAR') {
+      return io.to(socket.id).emit('error', { message: 'Not in a War game' });
+    }
+
+    const { seatIndex, spotIndex } = data;
+
+    if (seatIndex === undefined || spotIndex === undefined) {
+      return io.to(socket.id).emit('error', { message: 'Missing parameters' });
+    }
+
+    try {
+      const success = game.removeBet(socket.id, Number(seatIndex), Number(spotIndex));
+
+      if (!success) {
+        return io.to(socket.id).emit('error', { message: 'Failed to remove bet' });
+      }
+
+      // Broadcast updated game state
+      io.to(roomId).emit('war_bet_removed', {
+        gameState: game.getGameState(),
+        seatIndex: Number(seatIndex),
+        spotIndex: Number(spotIndex)
+      });
+
+    } catch (error) {
+      console.error('Error removing War bet:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to remove bet' });
     }
   });
 

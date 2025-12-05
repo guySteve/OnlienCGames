@@ -22,19 +22,15 @@ var GameState;
  * Base class for all casino games
  */
 class GameEngine {
-    config;
-    prisma;
-    redis;
-    engagement;
-    state = GameState.WAITING;
-    players = new Map();
-    pot = 0;
-    handNumber = 0;
     constructor(config, prisma, redis, engagement) {
         this.config = config;
         this.prisma = prisma;
         this.redis = redis;
         this.engagement = engagement;
+        this.state = GameState.WAITING;
+        this.players = new Map();
+        this.pot = 0;
+        this.handNumber = 0;
     }
     // ==========================================================================
     // COMMON METHODS - Shared across all games
@@ -203,4 +199,3 @@ class GameEngine {
     }
 }
 exports.GameEngine = GameEngine;
-//# sourceMappingURL=GameEngine.js.map

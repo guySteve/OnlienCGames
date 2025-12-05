@@ -22,21 +22,30 @@ interface Card {
   suit: string;
 }
 
-interface Seat {
-  empty: boolean;
-  socketId?: string;
-  name?: string;
-  photo?: string;
-  chips?: number;
-  currentBet?: number;
-  ready?: boolean;
+interface BettingSpot {
+  bet: number;
+  playerId?: string;  // socketId or userId
+  playerName?: string;
+  playerColor?: string;
   card?: Card;
-  connected?: boolean;
+}
+
+interface TableSeat {
+  spots: BettingSpot[];  // 4 spots per seat
+}
+
+interface PlayerInfo {
+  playerId: string;
+  name: string;
+  photo?: string;
+  chips: number;
+  color: string;
 }
 
 interface WarGameState {
   roomId: string;
-  seats: Seat[];
+  seats: TableSeat[];  // 5 seats, each with 4 spots
+  players: Map<string, PlayerInfo>;  // Active players in the game
   houseCard: Card | null;
   pot: number;
   minBet: number;
@@ -86,11 +95,25 @@ async function fetchQRNGEntropy(): Promise<string> {
   });
 }
 
+const PLAYER_COLORS = [
+  '#FF6B6B', // Red
+  '#4ECDC4', // Teal
+  '#FFE66D', // Yellow
+  '#95E1D3', // Mint
+  '#F38181', // Pink
+  '#AA96DA', // Purple
+  '#FCBAD3', // Light Pink
+  '#A8D8EA', // Light Blue
+  '#FFD93D', // Gold
+  '#6BCB77'  // Green
+];
+
 /**
- * War Game Engine - Modular implementation
+ * War Game Engine - Multi-Spot Betting Implementation
  */
 export class WarEngine extends GameEngine {
-  private seats: Seat[] = [];
+  private seats: TableSeat[] = [];
+  private playerInfo: Map<string, PlayerInfo> = new Map();  // Extended player info with colors
   private houseCard: Card | null = null;
   private deck: Card[] = [];
   private bettingPhase: boolean = true;
@@ -100,6 +123,7 @@ export class WarEngine extends GameEngine {
   private serverSeed: string = '';
   private tableCode: string = '';
   private isPrivate: boolean = false;
+  private colorIndex: number = 0;
 
   constructor(
     roomId: string,
@@ -113,7 +137,7 @@ export class WarEngine extends GameEngine {
         roomId,
         minBet: WarEngine.getMinBet(),
         maxBet: 10000,
-        maxPlayers: 5
+        maxPlayers: 20  // 5 seats × 4 spots
       },
       prisma,
       redis,
@@ -126,8 +150,10 @@ export class WarEngine extends GameEngine {
       this.tableCode = crypto.randomBytes(3).toString('hex').toUpperCase();
     }
 
-    // Initialize 5 empty seats
-    this.seats = Array(5).fill(null).map(() => ({ empty: true }));
+    // Initialize 5 seats, each with 4 empty betting spots
+    this.seats = Array(5).fill(null).map(() => ({
+      spots: Array(4).fill(null).map(() => ({ bet: 0 }))
+    }));
     this.deck = this.createDeck();
   }
 
@@ -146,8 +172,7 @@ export class WarEngine extends GameEngine {
    * Check if game is waiting for more players
    */
   isWaitingForOpponent(): boolean {
-    const seatedCount = this.seats.filter(s => !s.empty).length;
-    return seatedCount < 2 && this.bettingPhase;
+    return this.isPrivate && this.playerInfo.size < 2 && this.bettingPhase;
   }
 
   // ==========================================================================
@@ -215,87 +240,178 @@ export class WarEngine extends GameEngine {
   }
 
   // ==========================================================================
-  // SEAT MANAGEMENT
+  // PLAYER MANAGEMENT
   // ==========================================================================
 
   /**
-   * Sit player at specific seat
+   * Join game as a player (assigns color, no seat required)
    */
-  public sitAtSeat(socketId: string, seatIndex: number, name: string, photo: string | null, chips: number): { success: boolean; error?: string } {
-    if (seatIndex < 0 || seatIndex >= 5) {
-      return { success: false, error: 'Invalid seat index' };
+  public joinGame(playerId: string, name: string, photo: string | null, chips: number): { success: boolean; color: string; error?: string } {
+    if (this.playerInfo.has(playerId)) {
+      const player = this.playerInfo.get(playerId)!;
+      return { success: true, color: player.color };
     }
 
-    if (!this.seats[seatIndex].empty) {
-      return { success: false, error: 'Seat already occupied' };
-    }
+    // Assign a color to the player
+    const color = PLAYER_COLORS[this.colorIndex % PLAYER_COLORS.length];
+    this.colorIndex++;
 
-    this.seats[seatIndex] = {
-      empty: false,
-      socketId,
+    this.playerInfo.set(playerId, {
+      playerId,
       name,
       photo: photo || undefined,
       chips,
-      currentBet: 0,
-      ready: false,
-      card: undefined,
-      connected: true
-    };
+      color
+    });
 
+    return { success: true, color };
+  }
+
+  /**
+   * Leave game - remove all bets and player info
+   */
+  public leaveGame(playerId: string): { success: boolean } {
+    if (!this.playerInfo.has(playerId)) {
+      return { success: false };
+    }
+
+    // Clear all bets from this player
+    for (const seat of this.seats) {
+      for (const spot of seat.spots) {
+        if (spot.playerId === playerId) {
+          spot.bet = 0;
+          spot.playerId = undefined;
+          spot.playerName = undefined;
+          spot.playerColor = undefined;
+          spot.card = undefined;
+        }
+      }
+    }
+
+    this.playerInfo.delete(playerId);
     return { success: true };
   }
 
   /**
-   * Leave seat
+   * Get player info
    */
-  public leaveSeat(socketId: string, seatIndex?: number): { success: boolean; seatIndex?: number } {
-    if (seatIndex !== null && seatIndex !== undefined) {
-      // Leave specific seat
-      if (this.seats[seatIndex] && this.seats[seatIndex].socketId === socketId) {
-        this.seats[seatIndex] = { empty: true };
-        return { success: true, seatIndex };
-      }
-    } else {
-      // Leave any seat with this socketId
-      for (let i = 0; i < this.seats.length; i++) {
-        if (this.seats[i].socketId === socketId) {
-          this.seats[i] = { empty: true };
-          return { success: true, seatIndex: i };
-        }
-      }
-    }
-    return { success: false };
+  public getPlayer(playerId: string): PlayerInfo | null {
+    return this.playerInfo.get(playerId) || null;
+  }
+
+  /**
+   * Update player chips
+   */
+  public updatePlayerChips(playerId: string, chips: number): boolean {
+    const player = this.playerInfo.get(playerId);
+    if (!player) return false;
+    player.chips = chips;
+    return true;
   }
 
   // ==========================================================================
   // BETTING
   // ==========================================================================
 
-  async placeBet(userId: string, amount: number, seatIndex?: number): Promise<boolean> {
+  /**
+   * Place bet on a specific spot
+   * Base class signature compatibility: async placeBet(userId: string, amount: number, seatIndex?: number)
+   */
+  async placeBet(playerId: string, amount: number, seatIndex?: number, spotIndex?: number): Promise<boolean> {
     if (!this.bettingPhase) return false;
     if (!this.validateBet(amount)) return false;
 
-    const seat = this.seats[seatIndex || 0];
-    if (seat.empty || !seat.chips || seat.chips < amount) {
+    // New multi-spot API requires both seatIndex and spotIndex
+    if (seatIndex === undefined || spotIndex === undefined) {
       return false;
     }
 
-    // Deduct chips and place bet
-    seat.chips -= amount;
-    seat.currentBet = amount;
-    seat.ready = true;
-    this.pot += amount;
+    if (seatIndex < 0 || seatIndex >= 5) return false;
+    if (spotIndex < 0 || spotIndex >= 4) return false;
+
+    const player = this.playerInfo.get(playerId);
+    if (!player || player.chips < amount) {
+      return false;
+    }
+
+    const spot = this.seats[seatIndex].spots[spotIndex];
+
+    // Check if spot is already occupied by another player
+    if (spot.bet > 0 && spot.playerId !== playerId) {
+      return false;
+    }
+
+    // If player already has a bet here, add to it
+    if (spot.playerId === playerId) {
+      player.chips -= amount;
+      spot.bet += amount;
+      this.pot += amount;
+    } else {
+      // New bet on empty spot
+      player.chips -= amount;
+      spot.bet = amount;
+      spot.playerId = playerId;
+      spot.playerName = player.name;
+      spot.playerColor = player.color;
+      this.pot += amount;
+    }
 
     return true;
   }
 
   /**
-   * Check if all seated players have placed bets
+   * Remove bet from a specific spot
    */
-  public allSeatedReady(): boolean {
-    const seatedPlayers = this.seats.filter(s => !s.empty);
-    if (seatedPlayers.length === 0) return false;
-    return seatedPlayers.every(s => s.ready);
+  public removeBet(playerId: string, seatIndex: number, spotIndex: number): boolean {
+    if (!this.bettingPhase) return false;
+    if (seatIndex < 0 || seatIndex >= 5) return false;
+    if (spotIndex < 0 || spotIndex >= 4) return false;
+
+    const spot = this.seats[seatIndex].spots[spotIndex];
+    if (spot.playerId !== playerId) return false;
+
+    const player = this.playerInfo.get(playerId);
+    if (!player) return false;
+
+    // Return chips to player
+    player.chips += spot.bet;
+    this.pot -= spot.bet;
+
+    // Clear spot
+    spot.bet = 0;
+    spot.playerId = undefined;
+    spot.playerName = undefined;
+    spot.playerColor = undefined;
+
+    return true;
+  }
+
+  /**
+   * Check if any bets have been placed
+   */
+  public hasActiveBets(): boolean {
+    for (const seat of this.seats) {
+      for (const spot of seat.spots) {
+        if (spot.bet > 0) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get all active betting spots
+   */
+  private getActiveSpots(): Array<{ seatIndex: number; spotIndex: number; spot: BettingSpot }> {
+    const active: Array<{ seatIndex: number; spotIndex: number; spot: BettingSpot }> = [];
+    for (let seatIndex = 0; seatIndex < this.seats.length; seatIndex++) {
+      for (let spotIndex = 0; spotIndex < this.seats[seatIndex].spots.length; spotIndex++) {
+        const spot = this.seats[seatIndex].spots[spotIndex];
+        if (spot.bet > 0 && spot.playerId) {
+          active.push({ seatIndex, spotIndex, spot });
+        }
+      }
+    }
+    return active;
   }
 
   // ==========================================================================
@@ -303,17 +419,16 @@ export class WarEngine extends GameEngine {
   // ==========================================================================
 
   async startNewHand(): Promise<void> {
-    if (!this.bettingPhase) return;
+    if (!this.bettingPhase || !this.hasActiveBets()) return;
 
     this.bettingPhase = false;
     this.handNumber++;
     this.state = GameState.DEALING;
 
-    // Deal cards to all seated and ready players
-    for (const seat of this.seats) {
-      if (!seat.empty && seat.ready) {
-        seat.card = this.drawCard() || undefined;
-      }
+    // Deal cards to all active betting spots
+    const activeSpots = this.getActiveSpots();
+    for (const { spot } of activeSpots) {
+      spot.card = this.drawCard() || undefined;
     }
 
     // Deal house card
@@ -324,29 +439,33 @@ export class WarEngine extends GameEngine {
   }
 
   /**
-   * Resolve hand - Each player plays against the dealer individually
+   * Resolve hand - Each betting spot plays against the dealer individually
    * Casino War Rules:
    * - Player wins: Pays 1:1 on bet
    * - Dealer wins: Player loses bet
-   * - Tie: Player can surrender (lose half) or go to war (not implemented yet - auto-war)
+   * - Tie: Player can surrender (lose half) or go to war (auto-push for simplicity)
    */
   async resolveHand(): Promise<any> {
     if (!this.houseCard) return null;
 
     const dealerValue = this.houseCard.value;
-    const results: any = { 
-      outcomes: [], 
+    const results: any = {
+      outcomes: [],
       dealerCard: this.houseCard,
-      dealerValue 
+      dealerValue
     };
 
-    // Resolve each player's bet against the dealer individually
-    for (let i = 0; i < this.seats.length; i++) {
-      const seat = this.seats[i];
-      if (seat.empty || !seat.card || !seat.currentBet) continue;
+    // Resolve each betting spot against the dealer individually
+    const activeSpots = this.getActiveSpots();
 
-      const playerValue = seat.card.value;
-      const bet = seat.currentBet;
+    for (const { seatIndex, spotIndex, spot } of activeSpots) {
+      if (!spot.card || !spot.playerId) continue;
+
+      const playerValue = spot.card.value;
+      const bet = spot.bet;
+      const player = this.playerInfo.get(spot.playerId);
+      if (!player) continue;
+
       let outcome: 'win' | 'lose' | 'tie' = 'lose';
       let payout = 0;
 
@@ -354,17 +473,12 @@ export class WarEngine extends GameEngine {
         // Player wins - pays 1:1
         outcome = 'win';
         payout = bet * 2; // Return bet + winnings
-        if (seat.chips !== undefined) {
-          seat.chips += payout;
-        }
+        player.chips += payout;
       } else if (playerValue === dealerValue) {
-        // Tie - in simplified Casino War, we'll do automatic "war" 
-        // For now, push (return bet)
+        // Tie - in simplified Casino War, push (return bet)
         outcome = 'tie';
         payout = bet; // Return original bet
-        if (seat.chips !== undefined) {
-          seat.chips += payout;
-        }
+        player.chips += payout;
       } else {
         // Dealer wins - player loses bet (already deducted)
         outcome = 'lose';
@@ -372,9 +486,12 @@ export class WarEngine extends GameEngine {
       }
 
       results.outcomes.push({
-        seatIndex: i,
-        name: seat.name,
-        playerCard: seat.card,
+        seatIndex,
+        spotIndex,
+        playerId: spot.playerId,
+        playerName: spot.playerName,
+        playerColor: spot.playerColor,
+        playerCard: spot.card,
         playerValue,
         outcome,
         bet,
@@ -382,7 +499,7 @@ export class WarEngine extends GameEngine {
       });
     }
 
-    // Clear pot since each player is resolved individually
+    // Clear pot since each spot is resolved individually
     this.pot = 0;
     this.state = GameState.COMPLETE;
     await this.saveStateToRedis();
@@ -399,11 +516,14 @@ export class WarEngine extends GameEngine {
     this.bettingPhase = true;
     this.state = GameState.PLACING_BETS;
 
+    // Clear all betting spots
     for (const seat of this.seats) {
-      if (!seat.empty) {
-        seat.currentBet = 0;
-        seat.ready = false;
-        seat.card = undefined;
+      for (const spot of seat.spots) {
+        spot.bet = 0;
+        spot.playerId = undefined;
+        spot.playerName = undefined;
+        spot.playerColor = undefined;
+        spot.card = undefined;
       }
     }
 
@@ -414,17 +534,22 @@ export class WarEngine extends GameEngine {
   // STATE & OBSERVERS
   // ==========================================================================
 
-  getGameState(): WarGameState {
+  getGameState(): any {
     return {
       roomId: this.config.roomId,
+      gameType: 'WAR',
       seats: this.seats,
+      players: Array.from(this.playerInfo.values()),
       houseCard: this.houseCard,
       pot: this.pot,
       minBet: this.config.minBet,
+      maxBet: this.config.maxBet,
       bettingPhase: this.bettingPhase,
       status: this.getStatusMessage(),
       observerCount: this.observers.size,
-      deck: [] // Don't expose deck
+      isPrivate: this.isPrivate,
+      tableCode: this.tableCode,
+      waitingForOpponent: this.isWaitingForOpponent()
     };
   }
 
@@ -449,22 +574,18 @@ export class WarEngine extends GameEngine {
     this.observers.delete(socketId);
   }
 
-  public getSeatedCount(): number {
-    return this.seats.filter(s => !s.empty).length;
-  }
-
-  public getPlayerBySeat(seatIndex: number): Seat | null {
-    if (seatIndex < 0 || seatIndex >= 5) return null;
-    return this.seats[seatIndex].empty ? null : this.seats[seatIndex];
-  }
-
-  public getPlayerBySocket(socketId: string): { seat: Seat; seatIndex: number } | null {
-    for (let i = 0; i < this.seats.length; i++) {
-      if (!this.seats[i].empty && this.seats[i].socketId === socketId) {
-        return { seat: this.seats[i], seatIndex: i };
+  public getActiveBetsCount(): number {
+    let count = 0;
+    for (const seat of this.seats) {
+      for (const spot of seat.spots) {
+        if (spot.bet > 0) count++;
       }
     }
-    return null;
+    return count;
+  }
+
+  public getPlayerCount(): number {
+    return this.playerInfo.size;
   }
 
   // ==========================================================================

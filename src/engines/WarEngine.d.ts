@@ -8,38 +8,19 @@ import { GameEngine } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
 type Redis = any;
-interface Card {
-    rank: string;
-    value: number;
-    suit: string;
-}
-interface Seat {
-    empty: boolean;
-    socketId?: string;
-    name?: string;
+interface PlayerInfo {
+    playerId: string;
+    name: string;
     photo?: string;
-    chips?: number;
-    currentBet?: number;
-    ready?: boolean;
-    card?: Card;
-    connected?: boolean;
-}
-interface WarGameState {
-    roomId: string;
-    seats: Seat[];
-    houseCard: Card | null;
-    pot: number;
-    minBet: number;
-    bettingPhase: boolean;
-    status: string;
-    observerCount: number;
-    deck: Card[];
+    chips: number;
+    color: string;
 }
 /**
- * War Game Engine - Modular implementation
+ * War Game Engine - Multi-Spot Betting Implementation
  */
 export declare class WarEngine extends GameEngine {
     private seats;
+    private players;
     private houseCard;
     private deck;
     private bettingPhase;
@@ -47,8 +28,21 @@ export declare class WarEngine extends GameEngine {
     private gameSessionId;
     private playerSeed;
     private serverSeed;
-    constructor(roomId: string, prisma: PrismaClient, redis: Redis, engagement: EngagementService);
+    private tableCode;
+    private isPrivate;
+    private colorIndex;
+    constructor(roomId: string, prisma: PrismaClient, redis: Redis, engagement: EngagementService, options?: {
+        isPrivate?: boolean;
+    });
     getGameType(): 'WAR' | 'BLACKJACK';
+    /**
+     * Get table code for private games
+     */
+    getTableCode(): string;
+    /**
+     * Check if game is waiting for more players
+     */
+    isWaitingForOpponent(): boolean;
     private createDeck;
     /**
      * Shuffle deck using dual-seed hashing (Provably Fair 2.0)
@@ -68,47 +62,62 @@ export declare class WarEngine extends GameEngine {
     };
     private drawCard;
     /**
-     * Sit player at specific seat
+     * Join game as a player (assigns color, no seat required)
      */
-    sitAtSeat(socketId: string, seatIndex: number, name: string, photo: string | null, chips: number): {
+    joinGame(playerId: string, name: string, photo: string | null, chips: number): {
         success: boolean;
+        color: string;
         error?: string;
     };
     /**
-     * Leave seat
+     * Leave game - remove all bets and player info
      */
-    leaveSeat(socketId: string, seatIndex?: number): {
+    leaveGame(playerId: string): {
         success: boolean;
-        seatIndex?: number;
     };
-    placeBet(userId: string, amount: number, seatIndex?: number): Promise<boolean>;
     /**
-     * Check if all seated players have placed bets
+     * Get player info
      */
-    allSeatedReady(): boolean;
+    getPlayer(playerId: string): PlayerInfo | null;
+    /**
+     * Update player chips
+     */
+    updatePlayerChips(playerId: string, chips: number): boolean;
+    /**
+     * Place bet on a specific spot
+     */
+    placeBet(playerId: string, amount: number, seatIndex: number, spotIndex: number): Promise<boolean>;
+    /**
+     * Remove bet from a specific spot
+     */
+    removeBet(playerId: string, seatIndex: number, spotIndex: number): boolean;
+    /**
+     * Check if any bets have been placed
+     */
+    hasActiveBets(): boolean;
+    /**
+     * Get all active betting spots
+     */
+    private getActiveSpots;
     startNewHand(): Promise<void>;
     /**
-     * Resolve hand - Each player plays against the dealer individually
+     * Resolve hand - Each betting spot plays against the dealer individually
      * Casino War Rules:
      * - Player wins: Pays 1:1 on bet
      * - Dealer wins: Player loses bet
-     * - Tie: Player can surrender (lose half) or go to war (not implemented yet - auto-war)
+     * - Tie: Player can surrender (lose half) or go to war (auto-push for simplicity)
      */
     resolveHand(): Promise<any>;
     /**
      * Reset for next round
      */
     resetForNextRound(): Promise<void>;
-    getGameState(): WarGameState;
+    getGameState(): any;
     private getStatusMessage;
     addObserver(socketId: string): void;
     removeObserver(socketId: string): void;
-    getSeatedCount(): number;
-    getPlayerBySeat(seatIndex: number): Seat | null;
-    getPlayerBySocket(socketId: string): {
-        seat: Seat;
-        seatIndex: number;
-    } | null;
+    getActiveBetsCount(): number;
+    getPlayerCount(): number;
     static getMinBet(): number;
 }
 export {};
