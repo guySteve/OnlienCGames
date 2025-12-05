@@ -36,7 +36,7 @@ steps:
       - '--region=us-central1'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--memory=512Mi'
+      - '--memory=256Mi'
       - '--cpu=1'
       - '--timeout=300'
       - '--min-instances=0'
@@ -52,6 +52,8 @@ images:
 timeout: 1200s
 
 # Options
+# COST OPTIMIZATION: Default builder (e2-medium) uses 1x build minutes vs N1_HIGHCPU_8's 8x rate
+# This preserves the 120 free build-minutes/day on Google Cloud Free Tier
 options:
-  machineType: 'N1_HIGHCPU_8'
+  # machineType: 'N1_HIGHCPU_8'  # DISABLED - burns free tier 8x faster
   logging: CLOUD_LOGGING_ONLY
