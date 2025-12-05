@@ -202,10 +202,19 @@ async function canUserPlay(userId) {
   }
 }
 
+// Get user by Google ID
+async function getUserByGoogleId(googleId) {
+  return await prisma.user.findUnique({
+    where: { googleId },
+  });
+}
+
 module.exports = {
   prisma,
   checkDailyReset,
   getOrCreateUser,
+  getUserByGoogleId,
   updateUserChips,
+  updateChips: updateUserChips, // Alias for compatibility/testing
   canUserPlay,
 };

@@ -623,3 +623,5 @@ enum HappyHourBonus {
   MYSTERY_BOOST   // Increased mystery drop rate
   STREAK_PROTECT  // Streak cannot be lost
 }
+
+

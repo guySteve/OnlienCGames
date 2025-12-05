@@ -10,6 +10,9 @@
     "test:db": "node test-db.js",
     "test:games": "node test/game-engines.test.js && node test/game-engines-advanced.test.js",
     "test:all": "npm run test:games && npm run test",
+    "test:automated": "powershell -ExecutionPolicy Bypass -File ./run-automated-tests.ps1",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
@@ -38,5 +41,8 @@
     "prisma": "^5.22.0",
     "redis": "^5.10.0",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
   }
 }

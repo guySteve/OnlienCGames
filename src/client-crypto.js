@@ -42,11 +42,23 @@ const ClientCrypto = {
 
   // Sanitize before display
   sanitize(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    if (typeof document !== 'undefined') {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    // Fallback for non-browser environments (like tests) or explicit replacement
+    return text.replace(/&/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;')
+               .replace(/"/g, '&quot;')
+               .replace(/'/g, '&#039;');
   }
 };
+
+if (typeof module !== 'undefined') {
+  module.exports = ClientCrypto;
+}
 
 // Export for use in client.js
 if (typeof window !== 'undefined') {

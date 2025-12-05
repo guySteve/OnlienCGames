@@ -71,9 +71,9 @@ test('Smoke', 'should have all critical client files', () => {
 
 test('Smoke', 'should have game engine files', () => {
   const fs = require('fs');
-  assert(fs.existsSync('./src/WarEngine.js'), 'WarEngine.js missing');
-  assert(fs.existsSync('./src/BlackjackEngine.js'), 'BlackjackEngine.js missing');
-  assert(fs.existsSync('./src/BingoEngine.js'), 'BingoEngine.js missing');
+  assert(fs.existsSync('./src/engines/WarEngine.js'), 'WarEngine.js missing');
+  assert(fs.existsSync('./src/engines/BlackjackEngine.js'), 'BlackjackEngine.js missing');
+  assert(fs.existsSync('./src/engines/BingoEngine.js'), 'BingoEngine.js missing');
 });
 
 // ========================================
@@ -82,9 +82,14 @@ test('Smoke', 'should have game engine files', () => {
 console.log('\n📦 Sanity Tests - Basic Logic\n');
 
 test('Sanity', 'game engines should export classes', () => {
-  const WarEngine = require('../src/WarEngine.js');
-  const BlackjackEngine = require('../src/BlackjackEngine.js');
-  const BingoEngine = require('../src/BingoEngine.js');
+  let WarEngine = require('../src/engines/WarEngine.js');
+  if (WarEngine.WarEngine) WarEngine = WarEngine.WarEngine;
+
+  let BlackjackEngine = require('../src/engines/BlackjackEngine.js');
+  if (BlackjackEngine.BlackjackEngine) BlackjackEngine = BlackjackEngine.BlackjackEngine;
+
+  let BingoEngine = require('../src/engines/BingoEngine.js');
+  if (BingoEngine.BingoEngine) BingoEngine = BingoEngine.BingoEngine;
 
   assert(typeof WarEngine === 'function', 'WarEngine not a constructor');
   assert(typeof BlackjackEngine === 'function', 'BlackjackEngine not a constructor');
@@ -92,7 +97,9 @@ test('Sanity', 'game engines should export classes', () => {
 });
 
 test('Sanity', 'engines should initialize without errors', () => {
-  const WarEngine = require('../src/WarEngine.js');
+  let WarEngine = require('../src/engines/WarEngine.js');
+  if (WarEngine.WarEngine) WarEngine = WarEngine.WarEngine;
+
   const engine = new WarEngine('test-room', 10);
   assert(engine.getGameState(), 'Engine should have game state');
 });
@@ -362,7 +369,7 @@ test('Code Quality', 'should use strict mode', () => {
 
 test('Code Quality', 'should have JSDoc or comments for complex functions', () => {
   const fs = require('fs');
-  const engineCode = fs.readFileSync('./src/WarEngine.js', 'utf8');
+  const engineCode = fs.readFileSync('./src/engines/WarEngine.js', 'utf8');
 
   const hasComments = engineCode.includes('//') || engineCode.includes('/*');
 
