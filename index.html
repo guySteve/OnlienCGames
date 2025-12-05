@@ -11,6 +11,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@dicebear/collection@9/dist/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@dicebear/core@9/dist/index.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
   <script src="src/client-crypto.js?v=4.0"></script>
 </head>
 <body>
@@ -72,82 +73,90 @@
 
     <!-- Game -->
     <section id="gameScreen" class="screen" style="display:none;">
-      <div class="game-layout">
-        <!-- Visual Casino Table -->
-        <div class="table-container">
-          <div id="casinoTable" class="casino-table">
-            <!-- Table Text Overlays -->
-            <div class="table-title">CASINO WAR</div>
-            <div class="table-subtitle">TIE BETS PAY 10 TO 1</div>
-            
-            <!-- House/Dealer Area with Chip Tray -->
-            <div id="houseArea" class="house-area">
-              <div class="chip-tray">
-                <div class="tray-chip red"></div>
-                <div class="tray-chip red"></div>
-                <div class="tray-chip green"></div>
-                <div class="tray-chip green"></div>
-                <div class="tray-chip black"></div>
-                <div class="tray-chip black"></div>
-                <div class="tray-chip blue"></div>
-                <div class="tray-chip gold"></div>
-              </div>
-              <div class="house-label">DEALER</div>
-              <div class="house-card">
-                <div class="card card-back"><span class="dealer-icon">D</span></div>
-              </div>
-            </div>
-            
-            <!-- Pot and Status Display -->
-            <div class="table-center">
-              <div id="potDisplay" class="pot-display">Pot: 0 | Min bet: 10</div>
-              <div id="tableStatus" class="table-status">Place your bets!</div>
-              <div id="roundResult" class="round-result" style="display:none;"></div>
-            </div>
-            
-            <!-- 5 Seats arranged in semi-circle arc -->
-            <div class="seats-container">
-              <div id="seat0" class="seat empty"></div>
-              <div id="seat1" class="seat empty"></div>
-              <div id="seat2" class="seat empty"></div>
-              <div id="seat3" class="seat empty"></div>
-              <div id="seat4" class="seat empty"></div>
-            </div>
-          </div>
-          
-          <!-- Multi-Seat Info -->
-          <div id="multiSeatInfo" class="multi-seat-info" style="display:none;">
-            You are playing <span id="seatCount">0</span> hand(s)
-          </div>
-          
-          <!-- Betting Controls -->
-          <div id="bettingControls" class="betting-controls" style="display:none;">
-            <input id="betAmount" type="number" min="1" value="10" />
-            <button class="btn btn-success btn-large" onclick="placeBet()">Place Bet</button>
-            <button id="betAllBtn" class="btn bet-all-btn btn-large" style="display:none;" onclick="placeBetAll()">Bet All Seats</button>
-          </div>
-          
-          <!-- Observer Info -->
-          <div class="observer-info">
-            <span id="observerCount">0 watching</span>
+      <!-- Immersive Full-Screen War Room -->
+      <div class="war-room">
+        <!-- Exit Button (top-left) -->
+        <button class="exit-floating-btn" onclick="showLobby()" title="Exit to Lobby">
+          <span>← Exit</span>
+        </button>
+
+        <!-- Pot & Status (top-center) -->
+        <div class="game-status-bar">
+          <div id="potDisplay" class="pot-display-modern">💰 Pot: $0</div>
+          <div id="tableStatus" class="status-text">Waiting for players...</div>
+        </div>
+
+        <!-- Dealer Area (top) -->
+        <div id="dealerZone" class="dealer-zone">
+          <div class="dealer-badge">DEALER</div>
+          <div id="dealerCardArea" class="dealer-card-area">
+            <div class="card card-back card-3d"><span class="dealer-icon">🎴</span></div>
           </div>
         </div>
-        
-        <!-- Chat and Log Sidebar -->
-        <div class="game-sidebar">
-          <div class="chat">
-            <h3>Room Chat</h3>
-            <div id="roomChatBox" class="chat-box"></div>
-            <div class="chat-input">
-              <input id="roomChatInput" placeholder="Message" onkeypress="if(event.key==='Enter')sendRoomChat()" />
-              <button class="btn" onclick="sendRoomChat()">Send</button>
+
+        <!-- Table Surface (center) -->
+        <div class="table-surface">
+          <!-- 5 Player Spots in Arc -->
+          <div class="player-spots">
+            <div id="playerSpot0" class="player-spot" data-seat="0"></div>
+            <div id="playerSpot1" class="player-spot" data-seat="1"></div>
+            <div id="playerSpot2" class="player-spot" data-seat="2"></div>
+            <div id="playerSpot3" class="player-spot" data-seat="3"></div>
+            <div id="playerSpot4" class="player-spot" data-seat="4"></div>
+          </div>
+
+          <!-- Round Result Overlay -->
+          <div id="roundResult" class="round-result-overlay" style="display:none;"></div>
+        </div>
+
+        <!-- Personal Chip Tray (bottom) -->
+        <div id="chipTray" class="chip-tray-modern">
+          <div class="tray-label">Your Chips: <span id="playerChipCount">$1000</span></div>
+          <div class="chip-stack-container">
+            <div class="chip-denomination" data-value="10">
+              <div class="chip chip-red-modern draggable-chip">10</div>
+            </div>
+            <div class="chip-denomination" data-value="25">
+              <div class="chip chip-green-modern draggable-chip">25</div>
+            </div>
+            <div class="chip-denomination" data-value="100">
+              <div class="chip chip-black-modern draggable-chip">100</div>
+            </div>
+            <div class="chip-denomination" data-value="500">
+              <div class="chip chip-blue-modern draggable-chip">500</div>
             </div>
           </div>
-          <div class="log">
-            <h3>Game Log</h3>
-            <div id="gameLog"></div>
+          <div class="bet-actions">
+            <button id="confirmBetBtn" class="btn-modern btn-confirm" onclick="confirmBet()" style="display:none;">
+              ✓ Confirm Bet
+            </button>
+            <button id="clearBetBtn" class="btn-modern btn-clear" onclick="clearBet()" style="display:none;">
+              ✕ Clear
+            </button>
           </div>
-          <button class="btn btn-exit" onclick="showLobby()">Exit to Lobby</button>
+        </div>
+
+        <!-- Floating Chat Toggle -->
+        <button class="chat-toggle-btn" onclick="toggleChat()">
+          💬 <span id="chatBadge" class="chat-badge" style="display:none;">1</span>
+        </button>
+
+        <!-- Sliding Chat Panel -->
+        <div id="chatPanel" class="chat-panel-slide">
+          <div class="chat-header">
+            <h3>Room Chat</h3>
+            <button class="chat-close-btn" onclick="toggleChat()">✕</button>
+          </div>
+          <div id="roomChatBox" class="chat-messages"></div>
+          <div class="chat-input-modern">
+            <input id="roomChatInput" type="text" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendRoomChat()" />
+            <button class="btn-send" onclick="sendRoomChat()">→</button>
+          </div>
+        </div>
+
+        <!-- Game Log (collapsible bottom) -->
+        <div id="gameLogPanel" class="game-log-minimal">
+          <div id="gameLog"></div>
         </div>
       </div>
     </section>

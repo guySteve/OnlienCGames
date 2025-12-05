@@ -399,45 +399,31 @@ function leaveSeat(seatIndex) {
   socket.emit('leave_seat', { seatIndex });
 }
 
-// Place bet for a specific seat
-function placeBet(seatIndex) {
-  const amt = Number(document.getElementById('betAmount').value);
-  if (!gameState) return; 
-  if (mySeats.length === 0) { alert('Please sit at a seat first'); return; }
-  if (isNaN(amt) || amt < gameState.minBet) { alert(`Min bet ${gameState.minBet}`); return; }
-  
-  // If seatIndex provided, bet for that seat; otherwise bet for first unready seat
-  const targetSeat = seatIndex !== undefined ? seatIndex : getFirstUnreadySeat();
-  if (targetSeat === -1) { alert('All your seats have bets placed'); return; }
-  
-  socket.emit('place_bet', { betAmount: amt, seatIndex: targetSeat });
-}
-
-// Place bet for all seats at once
-function placeBetAll() {
-  const amt = Number(document.getElementById('betAmount').value);
+// Place bet (simplified for single-seat mode)
+function placeBet() {
   if (!gameState) return;
-  if (mySeats.length === 0) { alert('Please sit at a seat first'); return; }
-  if (isNaN(amt) || amt < gameState.minBet) { alert(`Min bet ${gameState.minBet}`); return; }
-  
-  // Place bet for each unready seat
-  mySeats.forEach(seatIndex => {
-    const seat = gameState.seats[seatIndex];
-    if (seat && !seat.empty && !seat.ready) {
-      socket.emit('place_bet', { betAmount: amt, seatIndex });
-    }
-  });
-}
 
-// Get first seat that hasn't placed a bet yet
-function getFirstUnreadySeat() {
-  for (const seatIndex of mySeats) {
-    const seat = gameState.seats[seatIndex];
-    if (seat && !seat.empty && !seat.ready) {
-      return seatIndex;
-    }
+  // Find my seat
+  const mySeatIndex = gameState.seats.findIndex(s => !s.empty && s.socketId === socket?.id);
+  if (mySeatIndex === -1) {
+    alert('Please sit at a seat first');
+    return;
   }
-  return -1;
+
+  // Use currentBetAmount or fallback to old input field for compatibility
+  let amt = currentBetAmount;
+  const betInput = document.getElementById('betAmount');
+  if (amt === 0 && betInput) {
+    amt = Number(betInput.value);
+  }
+
+  if (isNaN(amt) || amt < gameState.minBet) {
+    alert(`Minimum bet is $${gameState.minBet}`);
+    return;
+  }
+
+  socket.emit('place_bet', { betAmount: amt, seatIndex: mySeatIndex });
+  currentBetAmount = 0;
 }
 
 // Check if any of my seats need to bet
@@ -449,64 +435,35 @@ function hasUnreadySeats() {
 }
 
 // Visual Table Rendering
+// Modern renderTable for new UI
 function renderTable() {
   if (!gameState) return;
-  
-  const tableEl = document.getElementById('casinoTable');
-  if (!tableEl) return;
-  
+
   // Update status
   const statusEl = document.getElementById('tableStatus');
   if (statusEl) {
     statusEl.textContent = gameState.status || (gameState.bettingPhase ? 'Place your bets!' : '');
   }
-  
+
   // Update pot display
   const potEl = document.getElementById('potDisplay');
   if (potEl) {
-    potEl.textContent = `Pot: ${gameState.pot} | Min bet: ${gameState.minBet}`;
+    potEl.textContent = `💰 Pot: $${gameState.pot}`;
   }
-  
-  // Render house/dealer area
-  renderHouse();
-  
-  // Render 5 seats
+
+  // Render dealer area
+  renderDealerModern();
+
+  // Render 5 player spots
   for (let i = 0; i < 5; i++) {
-    renderSeat(i);
+    renderPlayerSpot(i);
   }
-  
-  // Update multi-seat info
-  const multiSeatInfo = document.getElementById('multiSeatInfo');
-  const seatCountEl = document.getElementById('seatCount');
-  if (multiSeatInfo && seatCountEl) {
-    if (mySeats.length > 1) {
-      multiSeatInfo.style.display = 'block';
-      seatCountEl.textContent = mySeats.length;
-    } else {
-      multiSeatInfo.style.display = 'none';
-    }
-  }
-  
-  // Update betting controls visibility
-  const bettingControls = document.getElementById('bettingControls');
-  const betAllBtn = document.getElementById('betAllBtn');
-  if (bettingControls) {
-    if (mySeats.length > 0 && gameState.bettingPhase && hasUnreadySeats()) {
-      bettingControls.style.display = 'flex';
-      // Show "Bet All" button if multiple seats
-      if (betAllBtn) {
-        betAllBtn.style.display = mySeats.length > 1 ? 'inline-block' : 'none';
-      }
-    } else {
-      bettingControls.style.display = 'none';
-    }
-  }
-  
-  // Update observer count
-  const observerEl = document.getElementById('observerCount');
-  if (observerEl) {
-    observerEl.textContent = `${gameState.observerCount} watching`;
-  }
+
+  // Update chip tray with player balance
+  updateChipTray();
+
+  // Show/hide betting controls
+  updateBettingControls();
 }
 
 function renderHouse() {
@@ -701,13 +658,238 @@ function showGameOver(standings) {
   log('Game Over');
 }
 
+// ===== MODERN UI RENDERING FUNCTIONS =====
+
+function renderDealerModern() {
+  const dealerCardArea = document.getElementById('dealerCardArea');
+  if (!dealerCardArea) return;
+
+  let cardsHtml = '';
+
+  // Handle Blackjack dealer hand
+  if (gameState.dealerHand && gameState.dealerHand.length > 0) {
+    cardsHtml = gameState.dealerHand.map((card, i) => {
+      if (!card.rank) {
+        return '<div class="card card-back card-3d"><span class="dealer-icon">🎴</span></div>';
+      }
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      return `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
+        <span class="card-rank">${card.rank}</span>
+        <span class="card-suit">${card.suit}</span>
+      </div>`;
+    }).join('');
+  }
+  // Handle War house card
+  else if (gameState.houseCard) {
+    const houseCard = gameState.houseCard;
+    const isRed = houseCard.suit === '♥' || houseCard.suit === '♦';
+    cardsHtml = `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
+      <span class="card-rank">${houseCard.rank}</span>
+      <span class="card-suit">${houseCard.suit}</span>
+    </div>`;
+  } else {
+    cardsHtml = '<div class="card card-back card-3d"><span class="dealer-icon">🎴</span></div>';
+  }
+
+  dealerCardArea.innerHTML = cardsHtml;
+}
+
+function renderPlayerSpot(spotIndex) {
+  const spotEl = document.getElementById(`playerSpot${spotIndex}`);
+  if (!spotEl) return;
+
+  const seat = gameState.seats[spotIndex];
+  const mySocketId = socket ? socket.id : null;
+  const isMySeat = !seat.empty && seat.socketId === mySocketId;
+
+  // Update classes
+  spotEl.className = `player-spot ${isMySeat ? 'my-spot' : ''} ${!seat.empty ? 'occupied' : 'empty'}`;
+
+  if (seat.empty) {
+    // Empty spot - show "Sit Here" button
+    spotEl.innerHTML = `
+      <button class="sit-here-btn" onclick="sitAtSeat(${spotIndex})">
+        <span class="sit-icon-modern">+</span>
+        <span>Sit Here</span>
+      </button>
+    `;
+  } else {
+    // Occupied spot - show player info
+    let cardsHtml = '';
+
+    // Handle cards
+    if (seat.hands && seat.hands.length > 0) {
+      // Blackjack hands
+      cardsHtml = seat.hands.map((hand) => {
+        return `<div class="hand-container" style="display:flex; gap:5px;">
+          ${hand.cards.map((card) => {
+            const isRed = card.suit === '♥' || card.suit === '♦';
+            return `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
+              <span class="card-rank">${card.rank}</span>
+              <span class="card-suit">${card.suit}</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('');
+    } else if (seat.card) {
+      // War card
+      const isRed = seat.card.suit === '♥' || seat.card.suit === '♦';
+      cardsHtml = `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
+        <span class="card-rank">${seat.card.rank}</span>
+        <span class="card-suit">${seat.card.suit}</span>
+      </div>`;
+    }
+
+    // Betting area with chips
+    const bettingAreaHtml = `
+      <div class="betting-area ${gameState.bettingPhase && isMySeat ? 'active' : ''}" id="bettingArea${spotIndex}">
+        ${seat.currentBet > 0 ? renderChipStackVisual(seat.currentBet) : ''}
+      </div>
+    `;
+
+    spotEl.innerHTML = `
+      ${bettingAreaHtml}
+      ${cardsHtml ? `<div class="player-card-area" style="margin-bottom:10px;">${cardsHtml}</div>` : ''}
+      <div class="player-info-card">
+        ${seat.photo ? `<img class="player-avatar-modern" src="${seat.photo}" alt="">` :
+          `<div class="player-avatar-modern" style="background:#2d5a3d;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:700;color:#d4af37;">${seat.name.charAt(0).toUpperCase()}</div>`}
+        <div class="player-name-modern">${ClientCrypto.sanitize(seat.name)}</div>
+        <div class="player-chip-count">$${seat.chips}</div>
+        ${seat.currentBet > 0 ? `<div style="font-size:0.85em;color:#4CAF50;">Bet: $${seat.currentBet}</div>` : ''}
+        ${!seat.connected ? '<div style="color:#f44336;font-size:0.8em;">⚠ Disconnected</div>' : ''}
+      </div>
+      ${isMySeat ? `<button class="btn-modern btn-clear" style="margin-top:10px;padding:8px 16px;font-size:0.85em;" onclick="leaveSeat(${spotIndex})">Leave Seat</button>` : ''}
+    `;
+  }
+}
+
+function renderChipStackVisual(amount) {
+  if (!amount || amount <= 0) return '';
+
+  // Simple chip display (can be enhanced with stacking later)
+  return `<div style="color:#d4af37;font-weight:700;font-size:1.1em;">$${amount}</div>`;
+}
+
+function updateChipTray() {
+  const chipCountEl = document.getElementById('playerChipCount');
+  if (chipCountEl && auth.authenticated) {
+    // Find my seat to show current chips
+    const mySeat = gameState.seats.find(s => !s.empty && s.socketId === socket?.id);
+    if (mySeat) {
+      chipCountEl.textContent = `$${mySeat.chips}`;
+    } else if (auth.user) {
+      chipCountEl.textContent = `$${auth.user.chipBalance || 1000}`;
+    }
+  }
+}
+
+function updateBettingControls() {
+  const confirmBtn = document.getElementById('confirmBetBtn');
+  const clearBtn = document.getElementById('clearBetBtn');
+
+  // Check if player is seated and betting phase is active
+  const mySeat = gameState.seats.find(s => !s.empty && s.socketId === socket?.id);
+  const canBet = mySeat && gameState.bettingPhase && !mySeat.ready;
+
+  if (confirmBtn && clearBtn) {
+    if (canBet && currentBetAmount > 0) {
+      confirmBtn.style.display = 'inline-block';
+      clearBtn.style.display = 'inline-block';
+    } else {
+      confirmBtn.style.display = 'none';
+      clearBtn.style.display = 'none';
+    }
+  }
+}
+
+// ===== CHIP BETTING SYSTEM =====
+
+let currentBetAmount = 0;
+
+// Initialize chip click handlers
+function initChipClickHandlers() {
+  const chipDenominations = document.querySelectorAll('.chip-denomination');
+  chipDenominations.forEach(chipDenom => {
+    const chipEl = chipDenom.querySelector('.draggable-chip');
+    if (!chipEl) return;
+
+    chipEl.addEventListener('click', () => {
+      const value = parseInt(chipDenom.dataset.value);
+      addChipToBet(value, chipEl);
+    });
+  });
+}
+
+function addChipToBet(value, chipEl) {
+  // Check if player is seated
+  if (!gameState) return;
+  const mySeat = gameState.seats.find(s => !s.empty && s.socketId === socket?.id);
+  if (!mySeat) {
+    alert('Please sit at a table first!');
+    return;
+  }
+
+  if (!gameState.bettingPhase) {
+    alert('Betting phase is not active');
+    return;
+  }
+
+  // Add to bet amount
+  currentBetAmount += value;
+
+  // Animate chip with anime.js
+  if (typeof anime !== 'undefined') {
+    anime({
+      targets: chipEl,
+      translateY: [0, -20, 0],
+      scale: [1, 1.3, 1],
+      duration: 500,
+      easing: 'easeOutElastic(1, .6)'
+    });
+  }
+
+  // Update UI
+  updateBettingControls();
+  showNotification(`Added $${value} to bet (Total: $${currentBetAmount})`);
+}
+
+function confirmBet() {
+  if (currentBetAmount > 0) {
+    placeBet();
+    currentBetAmount = 0;
+    updateBettingControls();
+  }
+}
+
+function clearBet() {
+  currentBetAmount = 0;
+  updateBettingControls();
+  renderTable();
+  showNotification('Bet cleared');
+}
+
+// ===== CHAT TOGGLE =====
+
+function toggleChat() {
+  const chatPanel = document.getElementById('chatPanel');
+  if (chatPanel) {
+    chatPanel.classList.toggle('open');
+  }
+}
+
 function showLobby() {
+  // Leave the current room if in one
+  if (roomId && socket) {
+    socket.emit('leave_room', { roomId });
+  }
+
   document.getElementById('lobbyScreen').style.display = 'block';
   document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('bingoScreen').style.display = 'none';
   mySeats = [];
   gameState = null;
   roomId = null;
-  initSocket(); 
+  initSocket();
   socket.emit('get_rooms');
   if (auth.authenticated) {
     loadFriends();
@@ -1375,7 +1557,8 @@ window.addEventListener('load', () => {
   showLobby();
   initSocket();
   initBingoVoice();
-  
+  initChipClickHandlers(); // Initialize chip betting system
+
   if (auth.authenticated) {
     loadFriends();
     loadFriendRequests();

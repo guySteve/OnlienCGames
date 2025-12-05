@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(npm run test:games:*)",
+      "Bash(node test/comprehensive-tests.js:*)",
+      "Bash(npm audit:*)",
+      "Bash(node test/load-stress-tests.js:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
