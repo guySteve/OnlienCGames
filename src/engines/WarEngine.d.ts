@@ -87,6 +87,13 @@ export declare class WarEngine extends GameEngine {
      */
     allSeatedReady(): boolean;
     startNewHand(): Promise<void>;
+    /**
+     * Resolve hand - Each player plays against the dealer individually
+     * Casino War Rules:
+     * - Player wins: Pays 1:1 on bet
+     * - Dealer wins: Player loses bet
+     * - Tie: Player can surrender (lose half) or go to war (not implemented yet - auto-war)
+     */
     resolveHand(): Promise<any>;
     /**
      * Reset for next round

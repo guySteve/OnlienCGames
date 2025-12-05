@@ -2323,6 +2323,10 @@ io.on('connection', (socket) => {
       const profile = await getUserProfile(user.id);
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
 
+      if (!dbUser) {
+        return io.to(socket.id).emit('error', { message: 'User not found in database' });
+      }
+
       // Add player to the game with proper initialization
       await bjGame.addPlayer(dbUser.id, 0);
 
@@ -2360,6 +2364,9 @@ io.on('connection', (socket) => {
     
     try {
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      if (!dbUser) {
+        return io.to(socket.id).emit('error', { message: 'User not found in database' });
+      }
       await bingoGame.addPlayer(dbUser.id);
       
       playerToGame.set(socket.id, roomId);
@@ -2393,6 +2400,9 @@ io.on('connection', (socket) => {
     
     try {
       const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      if (!dbUser) {
+        return io.to(socket.id).emit('error', { message: 'User not found' });
+      }
       const success = await bingoGame.placeBet(dbUser.id, 1);
       
       if (success) {

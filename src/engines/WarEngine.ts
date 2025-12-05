@@ -98,12 +98,15 @@ export class WarEngine extends GameEngine {
   private gameSessionId: string | null = null;
   private playerSeed: string = '';
   private serverSeed: string = '';
+  private tableCode: string = '';
+  private isPrivate: boolean = false;
 
   constructor(
     roomId: string,
     prisma: PrismaClient,
     redis: Redis,
-    engagement: EngagementService
+    engagement: EngagementService,
+    options: { isPrivate?: boolean } = {}
   ) {
     super(
       {
@@ -117,6 +120,12 @@ export class WarEngine extends GameEngine {
       engagement
     );
 
+    // Handle private game options
+    if (options.isPrivate) {
+      this.isPrivate = true;
+      this.tableCode = crypto.randomBytes(3).toString('hex').toUpperCase();
+    }
+
     // Initialize 5 empty seats
     this.seats = Array(5).fill(null).map(() => ({ empty: true }));
     this.deck = this.createDeck();
@@ -124,6 +133,21 @@ export class WarEngine extends GameEngine {
 
   getGameType(): 'WAR' | 'BLACKJACK' {
     return 'WAR';
+  }
+
+  /**
+   * Get table code for private games
+   */
+  getTableCode(): string {
+    return this.tableCode;
+  }
+
+  /**
+   * Check if game is waiting for more players
+   */
+  isWaitingForOpponent(): boolean {
+    const seatedCount = this.seats.filter(s => !s.empty).length;
+    return seatedCount < 2 && this.bettingPhase;
   }
 
   // ==========================================================================
@@ -299,61 +323,67 @@ export class WarEngine extends GameEngine {
     await this.saveStateToRedis();
   }
 
+  /**
+   * Resolve hand - Each player plays against the dealer individually
+   * Casino War Rules:
+   * - Player wins: Pays 1:1 on bet
+   * - Dealer wins: Player loses bet
+   * - Tie: Player can surrender (lose half) or go to war (not implemented yet - auto-war)
+   */
   async resolveHand(): Promise<any> {
     if (!this.houseCard) return null;
 
-    const houseValue = this.houseCard.value;
-    const results: any = { winners: [], pot: this.pot, type: 'win' };
+    const dealerValue = this.houseCard.value;
+    const results: any = { 
+      outcomes: [], 
+      dealerCard: this.houseCard,
+      dealerValue 
+    };
 
-    // Compare each player's card to house
-    const playerCards = this.seats
-      .map((seat, index) => ({ seat, index, card: seat.card }))
-      .filter(p => p.card !== undefined);
+    // Resolve each player's bet against the dealer individually
+    for (let i = 0; i < this.seats.length; i++) {
+      const seat = this.seats[i];
+      if (seat.empty || !seat.card || !seat.currentBet) continue;
 
-    if (playerCards.length === 0) {
-      return null;
+      const playerValue = seat.card.value;
+      const bet = seat.currentBet;
+      let outcome: 'win' | 'lose' | 'tie' = 'lose';
+      let payout = 0;
+
+      if (playerValue > dealerValue) {
+        // Player wins - pays 1:1
+        outcome = 'win';
+        payout = bet * 2; // Return bet + winnings
+        if (seat.chips !== undefined) {
+          seat.chips += payout;
+        }
+      } else if (playerValue === dealerValue) {
+        // Tie - in simplified Casino War, we'll do automatic "war" 
+        // For now, push (return bet)
+        outcome = 'tie';
+        payout = bet; // Return original bet
+        if (seat.chips !== undefined) {
+          seat.chips += payout;
+        }
+      } else {
+        // Dealer wins - player loses bet (already deducted)
+        outcome = 'lose';
+        payout = 0;
+      }
+
+      results.outcomes.push({
+        seatIndex: i,
+        name: seat.name,
+        playerCard: seat.card,
+        playerValue,
+        outcome,
+        bet,
+        payout
+      });
     }
 
-    // Find highest player card
-    const maxPlayerValue = Math.max(...playerCards.map(p => p.card!.value));
-
-    if (maxPlayerValue > houseValue) {
-      // Players win
-      const winners = playerCards.filter(p => p.card!.value === maxPlayerValue);
-      const payoutPerWinner = Math.floor(this.pot / winners.length);
-
-      for (const winner of winners) {
-        if (winner.seat.chips !== undefined) {
-          winner.seat.chips += payoutPerWinner;
-        }
-        results.winners.push({
-          name: winner.seat.name,
-          seatIndex: winner.index,
-          isHouse: false
-        });
-      }
-    } else if (maxPlayerValue === houseValue) {
-      // Tie - split pot
-      const tiedPlayers = playerCards.filter(p => p.card!.value === maxPlayerValue);
-      const payoutPerPlayer = Math.floor(this.pot / (tiedPlayers.length + 1)); // +1 for house
-
-      for (const player of tiedPlayers) {
-        if (player.seat.chips !== undefined) {
-          player.seat.chips += payoutPerPlayer;
-        }
-        results.winners.push({
-          name: player.seat.name,
-          seatIndex: player.index,
-          isHouse: false
-        });
-      }
-      results.winners.push({ name: 'House', isHouse: true });
-      results.type = 'tie';
-    } else {
-      // House wins
-      results.winners.push({ name: 'House', isHouse: true });
-    }
-
+    // Clear pot since each player is resolved individually
+    this.pot = 0;
     this.state = GameState.COMPLETE;
     await this.saveStateToRedis();
 
