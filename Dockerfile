@@ -1,5 +1,5 @@
 # Stage 1: Build Frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -16,7 +16,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build Backend
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -36,7 +36,7 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 # Stage 3: Runtime
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
