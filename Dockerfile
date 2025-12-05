@@ -40,10 +40,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma runtime
-RUN apk add --no-cache openssl
+# Install OpenSSL and curl for Prisma runtime and health checks
+RUN apk add --no-cache openssl curl
 
 ENV NODE_ENV=production
+ENV PORT=3000
 
 # Copy application files first (to avoid overwriting node_modules)
 COPY --chown=node:node . .
@@ -54,12 +55,10 @@ COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 # Copy built frontend from frontend-builder
 COPY --from=frontend-builder --chown=node:node /app/frontend/dist ./frontend/dist
 
-EXPOSE 3000
-
 # Make start script executable
 RUN chmod +x start.sh
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
 CMD ["sh", "start.sh"]
