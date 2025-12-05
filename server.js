@@ -2084,8 +2084,129 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ===== HEAD-TO-HEAD WAR HANDLERS =====
+
+  // Store for private War rooms by table code
+  const privateWarRooms = new Map(); // tableCode -> roomId
+
+  // Create private War room (Head-to-Head mode)
+  socket.on('create_private_war', async (data = {}) => {
+    const roomId = 'war_pvt_' + crypto.randomBytes(4).toString('hex');
+    const user = socket.request?.session?.passport?.user;
+
+    if (!user) {
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to create private game' });
+    }
+
+    try {
+      const WarEngine = require('./src/engines/WarEngine').WarEngine;
+      const EngagementService = require('./src/services/EngagementService').EngagementService;
+
+      const engagement = new EngagementService(prisma, redisClient || null);
+      const warGame = new WarEngine(
+        roomId,
+        prisma,
+        redisClient || null,
+        engagement,
+        { isPrivate: true } // Enable private mode
+      );
+
+      // Initialize with QRNG if player seed provided
+      if (data.playerSeed) {
+        await warGame.initializeWithQRNG(data.playerSeed);
+      }
+
+      games.set(roomId, warGame);
+      privateWarRooms.set(warGame.getTableCode(), roomId);
+      playerToGame.set(socket.id, roomId);
+      socket.join(roomId);
+
+      const profile = await getUserProfile(user.id);
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      const chips = Number(data.chips) || Number(dbUser?.chipBalance) || 1000;
+
+      // Sit creator at seat 0
+      warGame.sitAtSeat(socket.id, 0, profile.nickname, profile.avatar, chips);
+
+      io.to(socket.id).emit('private_war_created', {
+        roomId,
+        tableCode: warGame.getTableCode(),
+        gameState: warGame.getGameState(),
+        profile: profile
+      });
+
+      console.log(`🎴 Private War room created: ${roomId} with code ${warGame.getTableCode()}`);
+
+    } catch (error) {
+      console.error('Error creating private War room:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to create private game' });
+    }
+  });
+
+  // Join private War room by table code
+  socket.on('join_private_war', async (data = {}) => {
+    const { tableCode } = data;
+
+    if (!tableCode) {
+      return io.to(socket.id).emit('error', { message: 'Table code required' });
+    }
+
+    const roomId = privateWarRooms.get(tableCode);
+    if (!roomId) {
+      return io.to(socket.id).emit('error', { message: 'Invalid table code. Game not found.' });
+    }
+
+    const warGame = games.get(roomId);
+    if (!warGame || warGame.getGameType() !== 'WAR') {
+      return io.to(socket.id).emit('error', { message: 'Game not found' });
+    }
+
+    if (!warGame.isWaitingForOpponent()) {
+      return io.to(socket.id).emit('error', { message: 'Game is full or already started' });
+    }
+
+    const user = socket.request?.session?.passport?.user;
+    if (!user) {
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to join' });
+    }
+
+    try {
+      const profile = await getUserProfile(user.id);
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      const chips = Number(data.chips) || Number(dbUser?.chipBalance) || 1000;
+
+      // Sit joiner at seat 1
+      const result = warGame.sitAtSeat(socket.id, 1, profile.nickname, profile.avatar, chips);
+
+      if (!result.success) {
+        return io.to(socket.id).emit('error', { message: result.error || 'Could not join game' });
+      }
+
+      playerToGame.set(socket.id, roomId);
+      socket.join(roomId);
+
+      io.to(socket.id).emit('private_war_joined', {
+        roomId,
+        gameState: warGame.getGameState(),
+        profile: profile
+      });
+
+      // Notify both players that opponent has arrived
+      io.to(roomId).emit('opponent_joined', {
+        gameState: warGame.getGameState(),
+        message: 'Opponent has joined! Place your bets to begin.'
+      });
+
+      console.log(`🎴 Player joined private War room: ${roomId}`);
+
+    } catch (error) {
+      console.error('Error joining private War room:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to join game' });
+    }
+  });
+
   // ===== BINGO GAME HANDLERS =====
-  
+
   // Create Bingo room
   socket.on('create_bingo_room', async (data = {}) => {
     const roomId = 'bingo_' + crypto.randomBytes(4).toString('hex');
@@ -2185,18 +2306,30 @@ io.on('connection', (socket) => {
         engagement
       );
       
+      // Initialize with QRNG if player seed provided
+      if (data.playerSeed) {
+        await bjGame.initializeWithQRNG(data.playerSeed);
+      }
+
       games.set(roomId, bjGame);
       playerToGame.set(socket.id, roomId);
       socket.join(roomId);
-      
+
       const profile = await getUserProfile(user.id);
-      // Add creator as observer initially
-      bjGame.addObserver({ socketId: socket.id, name: profile.nickname, photo: profile.avatar });
-      
-      io.to(socket.id).emit('room_created', { 
-        roomId, 
-        gameState: bjGame.getState(),
-        gameType: 'BLACKJACK'
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+
+      // Add player to the game with proper initialization
+      await bjGame.addPlayer(dbUser.id, 0);
+
+      // Get properly initialized game state
+      const gameState = bjGame.getGameState();
+
+      io.to(socket.id).emit('room_created', {
+        roomId,
+        gameState: gameState,
+        gameType: 'BLACKJACK',
+        profile: profile,
+        dualSeeds: bjGame.getDualSeeds()
       });
       io.to('lobby').emit('rooms_update', getRoomsSummary());
       
@@ -2339,7 +2472,9 @@ io.on('connection', (socket) => {
         // Remove from observers
         game.removeObserver(socket.id);
         
-        io.to(roomId).emit('player_disconnected', { gameState: game.getState() });
+        // Get state using the appropriate method for the game type
+        const gameState = game.getGameState ? game.getGameState() : game.getState();
+        io.to(roomId).emit('player_disconnected', { gameState });
         
         // Clean up room if empty after timeout
         setTimeout(() => {

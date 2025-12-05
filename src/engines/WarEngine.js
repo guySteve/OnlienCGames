@@ -64,16 +64,56 @@ class WarEngine extends GameEngine_1.GameEngine {
     gameSessionId = null;
     playerSeed = '';
     serverSeed = '';
-    constructor(roomId, prisma, redis, engagement) {
+    // Head-to-Head Private Mode
+    isPrivate = false;
+    tableCode = null;
+    maxPlayersForMode = 5;
+    waitingForOpponent = false;
+    constructor(roomId, prisma, redis, engagement, options = {}) {
         super({
             roomId,
             minBet: WarEngine.getMinBet(),
             maxBet: 10000,
-            maxPlayers: 5
+            maxPlayers: options.isPrivate ? 2 : 5
         }, prisma, redis, engagement);
-        // Initialize 5 empty seats
-        this.seats = Array(5).fill(null).map(() => ({ empty: true }));
+        // Head-to-Head Private Mode setup
+        this.isPrivate = options.isPrivate || false;
+        this.maxPlayersForMode = this.isPrivate ? 2 : 5;
+        if (this.isPrivate) {
+            this.tableCode = WarEngine.generateTableCode();
+            this.waitingForOpponent = true;
+        }
+        // Initialize seats based on mode
+        this.seats = Array(this.maxPlayersForMode).fill(null).map(() => ({ empty: true }));
         this.deck = this.createDeck();
+    }
+    /**
+     * Generate a 4-digit table code for private games
+     */
+    static generateTableCode() {
+        return 'W-' + Math.floor(1000 + Math.random() * 9000).toString();
+    }
+    /**
+     * Check if game is waiting for opponent in private mode
+     */
+    isWaitingForOpponent() {
+        if (!this.isPrivate) return false;
+        const seatedCount = this.seats.filter(s => !s.empty).length;
+        return seatedCount < 2;
+    }
+    /**
+     * Get table code for private games
+     */
+    getTableCode() {
+        return this.tableCode;
+    }
+    /**
+     * Check if private game is ready to start
+     */
+    isPrivateGameReady() {
+        if (!this.isPrivate) return true;
+        const seatedCount = this.seats.filter(s => !s.empty).length;
+        return seatedCount === 2;
     }
     getGameType() {
         return 'WAR';
@@ -203,11 +243,16 @@ class WarEngine extends GameEngine_1.GameEngine {
     }
     /**
      * Check if all seated players have placed bets
+     * For private mode, requires exactly 2 players
      */
     allSeatedReady() {
         const seatedPlayers = this.seats.filter(s => !s.empty);
         if (seatedPlayers.length === 0)
             return false;
+        // Private mode requires exactly 2 players
+        if (this.isPrivate && seatedPlayers.length !== 2) {
+            return false;
+        }
         return seatedPlayers.every(s => s.ready);
     }
     // ==========================================================================
@@ -314,10 +359,20 @@ class WarEngine extends GameEngine_1.GameEngine {
             bettingPhase: this.bettingPhase,
             status: this.getStatusMessage(),
             observerCount: this.observers.size,
-            deck: [] // Don't expose deck
+            deck: [], // Don't expose deck
+            // Head-to-Head Private Mode info
+            isPrivate: this.isPrivate,
+            tableCode: this.isPrivate ? this.tableCode : null,
+            waitingForOpponent: this.isWaitingForOpponent(),
+            maxPlayers: this.maxPlayersForMode,
+            gameType: 'WAR'
         };
     }
     getStatusMessage() {
+        // Private mode waiting for opponent
+        if (this.isPrivate && this.isWaitingForOpponent()) {
+            return `Waiting for opponent... Share code: ${this.tableCode}`;
+        }
         if (this.bettingPhase) {
             return 'Place your bets!';
         }

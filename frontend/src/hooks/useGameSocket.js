@@ -36,10 +36,90 @@ export const useGameSocket = () => {
       setLastEvent({ type: 'round_result', data });
     });
 
-    // Social 2.0 Events
+    // ===== BINGO EVENTS =====
     newSocket.on('bingo_card_purchased', (data) => {
       setLastEvent({ type: 'bingo_card_purchased', data });
+      if (data.gameState) setGameState(data.gameState);
     });
+
+    newSocket.on('bingo_ball_called', (data) => {
+      setLastEvent({ type: 'bingo_ball_called', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bingo_game_started', (data) => {
+      setLastEvent({ type: 'bingo_game_started', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bingo_round_reset', (data) => {
+      setLastEvent({ type: 'bingo_round_reset', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bingo_room_created', (data) => {
+      setLastEvent({ type: 'bingo_room_created', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bingo_room_joined', (data) => {
+      setLastEvent({ type: 'bingo_room_joined', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bingo_winner', (data) => {
+      setLastEvent({ type: 'bingo_winner', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bingo_pot_updated', (data) => {
+      setLastEvent({ type: 'bingo_pot_updated', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    // ===== HEAD-TO-HEAD WAR EVENTS =====
+    newSocket.on('private_war_created', (data) => {
+      setLastEvent({ type: 'private_war_created', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('private_war_joined', (data) => {
+      setLastEvent({ type: 'private_war_joined', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('opponent_joined', (data) => {
+      setLastEvent({ type: 'opponent_joined', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    // ===== ROOM & GAME STATE EVENTS =====
+    newSocket.on('room_created', (data) => {
+      setLastEvent({ type: 'room_created', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('room_joined', (data) => {
+      setLastEvent({ type: 'room_joined', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('seat_taken', (data) => {
+      setLastEvent({ type: 'seat_taken', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('bet_placed', (data) => {
+      setLastEvent({ type: 'bet_placed', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    newSocket.on('round_reset', (data) => {
+      setLastEvent({ type: 'round_reset', data });
+      if (data.gameState) setGameState(data.gameState);
+    });
+
+    // Social 2.0 Events
 
     newSocket.on('mystery_drop', (data) => {
       setLastEvent({ type: 'mystery_drop', data });
