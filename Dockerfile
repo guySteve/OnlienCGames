@@ -1,4 +1,21 @@
-# Stage 1: Build
+# Stage 1: Build Frontend
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+
+# Install frontend dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Build frontend
+RUN npm run build
+
+# Stage 2: Build Backend
 FROM node:18-alpine AS builder
 
 WORKDIR /app
@@ -18,7 +35,7 @@ COPY prisma ./prisma
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Stage 2: Runtime
+# Stage 3: Runtime
 FROM node:18-alpine
 
 WORKDIR /app
@@ -33,6 +50,9 @@ COPY --chown=node:node . .
 
 # Copy node_modules with generated Prisma Client from builder
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+
+# Copy built frontend from frontend-builder
+COPY --from=frontend-builder --chown=node:node /app/frontend/dist ./frontend/dist
 
 EXPOSE 3000
 

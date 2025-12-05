@@ -273,7 +273,12 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+// Serve static files (legacy)
 app.use(express.static(path.join(__dirname, '.')));
+
+// Serve React frontend (production build)
+const frontendDistPath = path.join(__dirname, 'frontend', 'dist');
+app.use(express.static(frontendDistPath));
 
 // Auth routes
 app.get('/auth/google', (req, res, next) => {
@@ -2489,6 +2494,23 @@ io.on('connection', (socket) => {
       playerToGame.delete(socket.id);
     }
   });
+});
+
+// SPA Fallback: Serve React app for any unmatched routes (must be after all API routes)
+const fs = require('fs');
+app.get('*', (req, res, next) => {
+  // Skip API routes and socket.io
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path.startsWith('/auth')) {
+    return next();
+  }
+  
+  const indexPath = path.join(__dirname, 'frontend', 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // Fallback to legacy index.html if React build doesn't exist
+    res.sendFile(path.join(__dirname, 'index.html'));
+  }
 });
 
 // Initialize and start server
