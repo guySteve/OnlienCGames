@@ -108,171 +108,140 @@ const ChipStack = ({ amount, chipRef }) => {
   );
 };
 
-// Player Seat component with entrance animation
-const PlayerSeat = ({
-  seat,
+// Betting Spot component - represents one betting position
+const BettingSpot = ({
+  spot,
   seatIndex,
-  isMe,
-  position,
-  onSit,
-  onLeave,
+  spotIndex,
+  onBet,
+  onRemoveBet,
+  myPlayerId,
   isWinner,
-  isLoser,
-  seatRef,
-  cardRef,
-  isNewlyJoined = false
+  isLoser
 }) => {
-  const isEmpty = !seat || seat.empty;
-  const [showEntrance, setShowEntrance] = useState(isNewlyJoined);
-
-  // Clear entrance animation after it plays
-  useEffect(() => {
-    if (isNewlyJoined) {
-      setShowEntrance(true);
-      const timer = setTimeout(() => setShowEntrance(false), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [isNewlyJoined]);
-
-  // Position styles for curved table layout
-  const positionStyles = {
-    0: { bottom: '5%', left: '50%', transform: 'translateX(-50%)' }, // Center bottom (main player)
-    1: { bottom: '15%', left: '15%' },
-    2: { bottom: '30%', left: '5%' },
-    3: { bottom: '30%', right: '5%' },
-    4: { bottom: '15%', right: '15%' }
-  };
-
-  if (isEmpty) {
-    return (
-      <div
-        ref={seatRef}
-        className="absolute flex flex-col items-center"
-        style={positionStyles[seatIndex]}
-      >
-        <button
-          onClick={() => onSit(seatIndex)}
-          className="w-16 h-16 rounded-full border-2 border-dashed border-yellow-500/40 bg-black/30 hover:bg-yellow-500/20 hover:border-yellow-500 transition-all flex items-center justify-center group"
-        >
-          <span className="text-yellow-500/60 group-hover:text-yellow-400 text-2xl">+</span>
-        </button>
-        <span className="mt-1 text-xs text-yellow-500/40">Seat {seatIndex + 1}</span>
-      </div>
-    );
-  }
-
-  // Entrance animation classes
-  const entranceClasses = showEntrance 
-    ? 'animate-player-enter scale-100 opacity-100' 
-    : 'scale-100 opacity-100';
+  const hasBet = spot && spot.bet > 0;
+  const isMyBet = hasBet && spot.playerId === myPlayerId;
 
   return (
-    <div
-      ref={seatRef}
-      className={`
-        absolute flex flex-col items-center transition-all duration-500
-        ${isMe ? 'z-20' : 'z-10'}
-        ${isWinner ? 'scale-105' : ''}
-        ${isLoser ? 'opacity-70 scale-95' : ''}
-        ${entranceClasses}
-      `}
-      style={{
-        ...positionStyles[seatIndex],
-        animation: showEntrance ? 'playerEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'
-      }}
-    >
-      {/* Entrance glow effect */}
-      {showEntrance && (
-        <div className="absolute inset-0 -m-4 rounded-full bg-yellow-400/30 animate-ping pointer-events-none" />
-      )}
-
-      {/* Avatar */}
-      <div className={`
-        relative w-14 h-14 rounded-full overflow-hidden border-3
-        ${isMe ? 'border-yellow-400 shadow-lg shadow-yellow-400/30' : 'border-white/30'}
-        ${isWinner ? 'ring-4 ring-yellow-400 animate-pulse' : ''}
-        ${showEntrance ? 'ring-2 ring-emerald-400 ring-opacity-75' : ''}
-      `}>
-        {seat.photo ? (
-          <img src={seat.photo} alt={seat.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-lg font-bold text-white">
-            {seat.name?.charAt(0) || '?'}
+    <div className="relative flex flex-col items-center">
+      {/* Betting Circle */}
+      <div
+        onClick={() => hasBet ? null : onBet(seatIndex, spotIndex)}
+        className={`
+          w-16 h-16 rounded-full border-2 flex items-center justify-center
+          transition-all duration-300 cursor-pointer
+          ${hasBet
+            ? `border-4 bg-black/50`
+            : 'border-dashed border-yellow-500/30 bg-black/20 hover:bg-yellow-500/10 hover:border-yellow-500/60'
+          }
+          ${isWinner ? 'ring-4 ring-yellow-400 animate-pulse' : ''}
+          ${isLoser ? 'opacity-60' : ''}
+        `}
+        style={{
+          borderColor: hasBet ? spot.playerColor : undefined,
+          boxShadow: hasBet ? `0 0 20px ${spot.playerColor}80` : undefined
+        }}
+      >
+        {hasBet ? (
+          <div className="flex flex-col items-center">
+            <ChipStack amount={spot.bet} />
           </div>
-        )}
-        {/* Win glow overlay */}
-        {isWinner && (
-          <div className="absolute inset-0 bg-yellow-400/30 animate-pulse" />
+        ) : (
+          <span className="text-yellow-500/40 text-xl">+</span>
         )}
       </div>
 
-      {/* Name & Chips */}
-      <div className="mt-1 text-center">
-        <div className={`text-sm font-medium ${isMe ? 'text-yellow-400' : 'text-white'}`}>
-          {seat.name || 'Player'}
-        </div>
-        <div className="text-xs font-mono text-emerald-400">
-          ${seat.chips?.toLocaleString() || 0}
-        </div>
-      </div>
-
-      {/* Player Card(s) */}
-      <div className="mt-2 flex gap-1">
-        {seat.card ? (
+      {/* Card display */}
+      {spot?.card && (
+        <div className="mt-2">
           <Card
-            {...seat.card}
-            cardRef={cardRef}
-            size={isMe ? 'normal' : 'compact'}
+            {...spot.card}
+            size="compact"
             isWinner={isWinner}
             isLoser={isLoser}
           />
-        ) : seat.hands?.length > 0 ? (
-          seat.hands[0]?.cards?.map((card, i) => (
-            <Card
-              key={i}
-              {...card}
-              index={i}
-              size={isMe ? 'normal' : 'compact'}
-              isWinner={isWinner}
-              isLoser={isLoser}
-            />
-          ))
-        ) : null}
-      </div>
-
-      {/* Current Bet Chips */}
-      {seat.currentBet > 0 && (
-        <div className="mt-2">
-          <ChipStack amount={seat.currentBet} />
         </div>
       )}
 
-      {/* Leave button (only for my seat) */}
-      {isMe && (
-        <button
-          onClick={() => onLeave(seatIndex)}
-          className="mt-2 text-xs text-red-400/70 hover:text-red-400 underline"
+      {/* Player name tag */}
+      {hasBet && (
+        <div
+          className="mt-1 text-xs px-2 py-0.5 rounded-full text-white font-medium"
+          style={{ backgroundColor: spot.playerColor }}
         >
-          Leave
+          {spot.playerName}
+        </div>
+      )}
+
+      {/* Remove bet button (only for my bets) */}
+      {isMyBet && (
+        <button
+          onClick={() => onRemoveBet(seatIndex, spotIndex)}
+          className="mt-1 text-xs text-red-400/70 hover:text-red-400 underline"
+        >
+          Remove
         </button>
       )}
     </div>
   );
 };
 
+// Table Seat component - contains 4 betting spots
+const TableSeat = ({
+  seat,
+  seatIndex,
+  onBet,
+  onRemoveBet,
+  myPlayerId,
+  seatRef
+}) => {
+  // Position styles for curved table layout
+  const positionStyles = {
+    0: { bottom: '5%', left: '50%', transform: 'translateX(-50%)' }, // Center bottom
+    1: { bottom: '15%', left: '15%' },
+    2: { bottom: '30%', left: '5%' },
+    3: { bottom: '30%', right: '5%' },
+    4: { bottom: '15%', right: '15%' }
+  };
+
+  return (
+    <div
+      ref={seatRef}
+      className="absolute flex gap-2"
+      style={positionStyles[seatIndex]}
+    >
+      {/* 4 betting spots */}
+      {seat.spots.map((spot, spotIndex) => (
+        <BettingSpot
+          key={spotIndex}
+          spot={spot}
+          seatIndex={seatIndex}
+          spotIndex={spotIndex}
+          onBet={onBet}
+          onRemoveBet={onRemoveBet}
+          myPlayerId={myPlayerId}
+        />
+      ))}
+
+      {/* Seat number label */}
+      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-yellow-500/40">
+        Seat {seatIndex + 1}
+      </div>
+    </div>
+  );
+};
+
 // Main GameTable Component
-const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
+const GameTable = ({ gameState, myPlayerId, onBet, onRemoveBet, onJoinGame, onLeaveGame }) => {
   const animations = useGameAnimations();
   const { playPlayerJoin, playPlayerLeave, playCardDeal, playWin, playLose, initAudio } = useSoundEffects();
   const tableRef = useRef(null);
   const dealerCardRef = useRef(null);
   const potRef = useRef(null);
   const seatRefs = useRef([]);
-  const cardRefs = useRef([]);
-  
-  // Track newly joined players for entrance animation
-  const [newlyJoinedSeats, setNewlyJoinedSeats] = useState(new Set());
-  const prevSeatsRef = useRef(null);
+
+  // Get my player info
+  const myPlayer = gameState?.players?.find(p => p.playerId === myPlayerId);
   const prevCardCountRef = useRef(0);
 
   // Initialize audio on first interaction
@@ -290,60 +259,25 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
     };
   }, [initAudio]);
 
-  // Detect new players joining and play sounds
-  useEffect(() => {
-    if (!gameState?.seats || !prevSeatsRef.current) {
-      prevSeatsRef.current = gameState?.seats?.map(s => s?.socketId || null) || [];
-      return;
-    }
-
-    const currentSeats = gameState.seats.map(s => s?.socketId || null);
-    const prevSeats = prevSeatsRef.current;
-    
-    const newJoins = new Set();
-    
-    currentSeats.forEach((socketId, idx) => {
-      const wasEmpty = !prevSeats[idx];
-      const isOccupied = socketId && !gameState.seats[idx]?.empty;
-      
-      if (wasEmpty && isOccupied) {
-        // New player joined this seat
-        newJoins.add(idx);
-        playPlayerJoin();
-      }
-    });
-
-    // Check for players leaving
-    prevSeats.forEach((socketId, idx) => {
-      const wasOccupied = socketId;
-      const isEmpty = !currentSeats[idx] || gameState.seats[idx]?.empty;
-      
-      if (wasOccupied && isEmpty) {
-        playPlayerLeave();
-      }
-    });
-
-    if (newJoins.size > 0) {
-      setNewlyJoinedSeats(newJoins);
-      // Clear the newly joined state after animation
-      setTimeout(() => setNewlyJoinedSeats(new Set()), 1500);
-    }
-
-    prevSeatsRef.current = currentSeats;
-  }, [gameState?.seats, playPlayerJoin, playPlayerLeave]);
+  // No player seat tracking needed in new multi-spot system
 
   // Play card deal sound when new cards are dealt
   useEffect(() => {
     // Count total cards on table
-    const dealerCards = gameState?.houseCard ? 1 : (gameState?.dealerHand?.length || 0);
-    const playerCards = gameState?.seats?.reduce((sum, seat) => {
-      if (seat?.card) return sum + 1;
-      if (seat?.hand?.length) return sum + seat.hand.length;
-      return sum;
-    }, 0) || 0;
-    
+    const dealerCards = gameState?.houseCard ? 1 : 0;
+    let playerCards = 0;
+
+    // Count cards in all betting spots
+    if (gameState?.seats) {
+      for (const seat of gameState.seats) {
+        for (const spot of seat.spots) {
+          if (spot?.card) playerCards++;
+        }
+      }
+    }
+
     const currentCardCount = dealerCards + playerCards;
-    
+
     // Play sound if more cards appeared
     if (currentCardCount > prevCardCountRef.current && prevCardCountRef.current >= 0) {
       const newCards = currentCardCount - prevCardCountRef.current;
@@ -352,31 +286,31 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
         setTimeout(() => playCardDeal(), i * 150);
       }
     }
-    
+
     prevCardCountRef.current = currentCardCount;
-  }, [gameState?.houseCard, gameState?.dealerHand, gameState?.seats, playCardDeal]);
+  }, [gameState?.houseCard, gameState?.seats, playCardDeal]);
 
-  // Determine winner/loser for visual feedback
+  // Determine winner/loser for visual feedback (per betting spot)
   const getWinnerLoserState = useCallback(() => {
-    if (!gameState?.seats) return {};
+    if (!gameState?.seats || !gameState?.houseCard) return {};
 
-    // Find highest card value among players
-    const playerCards = gameState.seats
-      .map((seat, idx) => ({ seat, idx, card: seat?.card }))
-      .filter(p => p.card);
-
-    if (playerCards.length === 0 || !gameState.houseCard) return {};
-
-    const houseValue = gameState.houseCard?.value || 0;
-    const maxPlayerValue = Math.max(...playerCards.map(p => p.card?.value || 0));
-
+    const houseValue = gameState.houseCard.value || 0;
     const result = {};
-    playerCards.forEach(({ idx, card }) => {
-      if (card?.value === maxPlayerValue && maxPlayerValue > houseValue) {
-        result[idx] = 'winner';
-      } else if (card?.value < houseValue) {
-        result[idx] = 'loser';
-      }
+
+    // Check each betting spot
+    gameState.seats.forEach((seat, seatIdx) => {
+      seat.spots.forEach((spot, spotIdx) => {
+        if (spot?.card && spot.bet > 0) {
+          const key = `${seatIdx}-${spotIdx}`;
+          const spotValue = spot.card.value;
+
+          if (spotValue > houseValue) {
+            result[key] = 'winner';
+          } else if (spotValue < houseValue) {
+            result[key] = 'loser';
+          }
+        }
+      });
     });
 
     return result;
@@ -391,16 +325,18 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
     }
   }, [gameState?.pot, animations]);
 
-  // Handle win animations with sound
+  // Handle win animations with sound (for betting spots)
   useEffect(() => {
-    Object.entries(winLoseState).forEach(([seatIdx, state]) => {
+    Object.entries(winLoseState).forEach(([key, state]) => {
+      const [seatIdx, spotIdx] = key.split('-');
       const seatRef = seatRefs.current[seatIdx];
+
       if (state === 'winner' && seatRef) {
         animations.winGlow(seatRef);
         playWin();
         // Confetti for winners
         const center = animations.getElementCenter(seatRef);
-        animations.confetti(center, 30);
+        animations.confetti(center, 15);
       } else if (state === 'loser' && seatRef) {
         animations.lossShake(seatRef);
         playLose();
@@ -529,27 +465,18 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
             </div>
           </div>
 
-          {/* Player Seats */}
-          {[0, 1, 2, 3, 4].slice(0, gameState?.maxPlayers || 5).map((seatIndex) => {
-            const seat = gameState?.seats?.[seatIndex];
-            const isMe = mySeats.includes(seatIndex);
-
-            return (
-              <PlayerSeat
-                key={seatIndex}
-                seat={seat}
-                seatIndex={seatIndex}
-                isMe={isMe}
-                onSit={onSit}
-                onLeave={onLeave}
-                isWinner={winLoseState[seatIndex] === 'winner'}
-                isLoser={winLoseState[seatIndex] === 'loser'}
-                isNewlyJoined={newlyJoinedSeats.has(seatIndex)}
-                seatRef={(el) => seatRefs.current[seatIndex] = el}
-                cardRef={(el) => cardRefs.current[seatIndex] = el}
-              />
-            );
-          })}
+          {/* Table Seats with Betting Spots */}
+          {gameState?.seats?.map((seat, seatIndex) => (
+            <TableSeat
+              key={seatIndex}
+              seat={seat}
+              seatIndex={seatIndex}
+              onBet={onBet}
+              onRemoveBet={onRemoveBet}
+              myPlayerId={myPlayerId}
+              seatRef={(el) => seatRefs.current[seatIndex] = el}
+            />
+          ))}
         </div>
       </div>
 
@@ -570,6 +497,30 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
         </div>
       )}
 
+      {/* Players HUD - Top Left */}
+      {gameState?.players && gameState.players.length > 0 && (
+        <div className="absolute top-20 left-4 bg-black/50 backdrop-blur-md rounded-xl p-3 border border-white/10 z-30 max-w-xs">
+          <div className="text-xs text-yellow-500/60 uppercase mb-2 font-bold">Players</div>
+          <div className="space-y-2">
+            {gameState.players.map((player) => (
+              <div
+                key={player.playerId}
+                className="flex items-center gap-2 text-sm"
+                style={{ borderLeft: `3px solid ${player.color}`, paddingLeft: '8px' }}
+              >
+                <div className="flex-1">
+                  <div className="text-white font-medium">{player.name}</div>
+                  <div className="text-emerald-400 text-xs font-mono">${player.chips?.toLocaleString()}</div>
+                </div>
+                {player.playerId === myPlayerId && (
+                  <span className="text-yellow-400 text-xs">YOU</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Bottom Status Bar - Royal Blue UI Chrome with Safe Area */}
       <div className="absolute bottom-0 left-0 right-0 h-20 bg-[#2980B9]/95 backdrop-blur-md border-t border-white/10 flex items-center justify-center z-30 pb-[var(--safe-area-bottom)]">
         <div className="text-center">
@@ -584,9 +535,9 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
               {gameState.status}
             </div>
           )}
-          {!gameState?.status && mySeats.length === 0 && (
+          {!myPlayer && (
             <div className="text-white/80">
-              Select a seat to join the game
+              Click "Join Game" to start playing
             </div>
           )}
         </div>
