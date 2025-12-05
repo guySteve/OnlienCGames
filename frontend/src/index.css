@@ -8,15 +8,43 @@
   background-color: #0f172a;
   color: rgba(255, 255, 255, 0.87);
 
-  /* Casino Theme Colors */
-  --casino-gold: #f59e0b;
-  --casino-gold-light: #fbbf24;
+  /* ============================================================
+     VegasCore 2.0 Chromatic Psychology Color Palette
+     ============================================================ */
+  
+  /* Deep Emerald - Table Felt (Luxury/Permission) */
+  --vc-felt-primary: #014421;
+  --vc-felt-light: #026b3a;
+  --vc-felt-dark: #012a14;
+  
+  /* Royal Blue - UI Chrome (Trust/Calmness) */
+  --vc-chrome-primary: #2980B9;
+  --vc-chrome-light: #3498db;
+  --vc-chrome-dark: #1a5276;
+  
+  /* Error Red - Destructive Actions Only */
+  --vc-error: #C0392B;
+  --vc-error-light: #e74c3c;
+  --vc-error-dark: #922b21;
+  
+  /* Gold Accents - Wins/Primary Actions */
+  --vc-gold: #f59e0b;
+  --vc-gold-light: #fbbf24;
+  --vc-gold-dark: #d97706;
+  
+  /* Success Green - Positive Feedback */
+  --vc-success: #27ae60;
+  --vc-success-light: #2ecc71;
+  
+  /* Legacy Casino Theme Colors (kept for backwards compat) */
+  --casino-gold: var(--vc-gold);
+  --casino-gold-light: var(--vc-gold-light);
   --casino-dark: #0f172a;
-  --casino-felt: #0f3226;
-  --casino-felt-light: #1a472a;
+  --casino-felt: var(--vc-felt-primary);
+  --casino-felt-light: var(--vc-felt-light);
   --casino-navy: #0f172a;
 
-  /* Safe area insets for notched devices */
+  /* Safe area insets for notched devices (iOS Safari, Android) */
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
@@ -58,21 +86,38 @@ body {
 }
 
 /* ============================================================
-   FELT TEXTURE BACKGROUNDS
+   FELT TEXTURE BACKGROUNDS - VegasCore 2.0 Deep Emerald
    ============================================================ */
 
-/* Primary felt background with subtle texture */
+/* Primary felt background - Deep Emerald for luxury/permission psychology */
 .felt-bg {
-  background-color: var(--casino-felt);
+  background-color: var(--vc-felt-primary);
   background-image:
-    radial-gradient(ellipse at center, var(--casino-felt-light) 0%, var(--casino-felt) 50%, #0a1f16 100%),
+    radial-gradient(ellipse at center, var(--vc-felt-light) 0%, var(--vc-felt-primary) 50%, var(--vc-felt-dark) 100%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.03' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
+}
+
+/* Deep Emerald felt - primary table surface */
+.felt-bg-emerald {
+  background-color: var(--vc-felt-primary);
+  background-image:
+    radial-gradient(ellipse at center top, var(--vc-felt-light) 0%, var(--vc-felt-primary) 40%, var(--vc-felt-dark) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.02' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
 }
 
 /* Dark felt for table edges */
 .felt-dark {
-  background-color: #0a1f16;
+  background-color: var(--vc-felt-dark);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23ffffff' fill-opacity='0.02' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E");
+}
+
+/* Royal Blue UI Chrome background */
+.chrome-bg {
+  background-color: var(--vc-chrome-primary);
+}
+
+.chrome-bg-gradient {
+  background: linear-gradient(180deg, var(--vc-chrome-primary) 0%, var(--vc-chrome-dark) 100%);
 }
 
 /* ============================================================
@@ -86,12 +131,22 @@ body {
 
 /* Gold accent gradient */
 .gold-gradient {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  background: linear-gradient(135deg, var(--vc-gold-light) 0%, var(--vc-gold) 50%, var(--vc-gold-dark) 100%);
 }
 
-/* Emerald felt gradient */
+/* Deep Emerald felt gradient */
 .emerald-gradient {
-  background: linear-gradient(180deg, #1a472a 0%, #0f3226 50%, #0a1f16 100%);
+  background: linear-gradient(180deg, var(--vc-felt-light) 0%, var(--vc-felt-primary) 50%, var(--vc-felt-dark) 100%);
+}
+
+/* Royal Blue chrome gradient */
+.chrome-gradient {
+  background: linear-gradient(135deg, var(--vc-chrome-light) 0%, var(--vc-chrome-primary) 50%, var(--vc-chrome-dark) 100%);
+}
+
+/* Error/Destructive gradient - used sparingly */
+.error-gradient {
+  background: linear-gradient(135deg, var(--vc-error-light) 0%, var(--vc-error) 50%, var(--vc-error-dark) 100%);
 }
 
 /* ============================================================
@@ -275,11 +330,54 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  background: linear-gradient(135deg, var(--vc-gold-light) 0%, var(--vc-gold) 50%, var(--vc-gold-dark) 100%);
   border: 3px solid #fef3c7;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.4);
   z-index: 9999;
   pointer-events: none;
+}
+
+/* ============================================================
+   VEGASCORE 2.0 BUTTON UTILITIES
+   ============================================================ */
+
+/* Primary action button (Gold - for positive actions) */
+.btn-primary {
+  background: linear-gradient(135deg, var(--vc-gold-light), var(--vc-gold));
+  color: #000;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--vc-gold), var(--vc-gold-light));
+  transform: scale(1.02);
+}
+
+/* Secondary action button (Royal Blue - for neutral actions) */
+.btn-secondary {
+  background: linear-gradient(135deg, var(--vc-chrome-light), var(--vc-chrome-primary));
+  color: #fff;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--vc-chrome-primary), var(--vc-chrome-light));
+}
+
+/* Destructive action button (Red - for fold/surrender only) */
+.btn-destructive {
+  background: transparent;
+  border: 1px solid var(--vc-error);
+  color: var(--vc-error);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-destructive:hover:not(:disabled) {
+  background: var(--vc-error);
+  color: #fff;
 }
 
 /* ============================================================

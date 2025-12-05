@@ -1,10 +1,12 @@
 /**
  * GameTable.jsx - No-Scroll Casino Game Table
  *
- * Features:
+ * VegasCore 2.0 Features:
  * - 100dvh fixed viewport with zero scrolling
- * - Green felt aesthetic with curved table design
+ * - Deep Emerald (#014421) felt aesthetic with curved table design
  * - Anime.js powered animations
+ * - Fitts's Law optimized layout (thumb zone ergonomics)
+ * - Safe area inset support for notched devices
  * - Visual feedback (glow effects) instead of text overlays
  * - Chip animations for wins/losses
  */
@@ -13,8 +15,20 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useGameAnimations } from '../hooks/useGameAnimations';
 
 // Card component with no framer-motion
-const Card = ({ rank, suit, hidden, index = 0, size = 'normal', isWinner, isLoser, cardRef }) => {
-  const isRed = suit === '♥' || suit === '♦';
+const Card = ({ rank, suit, hidden, index = 0, size = 'normal', isWinner, isLoser, cardRef, fourColorMode = false }) => {
+  // Four-color mode for accessibility (colorblind users)
+  const getSuitColor = () => {
+    if (fourColorMode) {
+      switch (suit) {
+        case '♥': return 'text-red-600';      // Hearts: Red
+        case '♦': return 'text-blue-500';     // Diamonds: Blue
+        case '♣': return 'text-emerald-600';  // Clubs: Green
+        case '♠': return 'text-slate-900';    // Spades: Black
+        default: return 'text-slate-900';
+      }
+    }
+    return (suit === '♥' || suit === '♦') ? 'text-red-600' : 'text-slate-900';
+  };
 
   const sizeClasses = {
     micro: 'w-8 h-11 text-xs',
@@ -48,10 +62,10 @@ const Card = ({ rank, suit, hidden, index = 0, size = 'normal', isWinner, isLose
       className={`${baseClasses} bg-gradient-to-br from-white to-gray-100 border border-white/20 flex flex-col items-center justify-center p-1`}
       style={{ animationDelay: `${index * 100}ms` }}
     >
-      <span className={`font-bold leading-none ${isRed ? 'text-red-600' : 'text-slate-900'}`}>
+      <span className={`font-bold leading-none ${getSuitColor()}`}>
         {rank}
       </span>
-      <span className={`text-lg leading-none ${isRed ? 'text-red-600' : 'text-slate-900'}`}>
+      <span className={`text-lg leading-none ${getSuitColor()}`}>
         {suit}
       </span>
     </div>
@@ -287,14 +301,14 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
 
   return (
     <div className="game-container no-select">
-      {/* Background Layer - Felt Texture */}
-      <div className="absolute inset-0 felt-bg" />
+      {/* Background Layer - Deep Emerald Felt Texture */}
+      <div className="absolute inset-0 felt-bg-emerald" />
 
       {/* Spotlight Effect */}
       <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black/60" />
 
-      {/* Top Bar - Dealer/House Area */}
-      <div className="absolute top-0 left-0 right-0 h-28 flex items-center justify-center z-30 safe-area-top">
+      {/* Top Bar - Dealer/House Area (Respects Safe Area) */}
+      <div className="absolute top-0 left-0 right-0 h-28 flex items-center justify-center z-30 pt-[var(--safe-area-top)]">
         <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md rounded-2xl px-6 py-3 border border-yellow-500/20">
           {/* Dealer Avatar */}
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-2xl shadow-lg">
@@ -338,8 +352,8 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
       >
         {/* Table Surface - Elliptical */}
         <div className="relative w-full max-w-4xl h-full mx-4">
-          {/* Table felt surface */}
-          <div className="absolute inset-0 rounded-[50%] bg-gradient-to-b from-emerald-800 to-emerald-950 border-8 border-amber-900 shadow-2xl overflow-hidden">
+          {/* Table felt surface - Deep Emerald */}
+          <div className="absolute inset-0 rounded-[50%] bg-gradient-to-b from-[#026b3a] to-[#014421] border-8 border-amber-900 shadow-2xl overflow-hidden">
             {/* Table pattern */}
             <div className="absolute inset-4 rounded-[50%] border-2 border-yellow-600/20" />
             <div className="absolute inset-8 rounded-[50%] border border-yellow-600/10" />
@@ -399,22 +413,22 @@ const GameTable = ({ gameState, mySeats, onSit, onLeave }) => {
         </div>
       )}
 
-      {/* Bottom Status Bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-20 bg-slate-900/90 backdrop-blur-md border-t border-white/5 flex items-center justify-center z-30 safe-area-bottom">
+      {/* Bottom Status Bar - Royal Blue UI Chrome with Safe Area */}
+      <div className="absolute bottom-0 left-0 right-0 h-20 bg-[#2980B9]/95 backdrop-blur-md border-t border-white/10 flex items-center justify-center z-30 pb-[var(--safe-area-bottom)]">
         <div className="text-center">
           {gameState?.status && (
             <div className={`
               text-lg font-medium px-6 py-2 rounded-full
               ${gameState?.bettingPhase
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-400/30'
+                : 'bg-yellow-500/20 text-yellow-100 border border-yellow-400/30'
               }
             `}>
               {gameState.status}
             </div>
           )}
           {!gameState?.status && mySeats.length === 0 && (
-            <div className="text-slate-400">
+            <div className="text-white/80">
               Select a seat to join the game
             </div>
           )}
