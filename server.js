@@ -63,7 +63,7 @@ function getOperatingHoursStatus() {
     const { etDate, etHour } = getCurrentEasternTime();
 
     // Operating hours are 10 PM (22) to 2 AM (02)
-    const isOpen = etHour >= 22 || etHour < 2;
+    const isOpen = (etHour >= 22 || etHour < 2);
 
     // Calculate the next opening time
     const nextOpenTime = new Date(etDate);
@@ -82,8 +82,32 @@ function getOperatingHoursStatus() {
  * Middleware to enforce casino operating hours for Express routes.
  */
 function checkOperatingHours(req, res, next) {
-    // Allow health checks and auth routes to always pass
-    if (req.path === '/health' || req.path.startsWith('/auth')) {
+    // Allow these paths to always pass (needed for frontend to load and show closed page)
+    const allowedPaths = [
+        '/health',
+        '/auth',
+        '/me',
+        '/api/casino-status',
+        '/logout',
+        '/',
+        '/index.html',
+        '/assets',
+        '/vite',
+        '/@vite',
+        '/node_modules'
+    ];
+
+    // Check if path should be allowed
+    const isAllowedPath = allowedPaths.some(allowed =>
+        req.path === allowed || req.path.startsWith(allowed)
+    );
+
+    if (isAllowedPath) {
+        return next();
+    }
+
+    // Allow static files (CSS, JS, images, etc.)
+    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json)$/)) {
         return next();
     }
 
@@ -98,11 +122,9 @@ function checkOperatingHours(req, res, next) {
         return next();
     }
 
-    res.status(503).json({
-        error: 'Casino is currently closed.',
-        message: 'The nightclub is only open from 10 PM to 2 AM Eastern Time.',
-        nextOpenTime: nextOpenTime.toISOString(),
-    });
+    // Block API requests when closed (but frontend already loaded)
+    // Serve welcome page for non-admins when closed
+    return res.status(200).sendFile(path.join(__dirname, 'welcome.html'));
 }
 
 

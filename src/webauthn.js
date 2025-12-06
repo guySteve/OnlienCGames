@@ -23,7 +23,7 @@ const { prisma } = require('./db');
 // CONFIGURATION
 // =============================================================================
 
-const RP_NAME = 'Moe\'s Casino';
+const RP_NAME = 'Moe\'s Card Room';
 const RP_ID = process.env.WEBAUTHN_RP_ID || 'playwar.games';
 const ORIGIN = process.env.PUBLIC_URL || `https://${RP_ID}`;
 

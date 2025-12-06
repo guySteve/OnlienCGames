@@ -34,8 +34,8 @@ export function CasinoClosedView({ nextOpenTime, onLoginSuccess }) {
       const diff = openTime - now;
 
       if (diff <= 0) {
-        setTimeUntilOpen('Casino is opening...');
-        // Refresh page when casino opens
+        setTimeUntilOpen('Card room is opening...');
+        // Refresh page when card room opens
         setTimeout(() => window.location.reload(), 2000);
         return;
       }
@@ -88,7 +88,7 @@ export function CasinoClosedView({ nextOpenTime, onLoginSuccess }) {
           transition={{ delay: 0.3 }}
           className="text-5xl md:text-6xl font-black text-white mb-4"
         >
-          Casino Closed
+          Card Room Closed
         </motion.h1>
 
         {/* Operating Hours */}
@@ -155,7 +155,7 @@ export function CasinoClosedView({ nextOpenTime, onLoginSuccess }) {
           transition={{ delay: 1 }}
           className="text-slate-500 mt-8 text-sm"
         >
-          The nightclub is currently closed. Come back during operating hours to play!
+          Moe's Card Room is currently closed. Come back during operating hours to play!
         </motion.p>
       </div>
     </motion.div>
