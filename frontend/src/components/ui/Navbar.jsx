@@ -9,7 +9,7 @@ const navVariants = {
     exit: { y: -80, opacity: 0, transition: { duration: 0.3, ease: 'easeIn' }}
 }
 
-export function Navbar({ user, onLogout }) {
+export function Navbar({ user, onLogout, onSettings }) {
   return (
     <motion.header
       variants={navVariants}
@@ -35,12 +35,18 @@ export function Navbar({ user, onLogout }) {
                 <p className="text-slate-400 text-xs leading-tight">Welcome Back</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <div className="bg-black/30 px-4 py-2 rounded-full border border-yellow-500/20 text-yellow-400 font-mono text-lg">
               $<AnimatedCounter value={user?.chipBalance || 0} />
             </div>
-            
+
+            {onSettings && (
+                 <button onClick={onSettings} className="text-slate-400 hover:text-white text-xs transition-colors">
+                    ⚙️ Settings
+                </button>
+            )}
+
             {onLogout && (
                  <button onClick={onLogout} className="text-slate-400 hover:text-white text-xs">
                     Logout

@@ -6,7 +6,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 // --- New View & UI Components ---
 import { HomeView } from './views/HomeView';
 import { GameLobbyView } from './views/GameLobbyView';
+import { SettingsView } from './views/SettingsView';
 import { Navbar } from './components/ui/Navbar';
+import { CasinoClosedView } from './components/CasinoClosedView';
+import BiometricSetupPrompt from './components/BiometricSetupPrompt';
 
 // --- Legacy Components (to be phased out or integrated) ---
 import GameTable from './components/GameTable';
@@ -43,13 +46,19 @@ const pageVariants = {
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // The new view state machine: loading, home, lobby, game, bingo
-  const [view, setView] = useState('loading'); 
-  
+
+  // The new view state machine: loading, home, lobby, game, bingo, settings
+  const [view, setView] = useState('loading');
+
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [mySeats, setMySeats] = useState([]);
   const [bingoCards, setBingoCards] = useState([]);
+
+  // Casino operating hours status
+  const [casinoStatus, setCasinoStatus] = useState({ isOpen: true, nextOpenTime: null });
+
+  // Biometric setup prompt
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
 
   // Socket Hook
   const { gameState, isConnected, lastEvent, emit } = useGameSocket();
@@ -75,6 +84,67 @@ function App() {
     initAuth();
   }, []);
 
+  // 1b. Check casino operating hours (for non-admin users)
+  useEffect(() => {
+    const checkOperatingHours = async () => {
+      try {
+        const response = await fetch('/api/casino-status');
+        if (response.ok) {
+          const data = await response.json();
+          setCasinoStatus(data);
+        }
+      } catch (err) {
+        console.error('Failed to check casino status:', err);
+      }
+    };
+
+    if (user && !user.isAdmin) {
+      checkOperatingHours();
+      // Check every minute
+      const interval = setInterval(checkOperatingHours, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  // 1c. Check if user needs biometric setup prompt
+  useEffect(() => {
+    const checkBiometricSetup = async () => {
+      if (!user) return;
+
+      // Check if user declined recently (within 7 days)
+      const declined = localStorage.getItem('biometric_prompt_declined');
+      if (declined) {
+        const declinedTime = parseInt(declined);
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        if (declinedTime > sevenDaysAgo) {
+          // User declined recently, don't ask again
+          return;
+        }
+      }
+
+      // Check if user already has biometric set up
+      try {
+        const response = await fetch('/auth/webauthn/authenticators', {
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticators && data.authenticators.length === 0) {
+            // No biometrics set up - show prompt after a short delay
+            setTimeout(() => {
+              setShowBiometricPrompt(true);
+            }, 2000); // 2 second delay so they see the lobby first
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check biometric setup:', err);
+      }
+    };
+
+    checkBiometricSetup();
+  }, [user]);
+
   // 2. Game Logic & Event Handling (mostly unchanged)
   useEffect(() => {
     if (!lastEvent) return;
@@ -99,12 +169,16 @@ function App() {
   // --- Actions ---
   const handleLogin = () => {
     // Redirect to Google OAuth flow
-    window.location.href = '/auth/google'; 
+    window.location.href = '/auth/google';
   };
-  
+
   const handleLogout = async () => {
       await api.logout();
-  }
+  };
+
+  const handleSettings = () => {
+    setView('settings');
+  };
 
   const handleJoinGame = (gameId) => {
     // This is a placeholder. In a real app, you'd use the gameId 
@@ -155,45 +229,77 @@ function App() {
       // --- Authenticated Views ---
       return (
         <div className="min-h-screen bg-slate-900">
-            <Navbar user={user} onLogout={handleLogout} />
-            <AnimatePresence mode="wait">
-                {view === 'lobby' && (
-                    <motion.div key="lobby">
-                        <GameLobbyView onJoinGame={handleJoinGame} />
-                    </motion.div>
-                )}
-                {view === 'game' && (
-                     <motion.div key="game" variants={pageVariants} initial="initial" animate="in" exit="exit">
-                        <GameTableWrapper 
-                            gameState={gameState} 
-                            mySeats={mySeats} 
-                            onExit={handleExitGame}
-                            user={user}
-                            currentRoomId={currentRoomId}
-                            emit={emit}
-                        />
-                     </motion.div>
-                )}
-                {view === 'bingo' && (
-                     <motion.div key="bingo" variants={pageVariants} initial="initial" animate="in" exit="exit">
-                        <BingoGame
-                            gameState={gameState}
-                            playerCard={bingoCards}
-                            onBuyCard={() => emit('buy_bingo_card', {})}
-                            onClaimBingo={(cardId) => emit('claim_bingo', { cardId })}
-                            onExit={handleExitGame}
-                        />
-                     </motion.div>
-                )}
-            </AnimatePresence>
+            {/* Only show navbar if casino is open or user is admin */}
+            {(casinoStatus.isOpen || user.isAdmin) && (
+              <Navbar user={user} onLogout={handleLogout} onSettings={handleSettings} />
+            )}
+
+            {/* Show casino closed view for non-admins when closed */}
+            {!casinoStatus.isOpen && !user.isAdmin ? (
+              <CasinoClosedView
+                nextOpenTime={casinoStatus.nextOpenTime}
+                onLoginSuccess={(adminUser) => {
+                  setUser(adminUser);
+                  window.location.reload();
+                }}
+              />
+            ) : (
+              <AnimatePresence mode="wait">
+                  {view === 'lobby' && (
+                      <motion.div key="lobby">
+                          <GameLobbyView onJoinGame={handleJoinGame} />
+                      </motion.div>
+                  )}
+                  {view === 'settings' && (
+                      <motion.div key="settings" variants={pageVariants} initial="initial" animate="in" exit="exit">
+                          <SettingsView user={user} onBack={() => setView('lobby')} />
+                      </motion.div>
+                  )}
+                  {view === 'game' && (
+                       <motion.div key="game" variants={pageVariants} initial="initial" animate="in" exit="exit">
+                          <GameTableWrapper
+                              gameState={gameState}
+                              mySeats={mySeats}
+                              onExit={handleExitGame}
+                              user={user}
+                              currentRoomId={currentRoomId}
+                              emit={emit}
+                          />
+                       </motion.div>
+                  )}
+                  {view === 'bingo' && (
+                       <motion.div key="bingo" variants={pageVariants} initial="initial" animate="in" exit="exit">
+                          <BingoGame
+                              gameState={gameState}
+                              playerCard={bingoCards}
+                              onBuyCard={() => emit('buy_bingo_card', {})}
+                              onClaimBingo={(cardId) => emit('claim_bingo', { cardId })}
+                              onExit={handleExitGame}
+                          />
+                       </motion.div>
+                  )}
+              </AnimatePresence>
+            )}
         </div>
       )
   }
 
   return (
-      <AnimatePresence mode="wait">
-        {renderView()}
-      </AnimatePresence>
+      <>
+        <AnimatePresence mode="wait">
+          {renderView()}
+        </AnimatePresence>
+
+        {/* Biometric setup prompt - shows after login if not set up */}
+        <BiometricSetupPrompt
+          isOpen={showBiometricPrompt}
+          onClose={() => setShowBiometricPrompt(false)}
+          onSuccess={() => {
+            console.log('🎉 Biometric login enabled!');
+            setShowBiometricPrompt(false);
+          }}
+        />
+      </>
   )
 }
 
