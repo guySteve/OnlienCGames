@@ -98,7 +98,7 @@ model User {
   nickname              String?           @db.VarChar(30)
   customAvatar          String?           @db.VarChar(500)
   needsAvatarSetup      Boolean           @default(true)
-  chipBalance           BigInt            @default(1000)
+  chipBalance           BigInt            @default(100)
   totalWagered          BigInt            @default(0)
   totalWon              BigInt            @default(0)
   xpPoints              Int               @default(0)

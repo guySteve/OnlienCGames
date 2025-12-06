@@ -20,34 +20,34 @@ const crypto = require('crypto');
 
 const STREAK_REWARDS = {
     // Early days: Gentle ramp to build habit
-    1: { chips: 1000, xp: 50, tier: 'STARTER' },
-    2: { chips: 1200, xp: 60, tier: 'STARTER' },
-    3: { chips: 1500, xp: 75, tier: 'STARTER' },
+    1: { chips: 100, xp: 50, tier: 'STARTER' },
+    2: { chips: 120, xp: 60, tier: 'STARTER' },
+    3: { chips: 150, xp: 75, tier: 'STARTER' },
 
     // Mid streak: Accelerating rewards create FOMO
-    4: { chips: 2000, xp: 100, tier: 'BUILDING' },
-    5: { chips: 2500, xp: 125, tier: 'BUILDING' },
-    6: { chips: 3500, xp: 175, tier: 'BUILDING' },
+    4: { chips: 200, xp: 100, tier: 'BUILDING' },
+    5: { chips: 250, xp: 125, tier: 'BUILDING' },
+    6: { chips: 350, xp: 175, tier: 'BUILDING' },
 
     // Week milestone: Major reward spike
-    7: { chips: 7500, xp: 350, tier: 'MILESTONE', bonus: 'MYSTERY_CHEST', bonusChance: 1.0 },
+    7: { chips: 750, xp: 350, tier: 'MILESTONE', bonus: 'MYSTERY_CHEST', bonusChance: 1.0 },
 
     // Post-week: Sustained high value
-    8: { chips: 4000, xp: 200, tier: 'VETERAN' },
-    9: { chips: 4200, xp: 210, tier: 'VETERAN' },
-    10: { chips: 4500, xp: 225, tier: 'VETERAN' },
-    11: { chips: 4800, xp: 240, tier: 'VETERAN' },
-    12: { chips: 5200, xp: 260, tier: 'VETERAN' },
-    13: { chips: 5700, xp: 285, tier: 'VETERAN' },
+    8: { chips: 400, xp: 200, tier: 'VETERAN' },
+    9: { chips: 420, xp: 210, tier: 'VETERAN' },
+    10: { chips: 450, xp: 225, tier: 'VETERAN' },
+    11: { chips: 480, xp: 240, tier: 'VETERAN' },
+    12: { chips: 520, xp: 260, tier: 'VETERAN' },
+    13: { chips: 570, xp: 285, tier: 'VETERAN' },
 
     // Two-week milestone: Massive reward
-    14: { chips: 15000, xp: 750, tier: 'MILESTONE', bonus: 'PREMIUM_CHEST', bonusChance: 1.0 },
+    14: { chips: 1500, xp: 750, tier: 'MILESTONE', bonus: 'PREMIUM_CHEST', bonusChance: 1.0 },
 
     // Three-week milestone
-    21: { chips: 20000, xp: 1000, tier: 'MILESTONE', bonus: 'JACKPOT_SPIN', bonusChance: 1.0 },
+    21: { chips: 2000, xp: 1000, tier: 'MILESTONE', bonus: 'JACKPOT_SPIN', bonusChance: 1.0 },
 
     // Month milestone: Legendary
-    30: { chips: 50000, xp: 2500, tier: 'LEGENDARY', bonus: 'VIP_WEEK_PASS', bonusChance: 1.0 }
+    30: { chips: 5000, xp: 2500, tier: 'LEGENDARY', bonus: 'VIP_WEEK_PASS', bonusChance: 1.0 }
 };
 
 // Fill in gaps with linear interpolation

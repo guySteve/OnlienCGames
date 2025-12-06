@@ -28,8 +28,8 @@ async function checkDailyReset(userId) {
     if (canClaim) {
       console.log('🎁 Daily reward claimable for:', user.displayName);
       
-      // Reset to daily chip amount (1000)
-      const DAILY_CHIPS = 1000n;
+      // Reset to daily chip amount (100)
+      const DAILY_CHIPS = 100n;
       
       // Calculate new streak (increment if within grace period, reset otherwise)
       const newStreak = nextReward && now <= new Date(nextReward.getTime() + (48 * 60 * 60 * 1000))
@@ -103,7 +103,7 @@ async function getOrCreateUser(googleProfile) {
           email: googleProfile.emails?.[0]?.value || null,
           displayName: googleProfile.displayName,
           avatarUrl: googleProfile.photos?.[0]?.value || null,
-          chipBalance: 1000n,
+          chipBalance: 100n,
           lastLogin: new Date(),
           updatedAt: new Date(),
           currentStreak: 1,

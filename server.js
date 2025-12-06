@@ -174,41 +174,84 @@ function isAdmin(req, res, next) {
 }
 
 async function initializeSessionStore() {
-  const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL;
-  
+  // Try Upstash HTTP client first (better for serverless Cloud Run)
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const redisUrl = process.env.REDIS_URL;
+
+  if (upstashUrl && upstashToken) {
+    // Use Upstash HTTP client - no TCP timeout issues in serverless
+    try {
+      console.log('🔄 Connecting to Upstash Redis (HTTP)...');
+      const { Redis } = require('@upstash/redis');
+
+      const upstashRedis = new Redis({
+        url: upstashUrl,
+        token: upstashToken,
+      });
+
+      // Test connection with quick ping
+      await upstashRedis.ping();
+
+      // Create a Redis-compatible wrapper for RedisStore
+      redisClient = {
+        get: async (key) => await upstashRedis.get(key),
+        set: async (key, value, options) => {
+          if (options?.EX) {
+            await upstashRedis.setex(key, options.EX, value);
+          } else {
+            await upstashRedis.set(key, value);
+          }
+        },
+        del: async (key) => await upstashRedis.del(key),
+        expire: async (key, seconds) => await upstashRedis.expire(key, seconds)
+      };
+
+      sessionStore = new RedisStore({
+        client: redisClient,
+        prefix: 'sess:',
+        ttl: 7 * 24 * 60 * 60
+      });
+
+      console.log('✅ Upstash Redis (HTTP) initialized - perfect for Cloud Run!');
+      return; // Success, exit early
+    } catch (error) {
+      console.warn('⚠️  Upstash HTTP failed, trying TCP Redis:', error.message);
+    }
+  }
+
+  // Fallback to standard Redis TCP client
   if (redisUrl) {
     // Don't await - initialize Redis in background
     (async () => {
       try {
-        console.log('🔄 Connecting to Redis...');
-        // Create Redis client with cold start optimizations
+        console.log('🔄 Connecting to Redis (TCP)...');
         redisClient = createClient({
           url: redisUrl,
           socket: {
             tls: redisUrl.startsWith('rediss://'),
             rejectUnauthorized: false,
-            connectTimeout: 5000, // 5 second connection timeout
+            connectTimeout: 5000,
             keepAlive: 30000
           }
         });
-        
+
         redisClient.on('error', (err) => console.error('Redis Client Error:', err));
         redisClient.on('connect', () => console.log('✅ Redis session store connected'));
-        
-        // Add timeout to prevent hanging
+
         await Promise.race([
           redisClient.connect(),
-          new Promise((_, reject) => 
+          new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Redis timeout')), 5000)
           )
         ]);
-        
+
         sessionStore = new RedisStore({
           client: redisClient,
           prefix: 'sess:',
           ttl: 7 * 24 * 60 * 60
         });
-        
+
         console.log('✅ Redis session store initialized');
       } catch (error) {
         console.error('⚠️  Redis connection failed, using memory store:', error.message);
