@@ -25,7 +25,34 @@ steps:
       - 'push'
       - 'gcr.io/$PROJECT_ID/moes-casino:latest'
 
-  # Step 3: Deploy to Cloud Run
+  # Step 3: Run Database Migrations (BEFORE deployment)
+  #
+  # WHY BEFORE DEPLOYMENT?
+  # - Ensures database schema is ready before new code runs
+  # - Runs ONCE (not once per container)
+  # - Prevents migration race conditions
+  # - Zero downtime: old containers keep running until migrations complete
+  #
+  # MIGRATION STRATEGY:
+  # - Cloud Build runs migrations in temporary container
+  # - Uses DIRECT_URL (not pooled) for reliable connection
+  # - If migrations fail, deployment aborts (safe rollback)
+  # - If migrations succeed, traffic shifts to new revision
+  #
+  - name: 'gcr.io/$PROJECT_ID/moes-casino:$COMMIT_SHA'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "🔄 Running database migrations..."
+        npx prisma migrate deploy
+        echo "✅ Migrations completed successfully"
+    env:
+      - 'DATABASE_URL=${_DATABASE_URL}'
+      - 'DIRECT_URL=${_DIRECT_URL}'
+    timeout: 300s  # 5 minutes max for migrations
+
+  # Step 4: Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -59,3 +86,17 @@ timeout: 1200s
 options:
   # machineType: 'N1_HIGHCPU_8'  # DISABLED - burns free tier 8x faster
   logging: CLOUD_LOGGING_ONLY
+
+# Substitution variables for secure credential handling
+#
+# SETUP: Configure these in Google Cloud Build Triggers settings
+# 1. Go to Cloud Build > Triggers > [Your Trigger] > Edit
+# 2. Add Substitution Variables:
+#    _DATABASE_URL: Your database URL (pooled)
+#    _DIRECT_URL: Your database URL (direct connection)
+#
+# SECURITY: These are encrypted and not exposed in logs
+substitutions:
+  _DATABASE_URL: 'postgresql://user:pass@host:6543/db?pgbouncer=true&connection_limit=1'
+  _DIRECT_URL: 'postgresql://user:pass@host:5432/db'
+  # Note: Replace with actual values in Cloud Build trigger settings

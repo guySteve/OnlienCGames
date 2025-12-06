@@ -9,7 +9,8 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "Bash(git restore:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
