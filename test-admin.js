@@ -67,7 +67,7 @@ try {
   }
   console.log('✅ isAdmin middleware added to server.js');
 
-  if (!serverContent.includes('autoMod.filterMessage')) {
+  if (!serverContent.includes('getAutoMod().filterMessage')) {
     throw new Error('Auto-moderation not integrated in chat handlers');
   }
   console.log('✅ Auto-moderation integrated in chat handlers');
