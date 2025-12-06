@@ -5,7 +5,10 @@
       "Bash(npm run test:games:*)",
       "Bash(node test/comprehensive-tests.js:*)",
       "Bash(npm audit:*)",
-      "Bash(node test/load-stress-tests.js:*)"
+      "Bash(node test/load-stress-tests.js:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []

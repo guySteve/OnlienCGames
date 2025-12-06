@@ -357,6 +357,26 @@ body {
   animation: playerExit 0.3s ease-in forwards;
 }
 
+/* Breathing gradient for Home Screen */
+@keyframes breathing-gradient {
+  0% {
+    background-position: 0% 50%;
+    background-size: 400% 400%;
+  }
+  50% {
+    background-position: 100% 50%;
+    background-size: 200% 200%;
+  }
+  100% {
+    background-position: 0% 50%;
+    background-size: 400% 400%;
+  }
+}
+
+.animate-breathing-gradient {
+  animation: breathing-gradient 20s ease-in-out infinite;
+}
+
 /* ============================================================
    CARD & CHIP SHADOWS
    ============================================================ */

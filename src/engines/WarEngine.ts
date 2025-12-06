@@ -1,19 +1,39 @@
 /**
- * War Game Engine
- * 
- * Implements the Casino War card game logic following the GameEngine architecture.
- * Supports multi-seat play where one player can occupy multiple seats.
+ * War Game Engine - High-Velocity Community Table
+ *
+ * FREE-TIER OPTIMIZED ARCHITECTURE
+ * =================================
+ * - In-Memory Game Loop: All round logic happens in class instance
+ * - Batched DB Writes: Single write per round during payout phase only
+ * - Lightweight State Broadcasting: Minimal JSON over sockets
+ * - No Seat Ownership: Players bet on any of 25 spots, first-come-first-served
+ *
+ * TOPOLOGY
+ * ========
+ * - 5 Zones (arranged in semi-circle)
+ * - 5 Spots per Zone
+ * - Total: 25 playable betting spots (indices 0-24)
+ *
+ * HARD ROCK CASINO WAR RULES
+ * ===========================
+ * - Dealer draws ONE house card
+ * - Each active spot gets ONE player card
+ * - Win: Player card > Dealer card (pays 1:1)
+ * - Lose: Player card < Dealer card (lose bet)
+ * - Tie: Player must choose:
+ *   - Surrender: Forfeit 50% of bet
+ *   - War: Match original bet
+ *     - War Win: Player wins (+1 unit on war bet)
+ *     - War Tie: Player wins (+2 units total)
  */
 
-import { GameEngine, GameState, Player } from './GameEngine';
+import { GameEngine, GameState } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
-// import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
 import crypto from 'crypto';
-import { promisify } from 'util';
 import https from 'https';
+import { EventEmitter } from 'events';
 
-// Use any for Redis to support both node-redis and upstash/redis without strict type dependency
 type Redis = any;
 
 interface Card {
@@ -24,35 +44,26 @@ interface Card {
 
 interface BettingSpot {
   bet: number;
-  playerId?: string;  // socketId or userId
+  playerId?: string;
   playerName?: string;
   playerColor?: string;
   card?: Card;
-}
-
-interface TableSeat {
-  spots: BettingSpot[];  // 4 spots per seat
+  warBet?: number; // Additional bet placed during war
+  decision?: 'war' | 'surrender' | 'pending'; // War decision status
 }
 
 interface PlayerInfo {
-  playerId: string;
+  userId: string;
   name: string;
-  photo?: string;
-  chips: number;
-  color: string;
+  color: string; // Persistent neon color
+  chipBalance: number; // In-memory balance
 }
 
-interface WarGameState {
-  roomId: string;
-  seats: TableSeat[];  // 5 seats, each with 4 spots
-  players: Map<string, PlayerInfo>;  // Active players in the game
-  houseCard: Card | null;
-  pot: number;
-  minBet: number;
-  bettingPhase: boolean;
-  status: string;
-  observerCount: number;
-  deck: Card[];
+interface PendingPayout {
+  userId: string;
+  chipDelta: number; // Net change for batched write
+  wagered: number;
+  won: number;
 }
 
 const SUITS = ['♠', '♥', '♦', '♣'];
@@ -72,11 +83,30 @@ const RANKS = [
   { rank: '2', value: 2 }
 ];
 
+// Neon color palette for persistent player identification
+const NEON_COLORS = [
+  '#FF00FF', // Neon Magenta
+  '#00FFFF', // Neon Cyan
+  '#FFFF00', // Neon Yellow
+  '#FF0080', // Neon Pink
+  '#00FF00', // Neon Green
+  '#FF6600', // Neon Orange
+  '#8000FF', // Neon Purple
+  '#00FF80', // Neon Mint
+  '#FF0040', // Neon Red
+  '#40FF00', // Neon Lime
+  '#0080FF', // Neon Blue
+  '#FF00C0', // Neon Rose
+  '#00FFC0', // Neon Aqua
+  '#C000FF', // Neon Violet
+  '#FFE000', // Neon Gold
+];
+
 /**
  * Fetch external entropy from Cloudflare's QRNG service
  */
 async function fetchQRNGEntropy(): Promise<string> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const request = https.get('https://drand.cloudflare.com/public/latest', (response) => {
       let data = '';
       response.on('data', chunk => data += chunk);
@@ -95,88 +125,60 @@ async function fetchQRNGEntropy(): Promise<string> {
   });
 }
 
-const PLAYER_COLORS = [
-  '#FF6B6B', // Red
-  '#4ECDC4', // Teal
-  '#FFE66D', // Yellow
-  '#95E1D3', // Mint
-  '#F38181', // Pink
-  '#AA96DA', // Purple
-  '#FCBAD3', // Light Pink
-  '#A8D8EA', // Light Blue
-  '#FFD93D', // Gold
-  '#6BCB77'  // Green
-];
-
 /**
- * War Game Engine - Multi-Spot Betting Implementation
+ * War Game Engine - Community Table (Free-Tier Optimized)
  */
 export class WarEngine extends GameEngine {
-  private seats: TableSeat[] = [];
-  private playerInfo: Map<string, PlayerInfo> = new Map();  // Extended player info with colors
+  // Game State (In-Memory)
+  private spots: BettingSpot[] = []; // 25 spots (indices 0-24)
+  private playerColors: Map<string, string> = new Map(); // userId -> persistent color
+  private playerInfo: Map<string, PlayerInfo> = new Map(); // userId -> player data
   private houseCard: Card | null = null;
   private deck: Card[] = [];
   private bettingPhase: boolean = true;
-  private observers: Set<string> = new Set();
-  private gameSessionId: string | null = null;
+  private warPhase: boolean = false; // True when waiting for war decisions
+  private pendingPayouts: Map<string, PendingPayout> = new Map(); // Batched DB writes
+
+  // Provably Fair
   private playerSeed: string = '';
   private serverSeed: string = '';
-  private tableCode: string = '';
-  private isPrivate: boolean = false;
+
+  // Socket Events
+  public events: EventEmitter = new EventEmitter();
+
+  // Color Assignment
   private colorIndex: number = 0;
 
   constructor(
     roomId: string,
     prisma: PrismaClient,
     redis: Redis,
-    engagement: EngagementService,
-    options: { isPrivate?: boolean } = {}
+    engagement: EngagementService
   ) {
     super(
       {
         roomId,
-        minBet: WarEngine.getMinBet(),
+        minBet: 10,
         maxBet: 10000,
-        maxPlayers: 20  // 5 seats × 4 spots
+        maxPlayers: 100 // Community table, no seat limit
       },
       prisma,
       redis,
       engagement
     );
 
-    // Handle private game options
-    if (options.isPrivate) {
-      this.isPrivate = true;
-      this.tableCode = crypto.randomBytes(3).toString('hex').toUpperCase();
-    }
-
-    // Initialize 5 seats, each with 4 empty betting spots
-    this.seats = Array(5).fill(null).map(() => ({
-      spots: Array(4).fill(null).map(() => ({ bet: 0 }))
-    }));
+    // Initialize 25 empty betting spots (5 zones × 5 spots)
+    this.spots = Array(25).fill(null).map(() => ({ bet: 0 }));
     this.deck = this.createDeck();
+    this.state = GameState.PLACING_BETS;
   }
 
-  getGameType(): 'WAR' | 'BLACKJACK' {
+  getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO' {
     return 'WAR';
   }
 
-  /**
-   * Get table code for private games
-   */
-  getTableCode(): string {
-    return this.tableCode;
-  }
-
-  /**
-   * Check if game is waiting for more players
-   */
-  isWaitingForOpponent(): boolean {
-    return this.isPrivate && this.playerInfo.size < 2 && this.bettingPhase;
-  }
-
   // ==========================================================================
-  // DECK MANAGEMENT
+  // DECK MANAGEMENT (Provably Fair)
   // ==========================================================================
 
   private createDeck(): Card[] {
@@ -189,42 +191,34 @@ export class WarEngine extends GameEngine {
     return this.shuffleDeck(deck);
   }
 
-  /**
-   * Shuffle deck using dual-seed hashing (Provably Fair 2.0)
-   * Combines player seed + server seed for verifiable randomness
-   */
   private shuffleDeck(deck: Card[]): Card[] {
     const shuffled = [...deck];
-    
-    // Generate deterministic RNG from combined seeds
     const combinedHash = crypto
       .createHash('sha256')
       .update(this.playerSeed + this.serverSeed)
       .digest();
-    
+
     let seedIndex = 0;
     for (let i = shuffled.length - 1; i > 0; i--) {
-      // Use bytes from hash as seed for randomness
       const byte = combinedHash[seedIndex % 32];
       const j = byte % (i + 1);
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       seedIndex++;
     }
+
+    this.events.emit('deck_shuffled', { cardCount: shuffled.length });
     return shuffled;
   }
 
-  /**
-   * Initialize game with QRNG entropy and player seed
-   */
   public async initializeWithQRNG(playerSeed: string): Promise<void> {
     this.playerSeed = playerSeed;
     this.serverSeed = await fetchQRNGEntropy();
     this.deck = this.createDeck();
+    this.events.emit('qrng_initialized', {
+      playerSeedHash: crypto.createHash('sha256').update(playerSeed).digest('hex').substring(0, 8)
+    });
   }
 
-  /**
-   * Get the dual seeds for verification (public audit)
-   */
   public getDualSeeds(): { playerSeed: string; serverSeed: string } {
     return {
       playerSeed: this.playerSeed,
@@ -236,182 +230,170 @@ export class WarEngine extends GameEngine {
     if (this.deck.length === 0) {
       this.deck = this.createDeck();
     }
-    return this.deck.pop() || null;
+    const card = this.deck.pop() || null;
+    if (card) {
+      this.events.emit('card_drawn', { cardsRemaining: this.deck.length });
+    }
+    return card;
   }
 
   // ==========================================================================
-  // PLAYER MANAGEMENT
+  // PLAYER CONNECTION (No Sit-Down Required)
   // ==========================================================================
 
   /**
-   * Join game as a player (assigns color, no seat required)
+   * Connect player to table and assign persistent neon color
    */
-  public joinGame(playerId: string, name: string, photo: string | null, chips: number): { success: boolean; color: string; error?: string } {
-    if (this.playerInfo.has(playerId)) {
-      const player = this.playerInfo.get(playerId)!;
-      return { success: true, color: player.color };
+  public async connectPlayer(userId: string, name: string): Promise<{ success: boolean; color: string; chips: number }> {
+    // Check if player already connected (return existing color)
+    if (this.playerColors.has(userId)) {
+      const player = this.playerInfo.get(userId);
+      return {
+        success: true,
+        color: this.playerColors.get(userId)!,
+        chips: player?.chipBalance || 0
+      };
     }
 
-    // Assign a color to the player
-    const color = PLAYER_COLORS[this.colorIndex % PLAYER_COLORS.length];
+    // Load player balance from DB (one-time read)
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return { success: false, color: '', chips: 0 };
+    }
+
+    // Assign persistent neon color
+    const color = NEON_COLORS[this.colorIndex % NEON_COLORS.length];
     this.colorIndex++;
 
-    this.playerInfo.set(playerId, {
-      playerId,
+    this.playerColors.set(userId, color);
+    this.playerInfo.set(userId, {
+      userId,
       name,
-      photo: photo || undefined,
-      chips,
-      color
+      color,
+      chipBalance: Number(user.chipBalance)
     });
 
-    return { success: true, color };
+    this.events.emit('player_connected', { userId, name, color });
+
+    return {
+      success: true,
+      color,
+      chips: Number(user.chipBalance)
+    };
   }
 
   /**
-   * Leave game - remove all bets and player info
+   * Disconnect player (optional cleanup)
    */
-  public leaveGame(playerId: string): { success: boolean } {
-    if (!this.playerInfo.has(playerId)) {
-      return { success: false };
-    }
-
-    // Clear all bets from this player
-    for (const seat of this.seats) {
-      for (const spot of seat.spots) {
-        if (spot.playerId === playerId) {
-          spot.bet = 0;
-          spot.playerId = undefined;
-          spot.playerName = undefined;
-          spot.playerColor = undefined;
-          spot.card = undefined;
-        }
-      }
-    }
-
-    this.playerInfo.delete(playerId);
-    return { success: true };
+  public disconnectPlayer(userId: string): void {
+    // Note: Color persists in playerColors Map for reconnection
+    this.events.emit('player_disconnected', { userId });
   }
 
   /**
    * Get player info
    */
-  public getPlayer(playerId: string): PlayerInfo | null {
-    return this.playerInfo.get(playerId) || null;
-  }
-
-  /**
-   * Update player chips
-   */
-  public updatePlayerChips(playerId: string, chips: number): boolean {
-    const player = this.playerInfo.get(playerId);
-    if (!player) return false;
-    player.chips = chips;
-    return true;
+  public getPlayer(userId: string): PlayerInfo | null {
+    return this.playerInfo.get(userId) || null;
   }
 
   // ==========================================================================
-  // BETTING
+  // BETTING (First-Come-First-Served on 25 Spots)
   // ==========================================================================
 
   /**
-   * Place bet on a specific spot
-   * Base class signature compatibility: async placeBet(userId: string, amount: number, seatIndex?: number)
+   * Place bet on any spot (0-24)
+   * NO database write - all in-memory
    */
-  async placeBet(playerId: string, amount: number, seatIndex?: number, spotIndex?: number): Promise<boolean> {
-    if (!this.bettingPhase) return false;
+  async placeBet(userId: string, amount: number, spotIndex?: number): Promise<boolean> {
+    if (!this.bettingPhase || this.warPhase) return false;
+    if (spotIndex === undefined || spotIndex < 0 || spotIndex >= 25) return false;
     if (!this.validateBet(amount)) return false;
 
-    // New multi-spot API requires both seatIndex and spotIndex
-    if (seatIndex === undefined || spotIndex === undefined) {
+    const player = this.playerInfo.get(userId);
+    if (!player) return false;
+
+    const spot = this.spots[spotIndex];
+
+    // Check if spot is already occupied
+    if (spot.bet > 0 && spot.playerId !== userId) {
+      this.events.emit('spot_occupied', { spotIndex, occupiedBy: spot.playerId });
       return false;
     }
 
-    if (seatIndex < 0 || seatIndex >= 5) return false;
-    if (spotIndex < 0 || spotIndex >= 4) return false;
-
-    const player = this.playerInfo.get(playerId);
-    if (!player || player.chips < amount) {
+    // Check if player has sufficient chips (in-memory check)
+    if (player.chipBalance < amount) {
+      this.events.emit('insufficient_chips', { userId, required: amount, available: player.chipBalance });
       return false;
     }
 
-    const spot = this.seats[seatIndex].spots[spotIndex];
+    // Deduct chips in-memory (NO DB WRITE YET)
+    player.chipBalance -= amount;
 
-    // Check if spot is already occupied by another player
-    if (spot.bet > 0 && spot.playerId !== playerId) {
-      return false;
-    }
-
-    // If player already has a bet here, add to it
-    if (spot.playerId === playerId) {
-      player.chips -= amount;
+    // Place bet
+    if (spot.playerId === userId) {
+      // Add to existing bet
       spot.bet += amount;
-      this.pot += amount;
     } else {
-      // New bet on empty spot
-      player.chips -= amount;
+      // New bet
       spot.bet = amount;
-      spot.playerId = playerId;
+      spot.playerId = userId;
       spot.playerName = player.name;
       spot.playerColor = player.color;
-      this.pot += amount;
     }
+
+    this.pot += amount;
+
+    this.events.emit('bet_placed', {
+      userId,
+      spotIndex,
+      amount,
+      totalBet: spot.bet,
+      color: player.color,
+      playerChips: player.chipBalance
+    });
 
     return true;
   }
 
   /**
-   * Remove bet from a specific spot
+   * Remove bet (only during betting phase)
    */
-  public removeBet(playerId: string, seatIndex: number, spotIndex: number): boolean {
-    if (!this.bettingPhase) return false;
-    if (seatIndex < 0 || seatIndex >= 5) return false;
-    if (spotIndex < 0 || spotIndex >= 4) return false;
+  public removeBet(userId: string, spotIndex: number): boolean {
+    if (!this.bettingPhase || this.warPhase) return false;
+    if (spotIndex < 0 || spotIndex >= 25) return false;
 
-    const spot = this.seats[seatIndex].spots[spotIndex];
-    if (spot.playerId !== playerId) return false;
+    const spot = this.spots[spotIndex];
+    if (spot.playerId !== userId) return false;
 
-    const player = this.playerInfo.get(playerId);
+    const player = this.playerInfo.get(userId);
     if (!player) return false;
 
-    // Return chips to player
-    player.chips += spot.bet;
+    // Return chips in-memory
+    player.chipBalance += spot.bet;
     this.pot -= spot.bet;
+
+    const refundAmount = spot.bet;
 
     // Clear spot
     spot.bet = 0;
     spot.playerId = undefined;
     spot.playerName = undefined;
     spot.playerColor = undefined;
+    spot.card = undefined;
+
+    this.events.emit('bet_removed', { userId, spotIndex, refundAmount, playerChips: player.chipBalance });
 
     return true;
   }
 
   /**
-   * Check if any bets have been placed
+   * Get all active spots
    */
-  public hasActiveBets(): boolean {
-    for (const seat of this.seats) {
-      for (const spot of seat.spots) {
-        if (spot.bet > 0) return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Get all active betting spots
-   */
-  private getActiveSpots(): Array<{ seatIndex: number; spotIndex: number; spot: BettingSpot }> {
-    const active: Array<{ seatIndex: number; spotIndex: number; spot: BettingSpot }> = [];
-    for (let seatIndex = 0; seatIndex < this.seats.length; seatIndex++) {
-      for (let spotIndex = 0; spotIndex < this.seats[seatIndex].spots.length; spotIndex++) {
-        const spot = this.seats[seatIndex].spots[spotIndex];
-        if (spot.bet > 0 && spot.playerId) {
-          active.push({ seatIndex, spotIndex, spot });
-        }
-      }
-    }
-    return active;
+  private getActiveSpots(): Array<{ index: number; spot: BettingSpot }> {
+    return this.spots
+      .map((spot, index) => ({ index, spot }))
+      .filter(({ spot }) => spot.bet > 0 && spot.playerId);
   }
 
   // ==========================================================================
@@ -419,92 +401,302 @@ export class WarEngine extends GameEngine {
   // ==========================================================================
 
   async startNewHand(): Promise<void> {
-    if (!this.bettingPhase || !this.hasActiveBets()) return;
+    const activeSpots = this.getActiveSpots();
+    if (!this.bettingPhase || activeSpots.length === 0) return;
 
     this.bettingPhase = false;
     this.handNumber++;
     this.state = GameState.DEALING;
 
-    // Deal cards to all active betting spots
-    const activeSpots = this.getActiveSpots();
+    this.events.emit('hand_started', { handNumber: this.handNumber, activeSpotsCount: activeSpots.length });
+
+    // Deal cards to all active spots
     for (const { spot } of activeSpots) {
       spot.card = this.drawCard() || undefined;
     }
 
-    // Deal house card
-    this.houseCard = this.drawCard() || null;
+    // Deal single house card
+    this.houseCard = this.drawCard();
+
+    this.events.emit('cards_dealt', {
+      houseCard: this.houseCard,
+      spotCards: activeSpots.map(({ index, spot }) => ({ index, card: spot.card }))
+    });
+
+    // Check for ties (war decision required)
+    const tieSpots = activeSpots.filter(({ spot }) =>
+      spot.card && this.houseCard && spot.card.value === this.houseCard.value
+    );
+
+    if (tieSpots.length > 0) {
+      // War phase - wait for player decisions
+      this.warPhase = true;
+      this.state = GameState.PLAYER_TURN;
+
+      for (const { index, spot } of tieSpots) {
+        spot.decision = 'pending';
+      }
+
+      this.events.emit('war_decisions_required', {
+        spots: tieSpots.map(({ index }) => index)
+      });
+
+      await this.saveStateToRedis();
+    } else {
+      // No ties, proceed to resolution
+      await this.resolveHand();
+    }
+  }
+
+  /**
+   * Handle war decision (Surrender or War)
+   */
+  public async makeWarDecision(userId: string, spotIndex: number, decision: 'surrender' | 'war'): Promise<boolean> {
+    if (!this.warPhase) return false;
+    if (spotIndex < 0 || spotIndex >= 25) return false;
+
+    const spot = this.spots[spotIndex];
+    if (spot.playerId !== userId || spot.decision !== 'pending') return false;
+
+    const player = this.playerInfo.get(userId);
+    if (!player) return false;
+
+    if (decision === 'surrender') {
+      // Surrender: Return 50% of bet
+      const refund = Math.floor(spot.bet * 0.5);
+      player.chipBalance += refund;
+      spot.decision = 'surrender';
+
+      this.events.emit('war_surrender', { userId, spotIndex, refund, playerChips: player.chipBalance });
+    } else {
+      // War: Match the original bet
+      if (player.chipBalance < spot.bet) {
+        this.events.emit('insufficient_chips_for_war', { userId, spotIndex });
+        return false;
+      }
+
+      player.chipBalance -= spot.bet;
+      spot.warBet = spot.bet;
+      spot.decision = 'war';
+
+      this.events.emit('war_declared', { userId, spotIndex, warBet: spot.warBet, playerChips: player.chipBalance });
+
+      // Deal war cards
+      spot.card = this.drawCard() || undefined;
+      this.houseCard = this.drawCard();
+
+      this.events.emit('war_cards_dealt', {
+        spotIndex,
+        playerCard: spot.card,
+        houseCard: this.houseCard
+      });
+    }
+
+    // Check if all war decisions are made
+    const pendingDecisions = this.spots.filter(spot => spot.decision === 'pending');
+    if (pendingDecisions.length === 0) {
+      this.warPhase = false;
+      await this.resolveHand();
+    }
+
+    return true;
+  }
+
+  /**
+   * Resolve hand and execute BATCHED DATABASE WRITE
+   */
+  async resolveHand(): Promise<void> {
+    if (!this.houseCard) return;
 
     this.state = GameState.RESOLVING;
+    this.pendingPayouts.clear(); // Reset batch
+
+    const dealerValue = this.houseCard.value;
+    const activeSpots = this.getActiveSpots();
+
+    for (const { index, spot } of activeSpots) {
+      if (!spot.card || !spot.playerId) continue;
+
+      const player = this.playerInfo.get(spot.playerId);
+      if (!player) continue;
+
+      const playerValue = spot.card.value;
+      let outcome: 'win' | 'lose' | 'war_win' | 'war_tie' | 'surrender' = 'lose';
+      let payout = 0;
+
+      // Handle surrender
+      if (spot.decision === 'surrender') {
+        outcome = 'surrender';
+        payout = 0; // Already refunded 50%
+      }
+      // Handle war resolution
+      else if (spot.decision === 'war' && spot.warBet) {
+        if (playerValue > dealerValue) {
+          // War Win: +1 unit on war bet
+          outcome = 'war_win';
+          payout = spot.warBet * 2; // Return war bet + winnings
+          player.chipBalance += payout;
+        } else if (playerValue === dealerValue) {
+          // War Tie: +2 units total (original bet + war bet)
+          outcome = 'war_tie';
+          payout = (spot.bet + spot.warBet) * 2;
+          player.chipBalance += payout;
+        } else {
+          // War Lose
+          outcome = 'lose';
+          payout = 0; // Lose both bets
+        }
+      }
+      // Standard resolution
+      else {
+        if (playerValue > dealerValue) {
+          // Win: +1 unit
+          outcome = 'win';
+          payout = spot.bet * 2;
+          player.chipBalance += payout;
+        } else if (playerValue === dealerValue) {
+          // This shouldn't happen (ties trigger war phase)
+          outcome = 'win'; // Push
+          payout = spot.bet;
+          player.chipBalance += payout;
+        } else {
+          // Lose
+          outcome = 'lose';
+          payout = 0;
+        }
+      }
+
+      // Track payout for batched DB write
+      this.trackPayout(spot.playerId, spot.bet, spot.warBet || 0, payout);
+
+      this.events.emit('spot_resolved', {
+        spotIndex: index,
+        userId: spot.playerId,
+        outcome,
+        playerCard: spot.card,
+        playerValue,
+        dealerValue,
+        payout,
+        playerChips: player.chipBalance
+      });
+    }
+
+    this.state = GameState.COMPLETE;
+
+    // CRITICAL: Single batched database write
+    await this.executeBatchedPayouts();
+
+    this.events.emit('hand_complete', {
+      handNumber: this.handNumber,
+      dealerCard: this.houseCard,
+      dealerValue
+    });
+
     await this.saveStateToRedis();
   }
 
   /**
-   * Resolve hand - Each betting spot plays against the dealer individually
-   * Casino War Rules:
-   * - Player wins: Pays 1:1 on bet
-   * - Dealer wins: Player loses bet
-   * - Tie: Player can surrender (lose half) or go to war (auto-push for simplicity)
+   * Track payout for batched write
    */
-  async resolveHand(): Promise<any> {
-    if (!this.houseCard) return null;
+  private trackPayout(userId: string, bet: number, warBet: number, payout: number): void {
+    const totalWagered = bet + warBet;
+    const netWin = payout - totalWagered;
 
-    const dealerValue = this.houseCard.value;
-    const results: any = {
-      outcomes: [],
-      dealerCard: this.houseCard,
-      dealerValue
-    };
-
-    // Resolve each betting spot against the dealer individually
-    const activeSpots = this.getActiveSpots();
-
-    for (const { seatIndex, spotIndex, spot } of activeSpots) {
-      if (!spot.card || !spot.playerId) continue;
-
-      const playerValue = spot.card.value;
-      const bet = spot.bet;
-      const player = this.playerInfo.get(spot.playerId);
-      if (!player) continue;
-
-      let outcome: 'win' | 'lose' | 'tie' = 'lose';
-      let payout = 0;
-
-      if (playerValue > dealerValue) {
-        // Player wins - pays 1:1
-        outcome = 'win';
-        payout = bet * 2; // Return bet + winnings
-        player.chips += payout;
-      } else if (playerValue === dealerValue) {
-        // Tie - in simplified Casino War, push (return bet)
-        outcome = 'tie';
-        payout = bet; // Return original bet
-        player.chips += payout;
-      } else {
-        // Dealer wins - player loses bet (already deducted)
-        outcome = 'lose';
-        payout = 0;
-      }
-
-      results.outcomes.push({
-        seatIndex,
-        spotIndex,
-        playerId: spot.playerId,
-        playerName: spot.playerName,
-        playerColor: spot.playerColor,
-        playerCard: spot.card,
-        playerValue,
-        outcome,
-        bet,
-        payout
+    if (!this.pendingPayouts.has(userId)) {
+      this.pendingPayouts.set(userId, {
+        userId,
+        chipDelta: netWin,
+        wagered: totalWagered,
+        won: payout
       });
+    } else {
+      const pending = this.pendingPayouts.get(userId)!;
+      pending.chipDelta += netWin;
+      pending.wagered += totalWagered;
+      pending.won += payout;
+    }
+  }
+
+  /**
+   * BATCHED DATABASE WRITE - Free-Tier Optimization
+   * Single transaction per round
+   */
+  private async executeBatchedPayouts(): Promise<void> {
+    if (this.pendingPayouts.size === 0) return;
+
+    const sessionId = crypto.randomUUID();
+
+    this.events.emit('payout_batch_started', { playerCount: this.pendingPayouts.size });
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const [userId, payout] of this.pendingPayouts.entries()) {
+          const player = this.playerInfo.get(userId);
+          if (!player) continue;
+
+          const user = await tx.user.findUnique({ where: { id: userId } });
+          if (!user) continue;
+
+          // Update user balance and stats
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              chipBalance: player.chipBalance,
+              totalWagered: { increment: payout.wagered },
+              totalWon: payout.won > 0 ? { increment: payout.won } : undefined,
+              totalHandsPlayed: { increment: 1 },
+              lastHandPlayed: new Date()
+            }
+          });
+
+          // Record transaction
+          if (payout.chipDelta !== 0) {
+            await tx.transaction.create({
+              data: {
+                userId,
+                amount: payout.chipDelta,
+                type: payout.chipDelta > 0 ? 'WIN' : 'BET',
+                balanceBefore: Number(user.chipBalance),
+                balanceAfter: BigInt(player.chipBalance),
+                gameSessionId: sessionId,
+                description: `WAR - Hand #${this.handNumber}`
+              }
+            });
+          }
+
+          // Check for big win
+          if (payout.chipDelta > payout.wagered * 5) {
+            await this.engagement.recordBigWin(userId, payout.chipDelta, 'WAR');
+          }
+        }
+
+        // Create game session record
+        await tx.gameSession.create({
+          data: {
+            id: sessionId,
+            gameType: 'WAR',
+            roomId: this.config.roomId,
+            hostUserId: Array.from(this.pendingPayouts.keys())[0],
+            serverSeed: this.serverSeed,
+            finalState: {
+              handNumber: this.handNumber,
+              activeSpotsCount: this.getActiveSpots().length
+            },
+            totalPot: this.pot,
+            winners: Array.from(this.pendingPayouts.entries())
+              .filter(([_, p]) => p.chipDelta > 0)
+              .map(([userId, p]) => ({ userId, amount: p.chipDelta }))
+          }
+        });
+      });
+
+      this.events.emit('payout_batch_complete', { sessionId });
+    } catch (error) {
+      this.events.emit('payout_batch_error', { error: String(error) });
+      console.error('Batched payout failed:', error);
     }
 
-    // Clear pot since each spot is resolved individually
-    this.pot = 0;
-    this.state = GameState.COMPLETE;
-    await this.saveStateToRedis();
-
-    return results;
+    this.pendingPayouts.clear();
   }
 
   /**
@@ -514,86 +706,91 @@ export class WarEngine extends GameEngine {
     this.pot = 0;
     this.houseCard = null;
     this.bettingPhase = true;
+    this.warPhase = false;
     this.state = GameState.PLACING_BETS;
 
-    // Clear all betting spots
-    for (const seat of this.seats) {
-      for (const spot of seat.spots) {
-        spot.bet = 0;
-        spot.playerId = undefined;
-        spot.playerName = undefined;
-        spot.playerColor = undefined;
-        spot.card = undefined;
-      }
+    // Clear all spots
+    for (const spot of this.spots) {
+      spot.bet = 0;
+      spot.playerId = undefined;
+      spot.playerName = undefined;
+      spot.playerColor = undefined;
+      spot.card = undefined;
+      spot.warBet = undefined;
+      spot.decision = undefined;
     }
+
+    this.events.emit('round_reset', {});
 
     await this.saveStateToRedis();
   }
 
   // ==========================================================================
-  // STATE & OBSERVERS
+  // STATE BROADCASTING (Lightweight JSON)
   // ==========================================================================
 
   getGameState(): any {
     return {
       roomId: this.config.roomId,
       gameType: 'WAR',
-      seats: this.seats,
-      players: Array.from(this.playerInfo.values()),
+      spots: this.spots.map((spot, index) => ({
+        index,
+        bet: spot.bet,
+        playerId: spot.playerId,
+        playerColor: spot.playerColor,
+        card: spot.card,
+        decision: spot.decision,
+        warBet: spot.warBet
+      })),
       houseCard: this.houseCard,
       pot: this.pot,
       minBet: this.config.minBet,
       maxBet: this.config.maxBet,
       bettingPhase: this.bettingPhase,
+      warPhase: this.warPhase,
       status: this.getStatusMessage(),
-      observerCount: this.observers.size,
-      isPrivate: this.isPrivate,
-      tableCode: this.tableCode,
-      waitingForOpponent: this.isWaitingForOpponent()
+      handNumber: this.handNumber,
+      state: this.state
+    };
+  }
+
+  /**
+   * Get player-specific state (includes personal chip balance)
+   */
+  public getPlayerState(userId: string): any {
+    const player = this.playerInfo.get(userId);
+    return {
+      ...this.getGameState(),
+      playerColor: this.playerColors.get(userId),
+      playerChips: player?.chipBalance || 0,
+      playerSpots: this.spots
+        .map((spot, index) => ({ index, spot }))
+        .filter(({ spot }) => spot.playerId === userId)
+        .map(({ index }) => index)
     };
   }
 
   private getStatusMessage(): string {
-    if (this.bettingPhase) {
-      return 'Place your bets!';
-    }
-    if (this.state === GameState.DEALING) {
-      return 'Dealing cards...';
-    }
-    if (this.state === GameState.RESOLVING) {
-      return 'Revealing cards...';
-    }
-    return '';
-  }
-
-  public addObserver(socketId: string): void {
-    this.observers.add(socketId);
-  }
-
-  public removeObserver(socketId: string): void {
-    this.observers.delete(socketId);
-  }
-
-  public getActiveBetsCount(): number {
-    let count = 0;
-    for (const seat of this.seats) {
-      for (const spot of seat.spots) {
-        if (spot.bet > 0) count++;
-      }
-    }
-    return count;
-  }
-
-  public getPlayerCount(): number {
-    return this.playerInfo.size;
+    if (this.bettingPhase) return 'Place your bets!';
+    if (this.warPhase) return 'War decisions required';
+    if (this.state === GameState.DEALING) return 'Dealing cards...';
+    if (this.state === GameState.RESOLVING) return 'Resolving hands...';
+    return 'Round complete';
   }
 
   // ==========================================================================
   // UTILITY
   // ==========================================================================
 
-  static getMinBet(): number {
-    const hour = new Date().getHours();
-    return hour >= 20 ? 50 : 10; // High Stakes Night after 8 PM
+  public getActiveSpotsCount(): number {
+    return this.spots.filter(spot => spot.bet > 0).length;
+  }
+
+  public getPlayerCount(): number {
+    return this.playerInfo.size;
+  }
+
+  public getConnectedPlayers(): PlayerInfo[] {
+    return Array.from(this.playerInfo.values());
   }
 }

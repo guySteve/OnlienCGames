@@ -27,6 +27,77 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
 const APP_VERSION = '4.0.0';
 
+// =============================================================================
+// NIGHTCLUB HOURS MIDDLEWARE
+// =============================================================================
+
+/**
+ * Gets the current time in Eastern Time (approximated).
+ * NOTE: This is a simplified check and may not be accurate during DST transitions.
+ * A library like date-fns-tz would be more robust.
+ * @returns {{etDate: Date, etHour: number}}
+ */
+function getCurrentEasternTime() {
+    const now = new Date();
+    // Crude check for DST in North America (March to November)
+    const month = now.getUTCMonth(); // 0-11
+    const isDST = month >= 2 && month <= 10;
+    const etOffset = isDST ? -4 : -5; // EDT is UTC-4, EST is UTC-5
+
+    // Create a new date object representing ET
+    const etDate = new Date(now.getTime() + etOffset * 3600 * 1000);
+    const etHour = etDate.getUTCHours();
+
+    return { etDate, etHour };
+}
+
+
+/**
+ * Checks if the casino is within operating hours (10 PM - 2 AM ET).
+ * @returns {{isOpen: boolean, nextOpenTime: Date}}
+ */
+function getOperatingHoursStatus() {
+    const { etDate, etHour } = getCurrentEasternTime();
+
+    // Operating hours are 10 PM (22) to 2 AM (02)
+    const isOpen = etHour >= 22 || etHour < 2;
+
+    // Calculate the next opening time
+    const nextOpenTime = new Date(etDate);
+    nextOpenTime.setUTCHours(22, 0, 0, 0);
+
+    // If it's already past 10 PM today, the next opening is tomorrow
+    if (etHour >= 22) {
+        nextOpenTime.setUTCDate(nextOpenTime.getUTCDate() + 1);
+    }
+
+    return { isOpen, nextOpenTime };
+}
+
+
+/**
+ * Middleware to enforce casino operating hours for Express routes.
+ */
+function checkOperatingHours(req, res, next) {
+    // Allow health checks and auth routes to always pass
+    if (req.path === '/health' || req.path.startsWith('/auth')) {
+        return next();
+    }
+    
+    const { isOpen, nextOpenTime } = getOperatingHoursStatus();
+
+    if (isOpen) {
+        return next();
+    }
+
+    res.status(503).json({
+        error: 'Casino is currently closed.',
+        message: 'The nightclub is only open from 10 PM to 2 AM Eastern Time.',
+        nextOpenTime: nextOpenTime.toISOString(),
+    });
+}
+
+
 // Database health check
 async function checkDatabaseConnection() {
   try {
@@ -256,6 +327,10 @@ app.use((req, res, next) => {
   console.log(`[${timestamp}] ${req.method} ${req.url} - User: ${userId}`);
   next();
 });
+
+// >>> APPLY NIGHTCLUB HOURS MIDDLEWARE TO ALL API AND GAME ROUTES <<<
+app.use(checkOperatingHours);
+
 
 // Welcome page for unauthenticated users
 app.get('/', (req, res) => {
@@ -1358,8 +1433,10 @@ function getMinBet() {
 }
 
 class GameRoom {
-  constructor(roomId) {
+  constructor(roomId, displayName = null) {
     this.roomId = roomId;
+    this.displayName = displayName; // Custom room name set by creator
+    this.creatorSocketId = null; // Track who created the room
     // 5 seats (0-4), null means empty
     this.seats = [null, null, null, null, null];
     // Observers (not seated yet)
@@ -1649,6 +1726,7 @@ class GameRoom {
     
     return {
       roomId: this.roomId,
+      displayName: this.displayName,
       seats,
       observers,
       seatedCount: this.seatedCount,
@@ -1665,7 +1743,8 @@ class GameRoom {
 
 function getRoomsSummary() {
   return Array.from(games.values()).map(g => ({ 
-    roomId: g.roomId, 
+    roomId: g.roomId,
+    displayName: g.displayName,
     seatedCount: g.seatedCount, 
     observerCount: g.observers.size,
     hasEmptySeat: g.hasEmptySeat(),
@@ -1733,6 +1812,7 @@ function getBingoRoomsSummary() {
     .filter(([id, game]) => game.getGameType && game.getGameType() === 'BINGO')
     .map(([id, game]) => ({
       roomId: id,
+      displayName: game.config?.displayName || null,
       type: 'BINGO',
       playerCount: game.getPlayers ? game.getPlayers().length : 0,
       phase: game.getGameState().phase,
@@ -1742,6 +1822,18 @@ function getBingoRoomsSummary() {
 }
 
 io.on('connection', (socket) => {
+  // Enforce operating hours for socket connections
+  const { isOpen, nextOpenTime } = getOperatingHoursStatus();
+  if (!isOpen) {
+      socket.emit('error', {
+          message: 'Casino is closed.',
+          details: 'The nightclub is only open from 10 PM to 2 AM Eastern Time.',
+          nextOpenTime: nextOpenTime.toISOString(),
+      });
+      socket.disconnect(true);
+      return;
+  }
+
   // Join lobby channel and send existing rooms
   socket.join('lobby');
   io.to(socket.id).emit('rooms_list', getRoomsSummary());
@@ -1823,8 +1915,13 @@ io.on('connection', (socket) => {
     const profile = user ? await getUserProfile(user.id) : { nickname: 'Player', avatar: null };
     const name = profile.nickname || data.playerName || 'Player';
     const photo = profile.avatar || data.photo || null;
+    
+    // Get custom room name from data, sanitize and limit length
+    const displayName = data.roomName ? 
+      sanitizeMessage(data.roomName).substring(0, 30) : null;
 
-    const game = new GameRoom(roomId);
+    const game = new GameRoom(roomId, displayName);
+    game.creatorSocketId = socket.id;
     game.addObserver({ socketId: socket.id, name, photo });
 
     games.set(roomId, game);
@@ -1998,7 +2095,6 @@ io.on('connection', (socket) => {
       io.to(socket.id).emit('game_state', { gameState: game.getState() });
     }
   });
-
   // Send table invite
   socket.on('send_invite', async (data) => {
     const user = socket.request?.session?.passport?.user;
@@ -2322,9 +2418,13 @@ io.on('connection', (socket) => {
       const BingoEngine = require('./src/engines/BingoEngine').BingoEngine;
       const EngagementService = require('./src/services/EngagementService').EngagementService;
       
+      // Get custom room name from data, sanitize and limit length
+      const displayName = data.roomName ? 
+        sanitizeMessage(data.roomName).substring(0, 30) : null;
+      
       const engagement = new EngagementService(prisma, redisClient || null);
       const bingoGame = new BingoEngine(
-        { roomId, minBet: 1, maxBet: 5, maxPlayers: 50 },
+        { roomId, displayName, minBet: 1, maxBet: 5, maxPlayers: 50 },
         prisma,
         redisClient || null,
         engagement
@@ -2400,9 +2500,13 @@ io.on('connection', (socket) => {
       const BlackjackEngine = require('./src/engines/BlackjackEngine').BlackjackEngine;
       const EngagementService = require('./src/services/EngagementService').EngagementService;
       
+      // Get custom room name from data, sanitize and limit length
+      const displayName = data.roomName ? 
+        sanitizeMessage(data.roomName).substring(0, 30) : null;
+      
       const engagement = new EngagementService(prisma, redisClient || null);
       const bjGame = new BlackjackEngine(
-        { roomId, minBet: 10, maxBet: 500, maxPlayers: 5 },
+        { roomId, displayName, minBet: 10, maxBet: 500, maxPlayers: 5 },
         prisma,
         redisClient || null,
         engagement

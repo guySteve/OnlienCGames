@@ -1,0 +1,156 @@
+/* @/components/DealerAvatar.css */
+
+.dealer-avatar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+}
+
+.dealer-avatar {
+  position: relative;
+  width: 120px;
+  height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.dealer-face {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #f5e6d3 0%, #e6d4bd 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 3px solid #fff;
+  position: relative;
+  z-index: 2;
+}
+
+.dealer-emoji {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.dealer-body {
+  position: relative;
+  width: 100px;
+  height: 80px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border-radius: 0 0 50px 50px;
+  margin-top: -20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.dealer-suit {
+  width: 60px;
+  height: 40px;
+  background: linear-gradient(135deg, #000 0%, #1a1a1a 100%);
+  margin-top: 25px;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+}
+
+.dealer-suit::before {
+  content: '🎩';
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 32px;
+}
+
+.dealer-suit::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.dealer-hands {
+  display: flex;
+  gap: 40px;
+  margin-top: 10px;
+}
+
+.dealer-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffd700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.5px;
+}
+
+.dealer-status {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+  text-align: center;
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  min-width: 150px;
+}
+
+/* State-specific styles */
+.dealer-thinking .dealer-suit::before {
+  animation: tipHat 1.5s ease-in-out infinite;
+}
+
+@keyframes tipHat {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  50% { transform: translateX(-50%) rotate(-15deg); }
+}
+
+.dealer-dealing .dealer-hands {
+  animation: dealMotion 0.6s ease-in-out;
+}
+
+@keyframes dealMotion {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.dealer-celebrating .dealer-avatar {
+  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.6));
+}
+
+.dealer-sympathetic {
+  opacity: 0.9;
+  filter: grayscale(0.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dealer-avatar {
+    width: 100px;
+    height: 120px;
+  }
+
+  .dealer-face {
+    width: 60px;
+    height: 60px;
+  }
+
+  .dealer-emoji {
+    font-size: 36px;
+  }
+
+  .dealer-body {
+    width: 80px;
+    height: 60px;
+  }
+}

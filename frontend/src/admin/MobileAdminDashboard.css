@@ -1,0 +1,270 @@
+/* ============================================
+   CRITICAL: Zero-Scroll Mobile Layout
+   ============================================ */
+
+/* Prevent body scrolling */
+html, body {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Main Dashboard Container - 100dvh */
+.mobile-admin-dashboard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100dvh; /* Dynamic Viewport Height */
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0f;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+/* ============================================
+   Fixed Header (Top)
+   ============================================ */
+.dashboard-header {
+  flex-shrink: 0;
+  padding: 16px 20px 12px;
+  background: linear-gradient(180deg, #1a1a24 0%, #0f0f16 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dashboard-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+}
+
+.dashboard-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-badge.online {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4caf50;
+}
+
+.stat-badge.offline {
+  color: #9e9e9e;
+}
+
+.stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+}
+
+/* ============================================
+   Fixed Filter Bar (iOS Segmented Control)
+   ============================================ */
+.filter-bar {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  background: #0f0f16;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.segmented-control {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 3px;
+  position: relative;
+}
+
+.segment {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segment.active {
+  background: #2a2a38;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.segment:active {
+  transform: scale(0.98);
+}
+
+/* ============================================
+   Scrollable User List (Flexible Middle)
+   ============================================ */
+.user-list-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: #0a0a0f;
+}
+
+.user-list {
+  padding: 8px 0;
+}
+
+/* User Row - Minimum 44px touch target */
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  min-height: 72px;
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.user-row:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Avatar with Status Dot */
+.user-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #2a2a38;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #0a0a0f;
+}
+
+.status-dot.online {
+  background: #4caf50;
+}
+
+.status-dot.offline {
+  background: #757575;
+}
+
+/* User Info */
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-meta {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Courier New', monospace;
+}
+
+/* Status Badge */
+.user-status {
+  flex-shrink: 0;
+}
+
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.online {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.status-badge.offline {
+  background: rgba(255, 255, 255, 0.05);
+  color: #9e9e9e;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media (max-width: 374px) {
+  .dashboard-title {
+    font-size: 20px;
+  }
+  
+  .user-name {
+    font-size: 15px;
+  }
+  
+  .user-row {
+    padding: 10px 16px;
+  }
+}
+
+/* Safe area for notched devices */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .dashboard-header {
+    padding-top: calc(16px + env(safe-area-inset-top));
+  }
+}
