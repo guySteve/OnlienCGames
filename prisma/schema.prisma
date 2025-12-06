@@ -61,6 +61,7 @@ model HappyHour {
   endTime    DateTime
   multiplier Float    @default(1.5)
   active     Boolean  @default(true)
+  metadata   Json?
 
   @@index([active, startTime, endTime])
 }

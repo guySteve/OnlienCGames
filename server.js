@@ -486,6 +486,11 @@ app.get('/me', async (req, res) => {
   }
 });
 
+app.get('/api/casino-status', (req, res) => {
+  const { isOpen, nextOpenTime } = getOperatingHoursStatus();
+  res.json({ isOpen, nextOpenTime: nextOpenTime.toISOString() });
+});
+
 // Profile update endpoint
 app.post('/profile', express.json(), async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });

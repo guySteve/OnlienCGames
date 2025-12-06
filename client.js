@@ -883,7 +883,11 @@ function showLobby() {
     socket.emit('leave_room', { roomId });
   }
 
-  document.getElementById('lobbyScreen').style.display = 'block';
+  const casinoClosed = document.getElementById('casinoClosed');
+  if (casinoClosed.style.display !== 'block') {
+    document.getElementById('lobbyScreen').style.display = 'block';
+  }
+  
   document.getElementById('gameScreen').style.display = 'none';
   document.getElementById('bingoScreen').style.display = 'none';
   mySeats = [];
@@ -1552,8 +1556,25 @@ async function submitTip() {
   }
 }
 
-window.addEventListener('load', () => {
-  fetchMe();
+async function checkCasinoStatus() {
+  try {
+    const response = await fetch('/api/casino-status');
+    const status = await response.json();
+
+    if (!status.isOpen && (!auth.authenticated || !auth.user.isAdmin)) {
+      const lobbyScreen = document.getElementById('lobbyScreen');
+      const casinoClosed = document.getElementById('casinoClosed');
+      if (lobbyScreen) lobbyScreen.style.display = 'none';
+      if (casinoClosed) casinoClosed.style.display = 'block';
+    }
+  } catch (error) {
+    console.error('Error checking casino status:', error);
+  }
+}
+
+window.addEventListener('load', async () => {
+  await fetchMe();
+  await checkCasinoStatus();
   showLobby();
   initSocket();
   initBingoVoice();

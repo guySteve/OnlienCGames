@@ -220,7 +220,7 @@ class HappyHourScheduler {
         });
 
         // Cache the active event
-        await this.redis.setex('happy_hour:active', config.durationMinutes * 60, JSON.stringify({
+        await this.redis.set('happy_hour:active', JSON.stringify({
             id: event.id,
             bonusType: config.bonusType,
             multiplier: config.multiplier,
@@ -228,7 +228,7 @@ class HappyHourScheduler {
             endTime: endTime.toISOString(),
             durationMinutes: config.durationMinutes,
             isRandom: config.isRandom || false
-        }));
+        }), { ex: config.durationMinutes * 60 });
 
         // Broadcast to all connected clients
         if (this.io) {
