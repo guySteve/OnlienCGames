@@ -1,18 +1,17 @@
 #!/bin/sh
-set -e
 
-echo "✅ Starting server..."
+# Don't exit on errors - let server handle them
+echo "🚀 Container starting..."
+echo "PORT is set to: ${PORT:-not set}"
+echo "NODE_ENV is set to: ${NODE_ENV:-not set}"
 
-# Start server in background so it can accept health checks
-node server.js &
-SERVER_PID=$!
+# Run migrations in background (non-blocking, fire and forget)
+(
+  sleep 10
+  echo "🔄 Running database migrations in background..."
+  npx prisma migrate deploy > /tmp/migrate.log 2>&1 && echo "✅ Migrations completed" || echo "⚠️ Migration skipped or failed"
+) &
 
-# Give server 5 seconds to start listening
-sleep 5
-
-# Run migrations in background (non-blocking)
-echo "🔄 Running database migrations in background..."
-npx prisma migrate deploy > /tmp/migrate.log 2>&1 && echo "✅ Migrations completed" || echo "⚠️ Migration skipped or failed" &
-
-# Wait for server process
-wait $SERVER_PID
+# Start server in foreground
+echo "✅ Starting server on port ${PORT:-3000}..."
+exec node server.js

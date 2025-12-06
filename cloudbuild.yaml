@@ -36,12 +36,14 @@ steps:
       - '--region=us-central1'
       - '--platform=managed'
       - '--allow-unauthenticated'
+      - '--port=8080'
       - '--memory=512Mi'
       - '--cpu=1'
       - '--timeout=300'
       - '--min-instances=0'
       - '--max-instances=10'
       - '--cpu-boost'
+      - '--set-env-vars=PORT=8080'
 
 # Automatically tag images
 images:
