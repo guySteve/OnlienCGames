@@ -83,7 +83,12 @@ function checkOperatingHours(req, res, next) {
     if (req.path === '/health' || req.path.startsWith('/auth')) {
         return next();
     }
-    
+
+    // Allow admin users to bypass operating hours
+    if (req.user && req.user.isAdmin) {
+        return next();
+    }
+
     const { isOpen, nextOpenTime } = getOperatingHoursStatus();
 
     if (isOpen) {
@@ -101,7 +106,13 @@ function checkOperatingHours(req, res, next) {
 // Database health check
 async function checkDatabaseConnection() {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    // Add 10 second timeout to prevent hanging
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database timeout')), 10000)
+      )
+    ]);
     console.log('✅ Database connection established');
     return true;
   } catch (error) {
@@ -308,7 +319,25 @@ async function initializeAuth() {
   }
 }
 
-app.use(cors());
+// Allowed origins for CORS
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://moes-casino-212973396288.us-central1.run.app'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Initialize session middleware IMMEDIATELY (before any routes)
@@ -1822,16 +1851,22 @@ function getBingoRoomsSummary() {
 }
 
 io.on('connection', (socket) => {
-  // Enforce operating hours for socket connections
-  const { isOpen, nextOpenTime } = getOperatingHoursStatus();
-  if (!isOpen) {
-      socket.emit('error', {
-          message: 'Casino is closed.',
-          details: 'The nightclub is only open from 10 PM to 2 AM Eastern Time.',
-          nextOpenTime: nextOpenTime.toISOString(),
-      });
-      socket.disconnect(true);
-      return;
+  // Check if user is admin
+  const user = socket.request?.session?.passport?.user;
+  const isAdminUser = user && user.isAdmin;
+
+  // Enforce operating hours for socket connections (unless admin)
+  if (!isAdminUser) {
+    const { isOpen, nextOpenTime } = getOperatingHoursStatus();
+    if (!isOpen) {
+        socket.emit('error', {
+            message: 'Casino is closed.',
+            details: 'The nightclub is only open from 10 PM to 2 AM Eastern Time.',
+            nextOpenTime: nextOpenTime.toISOString(),
+        });
+        socket.disconnect(true);
+        return;
+    }
   }
 
   // Join lobby channel and send existing rooms
