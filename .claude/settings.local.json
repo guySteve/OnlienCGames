@@ -10,7 +10,8 @@
       "Bash(npm run build:*)",
       "Bash(git restore:*)",
       "Bash(cat:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(npx prisma:*)"
     ],
     "deny": [],
     "ask": []

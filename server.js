@@ -14,6 +14,9 @@ const { getOrCreateUser, checkDailyReset, updateUserChips, canUserPlay, prisma }
 const { getRoomKey, encryptMessage, decryptMessage, sanitizeMessage, deleteRoomKey } = require('./src/encryption');
 const { AutoModerationService } = require('./src/services/AutoModerationService');
 
+// WebAuthn Biometric Authentication
+const webauthn = require('./src/webauthn');
+
 // Social 2.0 Services
 const { initSyndicateService, getSyndicateService } = require('./src/services/SyndicateService');
 const { initReferralService, getReferralService } = require('./src/services/ReferralService');
@@ -458,6 +461,25 @@ app.get('/debug/oauth', (req, res) => {
 app.post('/logout', (req, res) => {
   req.logout(() => { req.session.destroy(() => res.clearCookie('sid').status(200).json({ ok: true })); });
 });
+
+// =============================================================================
+// WEBAUTHN BIOMETRIC AUTHENTICATION ROUTES
+// =============================================================================
+
+// Registration (user must be logged in via Google OAuth first)
+app.post('/auth/webauthn/register-start', webauthn.handleRegistrationStart);
+app.post('/auth/webauthn/register-finish', webauthn.handleRegistrationFinish);
+
+// Authentication (passwordless biometric login)
+app.post('/auth/webauthn/login-start', webauthn.handleAuthenticationStart);
+app.post('/auth/webauthn/login-finish', webauthn.handleAuthenticationFinish);
+
+// Authenticator management
+app.get('/auth/webauthn/authenticators', webauthn.getAuthenticators);
+app.delete('/auth/webauthn/authenticators/:id', webauthn.deleteAuthenticator);
+
+// =============================================================================
+
 app.get('/me', async (req, res) => {
   if (!req.user) return res.status(200).json({ authenticated: false });
   

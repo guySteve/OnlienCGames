@@ -153,12 +153,41 @@ model User {
   tipStreak             Int               @default(0)
   lastTipDate           DateTime?
 
+  // WebAuthn biometric authentication
+  authenticators        Authenticator[]
+
   @@index([currentStreak])
   @@index([email])
   @@index([googleId])
   @@index([lastLogin])
   @@index([isBanned])
   @@index([isAdmin])
+}
+
+// =============================================================================
+// WEBAUTHN BIOMETRIC AUTHENTICATION
+// =============================================================================
+
+model Authenticator {
+  // Primary Key (Auto-incrementing integer for efficient Free Tier)
+  id                   Int      @id @default(autoincrement())
+  createdAt            DateTime @default(now())
+
+  // Link to User
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // FIDO2/WebAuthn Specific Fields (Bytes for space efficiency)
+  credentialID         Bytes    @unique
+  credentialPublicKey  Bytes
+  counter              BigInt   @default(0)
+
+  // Optional metadata
+  transports           String?  // JSON array of transport types
+  deviceName           String?  @db.VarChar(100)
+
+  @@unique([userId, credentialID])
+  @@index([userId])
 }
 
 model ChatMessage {

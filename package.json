@@ -32,6 +32,8 @@
     "@dicebear/collection": "^9.2.4",
     "@dicebear/core": "^9.2.4",
     "@prisma/client": "^5.22.0",
+    "@simplewebauthn/browser": "^13.2.2",
+    "@simplewebauthn/server": "^13.2.2",
     "@upstash/redis": "^1.35.7",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.65.1",
