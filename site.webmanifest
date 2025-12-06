@@ -1,0 +1,20 @@
+{
+  "name": "Moe's Card Room",
+  "short_name": "Card Room",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1f16",
+  "theme_color": "#0a1f16",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.jpg",
+      "sizes": "180x180",
+      "type": "image/jpeg"
+    }
+  ]
+}
