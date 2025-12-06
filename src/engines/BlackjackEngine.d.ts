@@ -1,17 +1,23 @@
 /**
- * Professional Blackjack Engine
+ * Professional Blackjack Engine - Hard Rock Casino Standards
  *
  * Rules:
  * - 6-deck shoe with 75% penetration
- * - Dealer stands on soft 17
+ * - Dealer HITS on soft 17 (Hard Rock Standard)
  * - Blackjack pays 3:2
  * - Insurance pays 2:1
  * - Double down on any two cards
  * - Split pairs (up to 3 hands)
+ *
+ * Features:
+ * - Cryptographically secure Fisher-Yates shuffle
+ * - Socket event emissions for real-time updates
+ * - Provably fair dual-seed system
  */
 import { GameEngine, GameConfig } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
+import { EventEmitter } from 'events';
 type Redis = any;
 interface Card {
     rank: string;
@@ -31,6 +37,7 @@ export declare class BlackjackEngine extends GameEngine {
     private readonly INSURANCE_PAYOUT;
     private playerSeed;
     private serverSeed;
+    events: EventEmitter;
     constructor(config: GameConfig, prisma: PrismaClient, redis: Redis, engagement: EngagementService);
     getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
     private initializeShoe;

@@ -1,14 +1,19 @@
 "use strict";
 /**
- * Professional Blackjack Engine
+ * Professional Blackjack Engine - Hard Rock Casino Standards
  *
  * Rules:
  * - 6-deck shoe with 75% penetration
- * - Dealer stands on soft 17
+ * - Dealer HITS on soft 17 (Hard Rock Standard)
  * - Blackjack pays 3:2
  * - Insurance pays 2:1
  * - Double down on any two cards
  * - Split pairs (up to 3 hands)
+ *
+ * Features:
+ * - Cryptographically secure Fisher-Yates shuffle
+ * - Socket event emissions for real-time updates
+ * - Provably fair dual-seed system
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -18,6 +23,7 @@ exports.BlackjackEngine = void 0;
 const GameEngine_1 = require("./GameEngine");
 const crypto_1 = __importDefault(require("crypto"));
 const https_1 = __importDefault(require("https"));
+const events_1 = require("events");
 class BlackjackEngine extends GameEngine_1.GameEngine {
     shoe = [];
     cutCardPosition = 0;
@@ -31,6 +37,8 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
     INSURANCE_PAYOUT = 2.0;
     playerSeed = '';
     serverSeed = '';
+    // Event emitter for socket broadcasts
+    events = new events_1.EventEmitter();
     constructor(config, prisma, redis, engagement) {
         super(config, prisma, redis, engagement);
         this.initializeShoe();
@@ -39,7 +47,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         return 'BLACKJACK';
     }
     // ==========================================================================
-    // SHOE MANAGEMENT
+    // SHOE MANAGEMENT WITH SOCKET EVENTS
     // ==========================================================================
     initializeShoe() {
         const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -50,7 +58,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                 for (const rank of ranks) {
                     let value = 0;
                     if (rank === 'A')
-                        value = 11; // Aces handled dynamically
+                        value = 11;
                     else if (['J', 'Q', 'K'].includes(rank))
                         value = 10;
                     else
@@ -59,12 +67,14 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                 }
             }
         }
+        this.events.emit('shuffle_start', { deckCount: this.DECKS });
         this.shuffleShoe();
+        this.events.emit('shuffle_complete', { cardCount: this.shoe.length });
         this.cutCardPosition = Math.floor(this.shoe.length * this.PENETRATION);
         this.currentShoePosition = 0;
     }
     shuffleShoe() {
-        // Fisher-Yates shuffle using dual-seed hash (Provably Fair 2.0)
+        // Cryptographically secure Fisher-Yates shuffle using dual-seed hash
         const combinedHash = crypto_1.default
             .createHash('sha256')
             .update(this.playerSeed + this.serverSeed)
@@ -119,9 +129,12 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
     }
     dealCard() {
         if (this.currentShoePosition >= this.cutCardPosition) {
-            this.initializeShoe(); // Reshuffle at cut card
+            this.events.emit('cut_card_reached', { remainingCards: this.shoe.length - this.currentShoePosition });
+            this.initializeShoe();
         }
-        return this.shoe[this.currentShoePosition++];
+        const card = this.shoe[this.currentShoePosition++];
+        this.events.emit('card_dealt', { card, position: this.currentShoePosition });
+        return card;
     }
     // ==========================================================================
     // HAND EVALUATION
@@ -156,7 +169,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         return total <= 21 && cards.some(c => c.rank === 'A' && c.value === 11);
     }
     // ==========================================================================
-    // GAME FLOW
+    // GAME FLOW WITH EVENT EMISSIONS
     // ==========================================================================
     async placeBet(userId, amount, seatIndex = 0) {
         if (this.state !== GameEngine_1.GameState.PLACING_BETS) {
@@ -183,6 +196,13 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
             currentHandIndex: 0,
             insurance: 0
         });
+        // Emit bet event
+        this.events.emit('bet_placed', {
+            userId,
+            seatIndex,
+            amount,
+            isHighStakes: amount >= this.config.minBet * 10
+        });
         await this.saveStateToRedis();
         return true;
     }
@@ -191,22 +211,28 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         this.state = GameEngine_1.GameState.DEALING;
         this.dealerHand = [];
         this.currentPlayerIndex = 0;
+        this.events.emit('hand_started', { handNumber: this.handNumber });
         // Deal initial cards (player-dealer-player-dealer)
         for (let round = 0; round < 2; round++) {
             for (const [key, player] of this.bjPlayers.entries()) {
-                player.hands[0].cards.push(this.dealCard());
+                const card = this.dealCard();
+                player.hands[0].cards.push(card);
+                this.events.emit('player_card_dealt', { userId: player.userId, seatIndex: player.seatIndex, card, handIndex: 0 });
             }
-            this.dealerHand.push(this.dealCard());
+            const dealerCard = this.dealCard();
+            this.dealerHand.push(dealerCard);
+            this.events.emit('dealer_card_dealt', { card: dealerCard, faceDown: round === 1 });
         }
         // Check for dealer blackjack
         if (this.isBlackjack(this.dealerHand)) {
+            this.events.emit('dealer_blackjack', { hand: this.dealerHand });
             await this.resolveDealerBlackjack();
             return;
         }
         // Offer insurance if dealer shows ace
         if (this.dealerHand[0].rank === 'A') {
-            this.state = GameEngine_1.GameState.PLAYER_TURN; // Allow insurance bets
-            // Frontend should prompt for insurance
+            this.state = GameEngine_1.GameState.PLAYER_TURN;
+            this.events.emit('insurance_offered', { dealerUpCard: this.dealerHand[0] });
             return;
         }
         this.state = GameEngine_1.GameState.PLAYER_TURN;
@@ -232,8 +258,10 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                 const card = this.dealCard();
                 hand.cards.push(card);
                 const value = this.calculateHandValue(hand.cards);
+                this.events.emit('player_hit', { userId, seatIndex, card, handValue: value });
                 if (value > 21) {
                     hand.status = 'bust';
+                    this.events.emit('player_bust', { userId, seatIndex, handValue: value, bet: hand.bet });
                     await this.moveToNextPlayer();
                 }
                 await this.saveStateToRedis();
@@ -241,6 +269,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
             }
             case 'STAND': {
                 hand.status = 'stand';
+                this.events.emit('player_stand', { userId, seatIndex, handValue: this.calculateHandValue(hand.cards) });
                 await this.moveToNextPlayer();
                 await this.saveStateToRedis();
                 return { success: true };
@@ -258,7 +287,11 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                 const card = this.dealCard();
                 hand.cards.push(card);
                 const value = this.calculateHandValue(hand.cards);
+                this.events.emit('player_double', { userId, seatIndex, card, newBet: hand.bet });
                 hand.status = value > 21 ? 'bust' : 'stand';
+                if (value > 21) {
+                    this.events.emit('player_bust', { userId, seatIndex, handValue: value, bet: hand.bet });
+                }
                 await this.moveToNextPlayer();
                 await this.saveStateToRedis();
                 return { success: true, newCard: card, handValue: value, busted: value > 21 };
@@ -268,13 +301,12 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                     return { success: false };
                 }
                 if (player.hands.length >= 3) {
-                    return { success: false }; // Max 3 hands
+                    return { success: false };
                 }
                 const splitSuccess = await this.deductChips(userId, seatIndex, hand.bet);
                 if (!splitSuccess) {
                     return { success: false };
                 }
-                // Create second hand
                 const secondCard = hand.cards.pop();
                 player.hands.push({
                     cards: [secondCard, this.dealCard()],
@@ -285,6 +317,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                 });
                 hand.cards.push(this.dealCard());
                 hand.split = true;
+                this.events.emit('player_split', { userId, seatIndex, handCount: player.hands.length });
                 await this.saveStateToRedis();
                 return { success: true };
             }
@@ -300,6 +333,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                     return { success: false };
                 }
                 player.insurance = insuranceAmount;
+                this.events.emit('insurance_taken', { userId, seatIndex, amount: insuranceAmount });
                 await this.saveStateToRedis();
                 return { success: true };
             }
@@ -309,38 +343,64 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
     }
     async moveToNextPlayer() {
         const playersArray = Array.from(this.bjPlayers.values());
-        // Check if current player has more hands
         const currentPlayer = playersArray[this.currentPlayerIndex];
         if (currentPlayer && currentPlayer.currentHandIndex < currentPlayer.hands.length - 1) {
             currentPlayer.currentHandIndex++;
             return;
         }
-        // Move to next player
         this.currentPlayerIndex++;
         if (this.currentPlayerIndex >= playersArray.length) {
-            // All players finished - dealer's turn
             await this.dealerPlay();
         }
     }
     async dealerPlay() {
         this.state = GameEngine_1.GameState.DEALER_TURN;
-        // Dealer hits on 16, stands on 17 (including soft 17)
-        while (this.calculateHandValue(this.dealerHand) < 17) {
-            this.dealerHand.push(this.dealCard());
+        this.events.emit('dealer_turn_start', {
+            holeCard: this.dealerHand[1],
+            upCard: this.dealerHand[0]
+        });
+        // HARD ROCK STANDARD: Dealer HITS on soft 17
+        while (true) {
+            const value = this.calculateHandValue(this.dealerHand);
+            const isSoft = this.isSoftHand(this.dealerHand);
+            // Dealer hits on 16 or less, OR on soft 17
+            if (value < 17 || (value === 17 && isSoft)) {
+                this.events.emit('dealer_thinking', { currentValue: value, isSoft });
+                const card = this.dealCard();
+                this.dealerHand.push(card);
+                this.events.emit('dealer_hit', {
+                    card,
+                    handValue: this.calculateHandValue(this.dealerHand),
+                    reason: value === 17 && isSoft ? 'soft_17' : 'under_17'
+                });
+            }
+            else {
+                break;
+            }
+        }
+        const finalValue = this.calculateHandValue(this.dealerHand);
+        if (finalValue > 21) {
+            this.events.emit('dealer_bust', { handValue: finalValue });
+        }
+        else {
+            this.events.emit('dealer_stand', { handValue: finalValue });
         }
         await this.resolveHand();
     }
     async resolveDealerBlackjack() {
-        // Pay out insurance bets at 2:1
         for (const [key, player] of this.bjPlayers.entries()) {
             if (player.insurance > 0) {
                 const payout = player.insurance * this.INSURANCE_PAYOUT;
                 this.awardChips(player.userId, player.seatIndex, payout);
+                this.events.emit('insurance_win', { userId: player.userId, seatIndex: player.seatIndex, payout });
             }
-            // Check for player blackjack (push)
             const hand = player.hands[0];
             if (this.isBlackjack(hand.cards)) {
-                this.awardChips(player.userId, player.seatIndex, hand.bet); // Return bet
+                this.awardChips(player.userId, player.seatIndex, hand.bet);
+                this.events.emit('push', { userId: player.userId, seatIndex: player.seatIndex, reason: 'both_blackjack' });
+            }
+            else {
+                this.events.emit('player_loss', { userId: player.userId, seatIndex: player.seatIndex, amount: hand.bet });
             }
         }
         await this.completeHand();
@@ -352,37 +412,67 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         for (const [key, player] of this.bjPlayers.entries()) {
             for (const hand of player.hands) {
                 if (hand.status === 'bust') {
-                    continue; // Already lost
+                    continue;
                 }
                 const handValue = this.calculateHandValue(hand.cards);
                 // Player blackjack
                 if (this.isBlackjack(hand.cards) && !this.isBlackjack(this.dealerHand)) {
                     const payout = hand.bet + Math.floor(hand.bet * this.BLACKJACK_PAYOUT);
                     this.awardChips(player.userId, player.seatIndex, payout);
+                    this.events.emit('blackjack', {
+                        userId: player.userId,
+                        seatIndex: player.seatIndex,
+                        payout,
+                        bet: hand.bet
+                    });
                     continue;
                 }
                 // Dealer busted
                 if (dealerBusted) {
-                    this.awardChips(player.userId, player.seatIndex, hand.bet * 2);
+                    const payout = hand.bet * 2;
+                    this.awardChips(player.userId, player.seatIndex, payout);
+                    this.events.emit('player_win', {
+                        userId: player.userId,
+                        seatIndex: player.seatIndex,
+                        payout,
+                        reason: 'dealer_bust'
+                    });
                     continue;
                 }
                 // Compare hands
                 if (handValue > dealerValue) {
-                    this.awardChips(player.userId, player.seatIndex, hand.bet * 2); // Win
+                    const payout = hand.bet * 2;
+                    this.awardChips(player.userId, player.seatIndex, payout);
+                    this.events.emit('player_win', {
+                        userId: player.userId,
+                        seatIndex: player.seatIndex,
+                        payout,
+                        reason: 'higher_hand'
+                    });
                 }
                 else if (handValue === dealerValue) {
-                    this.awardChips(player.userId, player.seatIndex, hand.bet); // Push
+                    this.awardChips(player.userId, player.seatIndex, hand.bet);
+                    this.events.emit('push', {
+                        userId: player.userId,
+                        seatIndex: player.seatIndex,
+                        reason: 'same_value'
+                    });
                 }
-                // Else: dealer wins, player loses bet
+                else {
+                    this.events.emit('player_loss', {
+                        userId: player.userId,
+                        seatIndex: player.seatIndex,
+                        amount: hand.bet
+                    });
+                }
             }
         }
         await this.completeHand();
     }
     async completeHand() {
         const sessionId = `${this.config.roomId}:${this.handNumber}`;
-        // Persist all chip changes
         await this.persistChipChanges(sessionId);
-        // Reset for next hand
+        this.events.emit('hand_complete', { sessionId, handNumber: this.handNumber });
         this.bjPlayers.clear();
         this.dealerHand = [];
         this.currentPlayerIndex = 0;
@@ -391,7 +481,6 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         await this.saveStateToRedis();
     }
     getGameState() {
-        // Convert players map to seats array for client compatibility
         const seats = Array(5).fill(null).map((_, i) => ({
             empty: true,
             seatIndex: i,
@@ -402,14 +491,13 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
             currentBet: 0,
             hands: []
         }));
-        // First, populate from base players (seated players)
         for (const player of this.players.values()) {
             if (player.seatIndex >= 0 && player.seatIndex < 5) {
                 seats[player.seatIndex] = {
                     empty: false,
                     seatIndex: player.seatIndex,
                     ready: player.currentBet > 0,
-                    name: 'Player', // In a real app, we'd store names in this.players
+                    name: 'Player',
                     photo: null,
                     chips: player.chips,
                     currentBet: player.currentBet,
@@ -417,7 +505,6 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                 };
             }
         }
-        // Then, overlay blackjack specific data (active hands)
         for (const player of this.bjPlayers.values()) {
             if (player.seatIndex >= 0 && player.seatIndex < 5) {
                 const seat = seats[player.seatIndex];
@@ -430,7 +517,6 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                         isBlackjack: this.isBlackjack(h.cards),
                         isSoft: this.isSoftHand(h.cards)
                     }));
-                    // For backward compatibility with simple clients, show first card of first hand
                     if (seat.hands.length > 0 && seat.hands[0].cards.length > 0) {
                         seat.card = seat.hands[0].cards[0];
                     }
@@ -447,7 +533,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
             minBet: this.config.minBet,
             bettingPhase: this.state === GameEngine_1.GameState.PLACING_BETS,
             status: this.state,
-            observerCount: 0 // We'd need to track this
+            observerCount: 0
         };
     }
 }

@@ -1,124 +1,128 @@
 /**
- * War Game Engine
+ * War Game Engine - High-Velocity Community Table
  *
- * Implements the Casino War card game logic following the GameEngine architecture.
- * Supports multi-seat play where one player can occupy multiple seats.
+ * FREE-TIER OPTIMIZED ARCHITECTURE
+ * =================================
+ * - In-Memory Game Loop: All round logic happens in class instance
+ * - Batched DB Writes: Single write per round during payout phase only
+ * - Lightweight State Broadcasting: Minimal JSON over sockets
+ * - No Seat Ownership: Players bet on any of 25 spots, first-come-first-served
+ *
+ * TOPOLOGY
+ * ========
+ * - 5 Zones (arranged in semi-circle)
+ * - 5 Spots per Zone
+ * - Total: 25 playable betting spots (indices 0-24)
+ *
+ * HARD ROCK CASINO WAR RULES
+ * ===========================
+ * - Dealer draws ONE house card
+ * - Each active spot gets ONE player card
+ * - Win: Player card > Dealer card (pays 1:1)
+ * - Lose: Player card < Dealer card (lose bet)
+ * - Tie: Player must choose:
+ *   - Surrender: Forfeit 50% of bet
+ *   - War: Match original bet
+ *     - War Win: Player wins (+1 unit on war bet)
+ *     - War Tie: Player wins (+2 units total)
  */
 import { GameEngine } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
+import { EventEmitter } from 'events';
 type Redis = any;
 interface PlayerInfo {
-    playerId: string;
+    userId: string;
     name: string;
-    photo?: string;
-    chips: number;
     color: string;
+    chipBalance: number;
 }
 /**
- * War Game Engine - Multi-Spot Betting Implementation
+ * War Game Engine - Community Table (Free-Tier Optimized)
  */
 export declare class WarEngine extends GameEngine {
-    private seats;
-    private players;
+    private spots;
+    private playerColors;
+    private playerInfo;
     private houseCard;
     private deck;
     private bettingPhase;
-    private observers;
-    private gameSessionId;
+    private warPhase;
+    private pendingPayouts;
     private playerSeed;
     private serverSeed;
-    private tableCode;
-    private isPrivate;
+    events: EventEmitter;
     private colorIndex;
-    constructor(roomId: string, prisma: PrismaClient, redis: Redis, engagement: EngagementService, options?: {
-        isPrivate?: boolean;
-    });
-    getGameType(): 'WAR' | 'BLACKJACK';
-    /**
-     * Get table code for private games
-     */
-    getTableCode(): string;
-    /**
-     * Check if game is waiting for more players
-     */
-    isWaitingForOpponent(): boolean;
+    constructor(roomId: string, prisma: PrismaClient, redis: Redis, engagement: EngagementService);
+    getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
     private createDeck;
-    /**
-     * Shuffle deck using dual-seed hashing (Provably Fair 2.0)
-     * Combines player seed + server seed for verifiable randomness
-     */
     private shuffleDeck;
-    /**
-     * Initialize game with QRNG entropy and player seed
-     */
     initializeWithQRNG(playerSeed: string): Promise<void>;
-    /**
-     * Get the dual seeds for verification (public audit)
-     */
     getDualSeeds(): {
         playerSeed: string;
         serverSeed: string;
     };
     private drawCard;
     /**
-     * Join game as a player (assigns color, no seat required)
+     * Connect player to table and assign persistent neon color
      */
-    joinGame(playerId: string, name: string, photo: string | null, chips: number): {
+    connectPlayer(userId: string, name: string): Promise<{
         success: boolean;
         color: string;
-        error?: string;
-    };
+        chips: number;
+    }>;
     /**
-     * Leave game - remove all bets and player info
+     * Disconnect player (optional cleanup)
      */
-    leaveGame(playerId: string): {
-        success: boolean;
-    };
+    disconnectPlayer(userId: string): void;
     /**
      * Get player info
      */
-    getPlayer(playerId: string): PlayerInfo | null;
+    getPlayer(userId: string): PlayerInfo | null;
     /**
-     * Update player chips
+     * Place bet on any spot (0-24)
+     * NO database write - all in-memory
      */
-    updatePlayerChips(playerId: string, chips: number): boolean;
+    placeBet(userId: string, amount: number, spotIndex?: number): Promise<boolean>;
     /**
-     * Place bet on a specific spot
+     * Remove bet (only during betting phase)
      */
-    placeBet(playerId: string, amount: number, seatIndex: number, spotIndex: number): Promise<boolean>;
+    removeBet(userId: string, spotIndex: number): boolean;
     /**
-     * Remove bet from a specific spot
-     */
-    removeBet(playerId: string, seatIndex: number, spotIndex: number): boolean;
-    /**
-     * Check if any bets have been placed
-     */
-    hasActiveBets(): boolean;
-    /**
-     * Get all active betting spots
+     * Get all active spots
      */
     private getActiveSpots;
     startNewHand(): Promise<void>;
     /**
-     * Resolve hand - Each betting spot plays against the dealer individually
-     * Casino War Rules:
-     * - Player wins: Pays 1:1 on bet
-     * - Dealer wins: Player loses bet
-     * - Tie: Player can surrender (lose half) or go to war (auto-push for simplicity)
+     * Handle war decision (Surrender or War)
      */
-    resolveHand(): Promise<any>;
+    makeWarDecision(userId: string, spotIndex: number, decision: 'surrender' | 'war'): Promise<boolean>;
+    /**
+     * Resolve hand and execute BATCHED DATABASE WRITE
+     */
+    resolveHand(): Promise<void>;
+    /**
+     * Track payout for batched write
+     */
+    private trackPayout;
+    /**
+     * BATCHED DATABASE WRITE - Free-Tier Optimization
+     * Single transaction per round
+     */
+    private executeBatchedPayouts;
     /**
      * Reset for next round
      */
     resetForNextRound(): Promise<void>;
     getGameState(): any;
+    /**
+     * Get player-specific state (includes personal chip balance)
+     */
+    getPlayerState(userId: string): any;
     private getStatusMessage;
-    addObserver(socketId: string): void;
-    removeObserver(socketId: string): void;
-    getActiveBetsCount(): number;
+    getActiveSpotsCount(): number;
     getPlayerCount(): number;
-    static getMinBet(): number;
+    getConnectedPlayers(): PlayerInfo[];
 }
 export {};
 //# sourceMappingURL=WarEngine.d.ts.map

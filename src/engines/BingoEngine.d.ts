@@ -1,12 +1,17 @@
 /**
- * Bingo Game Engine
+ * Bingo Game Engine - Casino Standards
  *
- * Implements multiplayer Bingo following the GameEngine architecture.
- * Features automatic ball calling, multiple card purchases, and provably fair RNG.
+ * Features:
+ * - Provably fair Fisher-Yates ball shuffle
+ * - Automatic ball calling with socket events
+ * - Multiple card purchases
+ * - Real-time event emissions
+ * - Cryptographically secure RNG
  */
 import { GameEngine } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
+import { EventEmitter } from 'events';
 type Redis = any;
 interface BingoCard {
     id: string;
@@ -22,19 +27,23 @@ export declare class BingoEngine extends GameEngine {
     private serverSeed;
     private ballCallCallback?;
     private gameEndCallback?;
+    events: EventEmitter;
     constructor(config: any, prisma: PrismaClient, redis: Redis, engagement: EngagementService);
     getGameType(): 'BINGO';
     /**
-     * Initialize the 75 bingo balls
+     * Initialize and shuffle the 75 bingo balls using Fisher-Yates
      */
     private initializeBalls;
+    /**
+     * Cryptographically secure Fisher-Yates shuffle for ball draw order
+     */
+    private shuffleBalls;
     /**
      * Generate cryptographically secure server seed for provably fair RNG
      */
     private generateServerSeed;
     /**
-     * Quantum-inspired RNG using server seed
-     * Simulates the high-quality randomness used in other engines
+     * Quantum-inspired RNG using server seed for card generation
      */
     private getNextRandomIndex;
     /**
@@ -58,7 +67,7 @@ export declare class BingoEngine extends GameEngine {
      */
     private scheduleNextBallDraw;
     /**
-     * Draw a random ball
+     * Draw the next ball from the pre-shuffled array
      */
     private drawBall;
     /**
@@ -74,7 +83,6 @@ export declare class BingoEngine extends GameEngine {
     }>;
     /**
      * Check if a card has a winning pattern
-     * Returns pattern name or null
      */
     private checkWin;
     /**
@@ -89,29 +97,11 @@ export declare class BingoEngine extends GameEngine {
      * Get current game state for clients
      */
     getGameState(): any;
-    /**
-     * Get a player's cards
-     */
     getPlayerCards(userId: string): BingoCard[];
-    /**
-     * Set callback for ball announcements
-     */
     setBallCallCallback(callback: (ball: number) => void): void;
-    /**
-     * Set callback for game end
-     */
     setGameEndCallback(callback: (winner: any) => void): void;
-    /**
-     * Clean up timers
-     */
     destroy(): void;
-    /**
-     * Override addPlayer for Bingo (no seats, just cards)
-     */
     addPlayer(userId: string): Promise<boolean>;
-    /**
-     * Force start game (admin/debug)
-     */
     forceStart(): Promise<void>;
 }
 export {};

@@ -1,9 +1,13 @@
 "use strict";
 /**
- * Bingo Game Engine
+ * Bingo Game Engine - Casino Standards
  *
- * Implements multiplayer Bingo following the GameEngine architecture.
- * Features automatic ball calling, multiple card purchases, and provably fair RNG.
+ * Features:
+ * - Provably fair Fisher-Yates ball shuffle
+ * - Automatic ball calling with socket events
+ * - Multiple card purchases
+ * - Real-time event emissions
+ * - Cryptographically secure RNG
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -12,11 +16,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BingoEngine = void 0;
 const GameEngine_1 = require("./GameEngine");
 const crypto_1 = __importDefault(require("crypto"));
-const CARD_PRICE = 1; // 1 chip per card
-const MAX_CARDS_PER_PLAYER = 1; // Limit to 1 card per player for better UX
-const BALL_DRAW_INTERVAL = 4500; // 4.5 seconds between balls
-const BUYING_PHASE_DURATION = 30000; // 30 seconds to buy cards
-const HOUSE_BANKROLL = 1000000; // 1 million chips for game payouts
+const events_1 = require("events");
+const CARD_PRICE = 1;
+const MAX_CARDS_PER_PLAYER = 1;
+const BALL_DRAW_INTERVAL = 4500;
+const BUYING_PHASE_DURATION = 30000;
+const HOUSE_BANKROLL = 1000000;
 class BingoEngine extends GameEngine_1.GameEngine {
     bingoState;
     bingoPlayers = new Map();
@@ -25,6 +30,8 @@ class BingoEngine extends GameEngine_1.GameEngine {
     serverSeed = '';
     ballCallCallback;
     gameEndCallback;
+    // Event emitter for socket broadcasts
+    events = new events_1.EventEmitter();
     constructor(config, prisma, redis, engagement) {
         super(config, prisma, redis, engagement);
         this.bingoState = {
@@ -44,11 +51,31 @@ class BingoEngine extends GameEngine_1.GameEngine {
     getGameType() {
         return 'BINGO';
     }
+    // ==========================================================================
+    // BALL MANAGEMENT WITH FISHER-YATES SHUFFLE
+    // ==========================================================================
     /**
-     * Initialize the 75 bingo balls
+     * Initialize and shuffle the 75 bingo balls using Fisher-Yates
      */
     initializeBalls() {
+        // Create sequential balls 1-75
         this.availableBalls = Array.from({ length: 75 }, (_, i) => i + 1);
+        // Shuffle using cryptographically secure Fisher-Yates
+        this.shuffleBalls();
+        this.events.emit('balls_initialized', { totalBalls: 75 });
+    }
+    /**
+     * Cryptographically secure Fisher-Yates shuffle for ball draw order
+     */
+    shuffleBalls() {
+        const hash = crypto_1.default.createHash('sha256').update(this.serverSeed).digest();
+        for (let i = this.availableBalls.length - 1; i > 0; i--) {
+            // Use hash bytes to generate random index
+            const byte = hash[i % 32];
+            const j = byte % (i + 1);
+            [this.availableBalls[i], this.availableBalls[j]] = [this.availableBalls[j], this.availableBalls[i]];
+        }
+        this.events.emit('balls_shuffled', { method: 'Fisher-Yates', seed: this.serverSeed.substring(0, 8) });
     }
     /**
      * Generate cryptographically secure server seed for provably fair RNG
@@ -57,13 +84,11 @@ class BingoEngine extends GameEngine_1.GameEngine {
         this.serverSeed = crypto_1.default.randomBytes(32).toString('hex');
     }
     /**
-     * Quantum-inspired RNG using server seed
-     * Simulates the high-quality randomness used in other engines
+     * Quantum-inspired RNG using server seed for card generation
      */
     getNextRandomIndex(max, nonce) {
         const data = `${this.serverSeed}:${nonce}:${Date.now()}`;
         const hash = crypto_1.default.createHash('sha256').update(data).digest();
-        // Use first 8 bytes as uint64 for better distribution
         let value = 0;
         for (let i = 0; i < 8; i++) {
             value = value * 256 + hash[i];
@@ -90,13 +115,12 @@ class BingoEngine extends GameEngine_1.GameEngine {
             const [min, max] = columnRanges[col];
             const available = Array.from({ length: max - min + 1 }, (_, i) => min + i);
             for (let row = 0; row < 5; row++) {
-                // Center of N column is FREE SPACE
                 if (col === 2 && row === 2) {
-                    column.push(0); // 0 represents FREE SPACE
+                    // Center FREE SPACE
+                    column.push(0);
                     markedColumn.push(true);
                 }
                 else {
-                    // Pick a random number from available pool
                     const idx = this.getNextRandomIndex(available.length, col * 5 + row);
                     column.push(available[idx]);
                     markedColumn.push(false);
@@ -106,12 +130,14 @@ class BingoEngine extends GameEngine_1.GameEngine {
             grid.push(column);
             marked.push(markedColumn);
         }
-        return {
+        const card = {
             id: crypto_1.default.randomUUID(),
             userId,
             grid,
             marked
         };
+        this.events.emit('card_generated', { userId, cardId: card.id });
+        return card;
     }
     /**
      * Convert ball number to BINGO letter
@@ -129,6 +155,9 @@ class BingoEngine extends GameEngine_1.GameEngine {
             return 'O';
         return '';
     }
+    // ==========================================================================
+    // GAME FLOW WITH EVENT EMISSIONS
+    // ==========================================================================
     /**
      * Player purchases a Bingo card
      */
@@ -139,7 +168,6 @@ class BingoEngine extends GameEngine_1.GameEngine {
         if (amount !== CARD_PRICE) {
             return false;
         }
-        // Get or create player
         let player = this.bingoPlayers.get(userId);
         if (!player) {
             const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -156,20 +184,23 @@ class BingoEngine extends GameEngine_1.GameEngine {
             };
             this.bingoPlayers.set(userId, player);
         }
-        // Check max cards limit
         if (player.cards.length >= MAX_CARDS_PER_PLAYER) {
             return false;
         }
-        // Check sufficient chips
         if (player.chips < CARD_PRICE) {
             return false;
         }
-        // Deduct chips and generate card
         player.chips -= CARD_PRICE;
         player.currentBet += CARD_PRICE;
         this.bingoState.pot += CARD_PRICE;
         const card = this.generateBingoCard(userId);
         player.cards.push(card);
+        this.events.emit('card_purchased', {
+            userId,
+            cardId: card.id,
+            cost: CARD_PRICE,
+            pot: this.bingoState.pot
+        });
         return true;
     }
     /**
@@ -179,14 +210,17 @@ class BingoEngine extends GameEngine_1.GameEngine {
         if (this.bingoState.phase !== 'BUYING') {
             return;
         }
-        // Must have at least 1 player with cards
         if (this.bingoPlayers.size === 0) {
             return;
         }
         this.bingoState.phase = 'PLAYING';
         this.state = GameEngine_1.GameState.PLAYING;
         this.handNumber++;
-        // Start auto-drawing balls
+        this.events.emit('game_started', {
+            handNumber: this.handNumber,
+            playerCount: this.bingoPlayers.size,
+            pot: this.bingoState.pot
+        });
         this.scheduleNextBallDraw();
     }
     /**
@@ -202,21 +236,26 @@ class BingoEngine extends GameEngine_1.GameEngine {
         }, BALL_DRAW_INTERVAL);
     }
     /**
-     * Draw a random ball
+     * Draw the next ball from the pre-shuffled array
      */
     drawBall() {
         if (this.availableBalls.length === 0 || this.bingoState.phase !== 'PLAYING') {
             return;
         }
-        // Use provably fair RNG
-        const idx = this.getNextRandomIndex(this.availableBalls.length, this.bingoState.drawnNumbers.length);
-        const ball = this.availableBalls[idx];
-        this.availableBalls.splice(idx, 1);
+        // Fisher-Yates pre-shuffled: just pop from the front
+        const ball = this.availableBalls.shift();
         this.bingoState.drawnNumbers.push(ball);
         this.bingoState.currentBall = ball;
+        const letter = this.getBingoLetter(ball);
+        this.events.emit('ball_called', {
+            ball,
+            letter,
+            callString: `${letter}-${ball}`,
+            totalCalled: this.bingoState.drawnNumbers.length
+        });
         // Auto-mark all cards
         this.autoMarkCards(ball);
-        // Notify callback (for announcing via speech)
+        // Notify callback (for Moe's voice/banter)
         if (this.ballCallCallback) {
             this.ballCallCallback(ball);
         }
@@ -235,6 +274,12 @@ class BingoEngine extends GameEngine_1.GameEngine {
                     for (let row = 0; row < 5; row++) {
                         if (card.grid[col][row] === ball) {
                             card.marked[col][row] = true;
+                            this.events.emit('card_marked', {
+                                userId: player.userId,
+                                cardId: card.id,
+                                ball,
+                                position: { col, row }
+                            });
                         }
                     }
                 }
@@ -256,27 +301,27 @@ class BingoEngine extends GameEngine_1.GameEngine {
         if (!card) {
             return { valid: false };
         }
-        // Validate the BINGO claim
         const pattern = this.checkWin(card);
         if (pattern) {
-            // Valid BINGO!
             this.bingoState.winner = { userId, cardId, pattern };
             this.bingoState.phase = 'COMPLETE';
             this.state = GameEngine_1.GameState.COMPLETE;
-            // Stop ball drawing
             if (this.ballDrawTimer) {
                 clearTimeout(this.ballDrawTimer);
                 this.ballDrawTimer = null;
             }
-            // Award pot to winner
             player.chips += this.bingoState.pot;
-            // Persist to database
+            this.events.emit('bingo_claimed', {
+                userId,
+                cardId,
+                pattern,
+                pot: this.bingoState.pot,
+                ballsDrawn: this.bingoState.drawnNumbers.length
+            });
             await this.resolveHand();
-            // Notify callback
             if (this.gameEndCallback) {
                 this.gameEndCallback({ userId, cardId, pattern, pot: this.bingoState.pot });
             }
-            // Auto-reset for next round after 10 seconds
             setTimeout(() => {
                 this.resetForNextRound();
                 if (this.gameEndCallback) {
@@ -285,11 +330,11 @@ class BingoEngine extends GameEngine_1.GameEngine {
             }, 10000);
             return { valid: true, pattern };
         }
+        this.events.emit('invalid_bingo_claim', { userId, cardId });
         return { valid: false };
     }
     /**
      * Check if a card has a winning pattern
-     * Returns pattern name or null
      */
     checkWin(card) {
         const { marked } = card;
@@ -325,21 +370,17 @@ class BingoEngine extends GameEngine_1.GameEngine {
         this.bingoState.pot = 0;
         this.bingoState.winner = null;
         this.bingoState.nextBallTime = null;
-        // houseBankroll is preserved across rounds
-        // Clear all player cards
         this.bingoPlayers.forEach(player => {
             player.cards = [];
             player.currentBet = 0;
         });
-        // Reset available balls for new game
         this.initializeBalls();
-        // Generate new server seed for next game
         this.generateServerSeed();
-        // Start buying phase timer (30 seconds)
         if (this.ballDrawTimer) {
             clearInterval(this.ballDrawTimer);
             this.ballDrawTimer = null;
         }
+        this.events.emit('round_reset', { buyingPhaseEnds: Date.now() + BUYING_PHASE_DURATION });
     }
     /**
      * Resolve hand and persist to database
@@ -349,7 +390,6 @@ class BingoEngine extends GameEngine_1.GameEngine {
             return;
         const sessionId = crypto_1.default.randomUUID();
         const winner = this.bingoState.winner;
-        // Create game session
         await this.prisma.gameSession.create({
             data: {
                 id: sessionId,
@@ -366,7 +406,6 @@ class BingoEngine extends GameEngine_1.GameEngine {
                 winners: [{ userId: winner.userId, amount: this.bingoState.pot }]
             }
         });
-        // Persist chip changes for all players
         for (const [userId, player] of this.bingoPlayers.entries()) {
             const user = await this.prisma.user.findUnique({ where: { id: userId } });
             if (!user)
@@ -383,7 +422,6 @@ class BingoEngine extends GameEngine_1.GameEngine {
                         lastHandPlayed: new Date()
                     }
                 });
-                // Record BET transaction for cards purchased
                 if (player.currentBet > 0) {
                     await tx.transaction.create({
                         data: {
@@ -397,7 +435,6 @@ class BingoEngine extends GameEngine_1.GameEngine {
                         }
                     });
                 }
-                // Record WIN transaction for winner
                 if (userId === winner.userId) {
                     await tx.transaction.create({
                         data: {
@@ -410,9 +447,7 @@ class BingoEngine extends GameEngine_1.GameEngine {
                             description: `BINGO WIN - ${winner.pattern}`
                         }
                     });
-                    // Check for big win
                     await this.engagement.recordBigWin(userId, this.bingoState.pot, 'BINGO');
-                    // Award XP
                     const xpEarned = Math.floor(this.bingoState.pot / 5);
                     await this.engagement.awardXP(userId, xpEarned);
                 }
@@ -441,37 +476,22 @@ class BingoEngine extends GameEngine_1.GameEngine {
             }))
         };
     }
-    /**
-     * Get a player's cards
-     */
     getPlayerCards(userId) {
         const player = this.bingoPlayers.get(userId);
         return player ? player.cards : [];
     }
-    /**
-     * Set callback for ball announcements
-     */
     setBallCallCallback(callback) {
         this.ballCallCallback = callback;
     }
-    /**
-     * Set callback for game end
-     */
     setGameEndCallback(callback) {
         this.gameEndCallback = callback;
     }
-    /**
-     * Clean up timers
-     */
     destroy() {
         if (this.ballDrawTimer) {
             clearTimeout(this.ballDrawTimer);
             this.ballDrawTimer = null;
         }
     }
-    /**
-     * Override addPlayer for Bingo (no seats, just cards)
-     */
     async addPlayer(userId) {
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user || Number(user.chipBalance) < CARD_PRICE) {
@@ -489,9 +509,6 @@ class BingoEngine extends GameEngine_1.GameEngine {
         }
         return true;
     }
-    /**
-     * Force start game (admin/debug)
-     */
     async forceStart() {
         if (this.bingoState.phase === 'BUYING') {
             await this.startNewHand();

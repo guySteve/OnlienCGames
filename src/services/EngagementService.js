@@ -19,6 +19,8 @@ exports.initEngagementService = initEngagementService;
 const client_1 = require("@prisma/client");
 const crypto_1 = __importDefault(require("crypto"));
 class EngagementService {
+    prisma;
+    redis;
     constructor(prisma, redis) {
         this.prisma = prisma;
         this.redis = redis;
@@ -364,3 +366,4 @@ exports.EngagementService = EngagementService;
 function initEngagementService(prisma, redis) {
     exports.engagementService = new EngagementService(prisma, redis);
 }
+//# sourceMappingURL=EngagementService.js.map
