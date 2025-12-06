@@ -106,11 +106,11 @@ function checkOperatingHours(req, res, next) {
 // Database health check
 async function checkDatabaseConnection() {
   try {
-    // Add 10 second timeout to prevent hanging
+    // Increase timeout to 30 seconds to account for cold starts and migrations
     await Promise.race([
       prisma.$queryRaw`SELECT 1`,
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database timeout')), 10000)
+        setTimeout(() => reject(new Error('Database timeout')), 30000)
       )
     ]);
     console.log('✅ Database connection established');

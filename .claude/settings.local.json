@@ -8,7 +8,8 @@
       "Bash(node test/load-stress-tests.js:*)",
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
