@@ -44,7 +44,6 @@ WORKDIR /app
 RUN apk add --no-cache openssl curl
 
 ENV NODE_ENV=production
-ENV PORT=3000
 
 # Copy application files first (to avoid overwriting node_modules)
 COPY --chown=node:node . .
