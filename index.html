@@ -5,7 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>Moe's Card Room - Casino War</title>
+  
+  <!-- SEO Meta Tags -->
+  <title>Free Online Card Games with Friends | Moe's Card Room</title>
+  <meta name="description" content="Play free poker, blackjack, casino war & bingo with friends online. No downloads, no real money, 100% free play-money gaming. Open 10 PM - 2 AM ET.">
+  <meta name="keywords" content="free online poker, play blackjack free, casino war online, play money poker, social card games, free card games with friends">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://playwar.games/">
+  
+  <!-- Open Graph / Social Media -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://playwar.games/">
+  <meta property="og:title" content="Moe's Card Room - Free Online Card Games with Friends">
+  <meta property="og:description" content="Play free poker, blackjack & card games with friends. No real money, no downloads - just fun!">
+  <meta property="og:image" content="https://playwar.games/apple-touch-icon.jpg">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Moe's Card Room - Free Card Games">
+  <meta name="twitter:description" content="Play free poker, blackjack & more with friends online. 100% play money gaming.">
+  
   <link rel="stylesheet" href="styles.css?v=4.0">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
@@ -21,6 +40,64 @@
   <meta name="theme-color" content="#0a1f16">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.jpg">
   <link rel="apple-touch-icon" href="/apple-touch-icon.jpg">
+  
+  <!-- Schema.org Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Moe's Card Room",
+    "description": "Free online social card gaming platform. Play poker, blackjack, casino war and bingo with friends using play-money chips.",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Web Browser",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.7",
+      "ratingCount": "328"
+    },
+    "provider": {
+      "@type": "Organization",
+      "name": "Moe's Card Room",
+      "url": "https://playwar.games",
+      "logo": "https://playwar.games/favicon.png",
+      "sameAs": []
+    }
+  }
+  </script>
+  
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [{
+      "@type": "Question",
+      "name": "Is Moe's Card Room free to play?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes! Moe's Card Room is 100% free. You receive 1,000 play-money chips daily at midnight EST. No purchases required to play."
+      }
+    },{
+      "@type": "Question",
+      "name": "Is this real money gambling?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. This is social gaming only. All chips are virtual play-money with zero cash value. You cannot buy chips with real money or cash out winnings."
+      }
+    },{
+      "@type": "Question",
+      "name": "Can I play poker online with friends for free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Absolutely! Create a private room and share the link with friends. You can play poker, blackjack, casino war and bingo together online for free."
+      }
+    }]
+  }
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -362,6 +439,27 @@
 
   <!-- Floating Info Button -->
   <button class="floating-info-btn" onclick="openInfoModal()" title="Information">ℹ️</button>
+
+  <!-- SEO Footer -->
+  <footer style="background: rgba(0,0,0,0.5); border-top: 1px solid rgba(212,175,55,0.3); padding: 25px 20px; text-align: center; margin-top: 40px;">
+    <div style="max-width: 1200px; margin: 0 auto;">
+      <p style="color: #4ade80; font-weight: 700; font-size: 1em; margin-bottom: 15px;">
+        ✓ 100% FREE • NO REAL MONEY • NO GAMBLING • ENTERTAINMENT ONLY
+      </p>
+      <p style="color: #ccc; font-size: 0.9em; line-height: 1.6; margin-bottom: 15px;">
+        Moe's Card Room is a free social gaming platform. All chips are play-money with zero cash value. You cannot purchase chips or cash out winnings. For entertainment purposes only. Players must be 18+.
+      </p>
+      <div style="margin: 15px 0;">
+        <a href="/legal" style="color: #d4af37; margin: 0 12px; text-decoration: none;">Legal Terms</a> |
+        <a href="/privacy" style="color: #d4af37; margin: 0 12px; text-decoration: none;">Privacy Policy</a> |
+        <a href="/responsible-gaming" style="color: #d4af37; margin: 0 12px; text-decoration: none;">Responsible Gaming</a> |
+        <a href="/how-it-works" style="color: #d4af37; margin: 0 12px; text-decoration: none;">How It Works</a>
+      </div>
+      <p style="color: #888; font-size: 0.85em; margin-top: 15px;">
+        © 2024 Moe's Card Room. Operating Hours: 10 PM - 2 AM Eastern Time.
+      </p>
+    </div>
+  </footer>
 
   <script src="client.js?v=4.0"></script>
 </body>

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /api/
+Disallow: /auth/
+Disallow: /socket.io/
+Disallow: /test-*.js
+Disallow: /src/
+
+Sitemap: https://playwar.games/sitemap.xml

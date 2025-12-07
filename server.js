@@ -448,6 +448,9 @@ app.get('/admin', (req, res) => {
 // Serve static files (legacy)
 app.use(express.static(path.join(__dirname, '.')));
 
+// Serve SEO files (robots.txt, sitemap.xml)
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Serve React frontend (production build)
 const frontendDistPath = path.join(__dirname, 'frontend', 'dist');
 app.use(express.static(frontendDistPath));
