@@ -13,14 +13,12 @@
 export declare class DividendDistributorV2 {
     private prisma;
     private redis;
-    private syndicateService;
     private io?;
     private queue;
-    private queueEvents;
     private isRunning;
     private lastRun;
     private intervalId;
-    constructor(prisma: any, redis: any, syndicateService: any, io?: any | undefined);
+    constructor(prisma: any, redis: any, io?: any | undefined);
     /**
      * Convert Redis client to BullMQ connection config
      */
@@ -86,6 +84,6 @@ export declare class DividendDistributorV2 {
      */
     getNextScheduledRun(): Date;
 }
-export declare function createDividendDistributorV2(prisma: any, redis: any, syndicateService: any, io?: any): DividendDistributorV2;
+export declare function createDividendDistributorV2(prisma: any, redis: any, io?: any): DividendDistributorV2;
 export default DividendDistributorV2;
 //# sourceMappingURL=DividendDistributor.v2.d.ts.map

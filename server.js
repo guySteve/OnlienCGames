@@ -214,7 +214,9 @@ function getGlobalBingoGame() {
     );
     
     // Start the game loop immediately
-    globalBingoGame.startGame();
+    globalBingoGame.startNewHand().catch(err => {
+      console.warn('Bingo auto-start skipped (will start when first player joins):', err.message);
+    });
     
     console.log('✅ Global Bingo Hall is now running!');
   }
@@ -2653,25 +2655,6 @@ io.on('connection', (socket) => {
   socket.on('create_bingo_room', async (data = {}) => {
     console.log('⚠️  Redirecting create_bingo_room to join_bingo_hall');
     socket.emit('join_bingo_hall');
-      io.to(socket.id).emit('bingo_room_created', { 
-        roomId, 
-        gameState: bingoGame.getGameState(),
-        profile: profile
-      });
-      io.to('lobby').emit('rooms_update', getBingoRoomsSummary());
-      
-      // Auto-start game after 30 seconds
-      setTimeout(async () => {
-        if (games.has(roomId)) {
-          await bingoGame.startNewHand();
-          io.to(roomId).emit('bingo_game_started', { gameState: bingoGame.getGameState() });
-        }
-      }, 30000);
-      
-    } catch (error) {
-      console.error('Error creating Bingo room:', error);
-      io.to(socket.id).emit('error', { message: 'Failed to create Bingo room' });
-    }
   });
 
   // ===== BLACKJACK GAME HANDLERS =====
