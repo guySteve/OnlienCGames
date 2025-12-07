@@ -63,7 +63,7 @@ function getOperatingHoursStatus() {
     const { etDate, etHour } = getCurrentEasternTime();
 
     // Operating hours are 10 PM (22) to 2 AM (02)
-    const isOpen = false; // FORCED CLOSED FOR TESTING - Change back to: etHour >= 22 || etHour < 2
+    const isOpen = etHour >= 22 || etHour < 2;
 
     // Calculate the next opening time
     const nextOpenTime = new Date(etDate);
