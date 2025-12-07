@@ -11,7 +11,10 @@
       "Bash(git restore:*)",
       "Bash(cat:*)",
       "Bash(chmod:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(winget install:*)",
+      "Bash(refreshenv)",
+      "Bash(gcloud auth configure-docker:*)"
     ],
     "deny": [],
     "ask": []
