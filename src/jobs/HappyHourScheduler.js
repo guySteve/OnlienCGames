@@ -320,7 +320,8 @@ class HappyHourScheduler {
     async getActiveEvent() {
         const cached = await this.redis.get('happy_hour:active');
         if (cached) {
-            const event = JSON.parse(cached);
+            // Handle both string (standard Redis) and object (Upstash auto-deserialization)
+            const event = typeof cached === 'string' ? JSON.parse(cached) : cached;
             if (new Date(event.endTime) > new Date()) {
                 return event;
             }
