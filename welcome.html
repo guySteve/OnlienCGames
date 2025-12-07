@@ -98,6 +98,49 @@
     }
     .disclaimer-text {
       font-size: clamp(0.85em, 2.2vw, 0.95em);
+    }
+    .casino-status {
+      background: rgba(0,0,0,0.4);
+      border: 2px solid #d4af37;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 600px;
+      width: 100%;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .status-open {
+      border-color: #4ade80;
+    }
+    .status-closed {
+      border-color: #ef4444;
+    }
+    .status-icon {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+    .status-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3em;
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .status-open .status-title {
+      color: #4ade80;
+    }
+    .status-closed .status-title {
+      color: #ef4444;
+    }
+    .status-hours {
+      color: #d4af37;
+      font-size: 1.1em;
+      margin-bottom: 5px;
+    }
+    .status-next-open {
+      color: #a0a0a0;
+      font-size: 0.95em;
       color: #ccc;
       line-height: 1.6;
     }
@@ -169,6 +212,13 @@
       <div class="error-banner-text" id="error-message"></div>
     </div>
     
+    <div id="casino-status" class="casino-status" style="display: none;">
+      <div class="status-icon" id="status-icon"></div>
+      <div class="status-title" id="status-title"></div>
+      <div class="status-hours">🕙 Operating Hours: 10 PM - 2 AM ET</div>
+      <div class="status-next-open" id="status-next-open"></div>
+    </div>
+    
     <div class="welcome-card">
       <div class="welcome-text">
         Welcome to Moe's Card Room, the classiest joint in town! 
@@ -204,6 +254,47 @@
     </div>
   </div>
   <script>
+    // Check casino operating hours status
+    async function checkCasinoStatus() {
+      try {
+        const response = await fetch('/api/casino-status');
+        const data = await response.json();
+        
+        const statusDiv = document.getElementById('casino-status');
+        const statusIcon = document.getElementById('status-icon');
+        const statusTitle = document.getElementById('status-title');
+        const statusNextOpen = document.getElementById('status-next-open');
+        
+        if (data.isOpen) {
+          statusDiv.classList.add('status-open');
+          statusDiv.classList.remove('status-closed');
+          statusIcon.textContent = '🟢';
+          statusTitle.textContent = 'Card Room is Open!';
+          statusNextOpen.textContent = 'Come on in and play!';
+        } else {
+          statusDiv.classList.add('status-closed');
+          statusDiv.classList.remove('status-open');
+          statusIcon.textContent = '🔴';
+          statusTitle.textContent = 'Card Room is Closed';
+          
+          if (data.nextOpenTime) {
+            const nextOpen = new Date(data.nextOpenTime);
+            const now = new Date();
+            const msUntilOpen = nextOpen - now;
+            const hours = Math.floor(msUntilOpen / (1000 * 60 * 60));
+            const minutes = Math.floor((msUntilOpen % (1000 * 60 * 60)) / (1000 * 60));
+            statusNextOpen.textContent = `Opens in ${hours}h ${minutes}m`;
+          } else {
+            statusNextOpen.textContent = 'See you tonight at 10 PM ET!';
+          }
+        }
+        
+        statusDiv.style.display = 'block';
+      } catch (error) {
+        console.error('Error checking casino status:', error);
+      }
+    }
+    
     // Display error message if present in URL
     (function() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -233,6 +324,9 @@
         // Clean URL without reloading
         window.history.replaceState({}, document.title, window.location.pathname);
       }
+      
+      // Check casino status on page load
+      checkCasinoStatus();
     })();
   </script>
 </body>

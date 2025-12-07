@@ -200,7 +200,7 @@ class DividendDistributor {
             return;
         }
 
-        const lastRun = JSON.parse(lastRunData);
+        const lastRun = typeof lastRunData === 'string' ? JSON.parse(lastRunData) : lastRunData;
         const lastRunDate = new Date(lastRun.timestamp);
         const now = new Date();
 
