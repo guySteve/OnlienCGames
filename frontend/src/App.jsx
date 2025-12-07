@@ -8,11 +8,13 @@ import { HomeView } from './views/HomeView';
 import { GameLobbyView } from './views/GameLobbyView';
 import { SettingsView } from './views/SettingsView';
 import { Navbar } from './components/ui/Navbar';
+import { AnimatedCounter } from './components/ui/AnimatedCounter';
 import { CasinoClosedView } from './components/CasinoClosedView';
 import BiometricSetupPrompt from './components/BiometricSetupPrompt';
 
 // --- Legacy Components (to be phased out or integrated) ---
 import GameTable from './components/GameTable';
+import WarTableZones from './components/WarTableZones';
 import BingoGame from './components/BingoGame';
 import BettingControls from './components/BettingControls';
 import SyndicateHUD from './components/SyndicateHUD';
@@ -49,6 +51,7 @@ function App() {
 
   // The new view state machine: loading, home, lobby, game, bingo, settings
   const [view, setView] = useState('loading');
+  const [currentGameType, setCurrentGameType] = useState(null);
 
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [mySeats, setMySeats] = useState([]);
@@ -61,7 +64,7 @@ function App() {
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
 
   // Socket Hook
-  const { gameState, isConnected, lastEvent, emit } = useGameSocket();
+  const { socket, gameState, isConnected, lastEvent, emit } = useGameSocket();
 
   // 1. Authentication
   useEffect(() => {
@@ -181,13 +184,15 @@ function App() {
   };
 
   const handleJoinGame = (gameId) => {
-    // This is a placeholder. In a real app, you'd use the gameId 
+    // This is a placeholder. In a real app, you'd use the gameId
     // to find a specific room or create a new one.
     console.log(`Joining game or creating room for game type: ${gameId}`);
-    
+
     // For now, we just create a generic room based on a mock mapping.
     const gameTypeMap = { '1': 'BLACKJACK', '2': 'WAR', '3': 'BINGO', '4': 'LET_IT_RIDE' };
     const gameType = gameTypeMap[gameId] || 'WAR';
+
+    setCurrentGameType(gameType);
 
     if (gameType === 'BINGO') {
         emit('create_bingo_room', {});
@@ -203,6 +208,7 @@ function App() {
   const handleExitGame = () => {
     emit('leave_room');
     setCurrentRoomId(null);
+    setCurrentGameType(null);
     setMySeats([]);
     setBingoCards([]);
     setView('lobby');
@@ -233,7 +239,12 @@ function App() {
         <div className="min-h-screen bg-slate-900">
             {/* Only show navbar if casino is open or user is admin */}
             {(casinoStatus.isOpen || user.isAdmin) && (
-              <Navbar user={user} onLogout={handleLogout} onSettings={handleSettings} />
+              <Navbar
+                user={user}
+                onLogout={handleLogout}
+                onSettings={handleSettings}
+                socket={socket}
+              />
             )}
 
             {/* Show casino closed view for non-admins when closed */}
@@ -250,7 +261,11 @@ function App() {
               <AnimatePresence mode="wait">
                   {view === 'lobby' && (
                       <motion.div key="lobby">
-                          <GameLobbyView onJoinGame={handleJoinGame} />
+                          <GameLobbyView
+                            onJoinGame={handleJoinGame}
+                            socket={socket}
+                            user={user}
+                          />
                       </motion.div>
                   )}
                   {view === 'settings' && (
@@ -262,11 +277,13 @@ function App() {
                        <motion.div key="game" variants={pageVariants} initial="initial" animate="in" exit="exit">
                           <GameTableWrapper
                               gameState={gameState}
+                              gameType={currentGameType}
                               mySeats={mySeats}
                               onExit={handleExitGame}
                               user={user}
                               currentRoomId={currentRoomId}
                               emit={emit}
+                              socket={socket}
                           />
                        </motion.div>
                   )}
@@ -307,8 +324,30 @@ function App() {
 }
 
 // Wrapper for the legacy GameTable to integrate with the new structure
-const GameTableWrapper = ({ gameState, mySeats, onExit, user, currentRoomId, emit }) => {
+const GameTableWrapper = ({ gameState, gameType, mySeats, onExit, user, currentRoomId, emit, socket }) => {
     const [showProvablyFair, setShowProvablyFair] = useState(false);
+
+    // For WAR games, use WarTableZones component
+    if (gameType === 'WAR') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900 overflow-hidden flex flex-col">
+                <ProvablyFairVerifier
+                    gameState={gameState}
+                    gameSessionId={currentRoomId}
+                    isOpen={showProvablyFair}
+                    onClose={() => setShowProvablyFair(false)}
+                />
+                <WarTableZones
+                    socket={socket}
+                    roomId={currentRoomId}
+                    user={user}
+                    onExit={onExit}
+                />
+            </div>
+        );
+    }
+
+    // For other games (Blackjack, Let It Ride), use the legacy GameTable
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900 overflow-hidden flex flex-col">
             <ProvablyFairVerifier
@@ -329,7 +368,7 @@ const GameTableWrapper = ({ gameState, mySeats, onExit, user, currentRoomId, emi
                 </div>
             </header>
             <main className="flex-1 overflow-y-auto py-4 sm:py-8">
-                <GameTable 
+                <GameTable
                 gameState={gameState}
                 mySeats={mySeats}
                 onSit={(seatIndex) => emit('sit_at_seat', { seatIndex, chips: 1000 })}
@@ -339,7 +378,7 @@ const GameTableWrapper = ({ gameState, mySeats, onExit, user, currentRoomId, emi
             <AnimatePresence>
                 {gameState?.bettingPhase && mySeats.length > 0 && (
                 <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }}>
-                    <BettingControls 
+                    <BettingControls
                         onBet={(amount) => mySeats.forEach(seatIdx => emit('place_bet', { seatIndex: seatIdx, betAmount: amount }))}
                         minBet={gameState?.minBet || 10}
                         balance={user?.chipBalance || 0}

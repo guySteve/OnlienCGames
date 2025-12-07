@@ -2,6 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from '../components/ui/GameCard';
+import SyndicateHUD from '../components/SyndicateHUD';
+import HappyHourBanner from '../components/HappyHourBanner';
 
 const allGames = [
   { id: '1', name: 'Blackjack', type: 'BLACKJACK', category: 'Card Games', description: 'Classic 21. Beat the dealer.', players: 12, minBet: 10 },
@@ -57,8 +59,9 @@ const FilterPill = ({ label, isActive, onClick }) => (
   </motion.button>
 );
 
-export function GameLobbyView({ onJoinGame }) {
+export function GameLobbyView({ onJoinGame, socket, user }) {
   const [activeFilter, setActiveFilter] = useState('All Games');
+  const [syndicateExpanded, setSyndicateExpanded] = useState(false);
 
   const filteredGames = useMemo(() => {
     if (activeFilter === 'All Games') return allGames;
@@ -66,13 +69,25 @@ export function GameLobbyView({ onJoinGame }) {
   }, [activeFilter]);
 
   return (
-    <motion.div 
-      variants={lobbyVariants}
-      initial="initial"
-      animate="in"
-      exit="exit"
-      className="min-h-screen bg-slate-900 text-white pt-24 pb-12 px-4 sm:px-6 lg:px-8"
-    >
+    <>
+      {/* Happy Hour Banner - Positioned at top */}
+      <HappyHourBanner socket={socket} />
+
+      {/* Syndicate HUD - Positioned top-right */}
+      <SyndicateHUD
+        socket={socket}
+        userId={user?.id}
+        isExpanded={syndicateExpanded}
+        onToggle={() => setSyndicateExpanded(!syndicateExpanded)}
+      />
+
+      <motion.div
+        variants={lobbyVariants}
+        initial="initial"
+        animate="in"
+        exit="exit"
+        className="min-h-screen bg-slate-900 text-white pt-24 pb-12 px-4 sm:px-6 lg:px-8"
+      >
       <div className="max-w-7xl mx-auto">
         <motion.h1 
           initial={{ opacity: 0, y: 20 }} 
@@ -121,5 +136,6 @@ export function GameLobbyView({ onJoinGame }) {
         </motion.div>
       </div>
     </motion.div>
+    </>
   );
 }

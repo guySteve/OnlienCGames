@@ -64,7 +64,7 @@ export function GameCard({ game, onClick }) {
       <motion.div
         variants={cardVariants}
         layout
-        className="w-full h-full rounded-3xl border border-white/10 bg-slate-900/50 p-6 flex flex-col justify-end overflow-hidden transition-all duration-300"
+        className="w-full h-full rounded-squircle-lg border border-white/10 bg-slate-900/50 p-6 flex flex-col justify-end overflow-hidden transition-all duration-300 cursor-pointer"
         onHoverStart={() => SoundManager.play('UI_HOVER')}
         onClick={() => onClick(game.id)}
       >
@@ -73,7 +73,7 @@ export function GameCard({ game, onClick }) {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className={twMerge(
-            'w-full h-full absolute inset-0 rounded-3xl bg-gradient-to-t transition-shadow duration-300',
+            'w-full h-full absolute inset-0 rounded-squircle-lg bg-gradient-to-t transition-shadow duration-300 animate-pulse-resting',
             styles.gradient,
             styles.borderColor,
             styles.shadow

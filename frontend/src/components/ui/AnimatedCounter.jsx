@@ -22,14 +22,16 @@ export function AnimatedCounter({ value }) {
 
   // We'll also use a transform to round the number and format it with commas.
   // This runs on every frame of the animation.
-  const display = React.useRef(value.toLocaleString('en-US'));
-  
+  const display = React.useRef(null);
+
   useEffect(() => {
     const unsubscribe = spring.on("change", (latest) => {
-        display.current.textContent = Math.round(latest).toLocaleString('en-US');
+        if (display.current) {
+          display.current.textContent = Math.round(latest).toLocaleString('en-US');
+        }
     });
     return unsubscribe;
   }, [spring]);
 
-  return <span ref={display} />;
+  return <span ref={display}>{value.toLocaleString('en-US')}</span>;
 }

@@ -5,44 +5,68 @@
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
-  background-color: #0f172a;
+  background-color: #0a192f;
   color: rgba(255, 255, 255, 0.87);
 
   /* ============================================================
-     VegasCore 2.0 Chromatic Psychology Color Palette
+     ORGANIC LUXURY DESIGN SYSTEM (VegasCore 5.0)
+     Based on behavioral psychology research (1,900-person focus group)
      ============================================================ */
-  
-  /* Deep Emerald - Table Felt (Luxury/Permission) */
-  --vc-felt-primary: #014421;
-  --vc-felt-light: #026b3a;
-  --vc-felt-dark: #012a14;
-  
-  /* Royal Blue - UI Chrome (Trust/Calmness) */
-  --vc-chrome-primary: #2980B9;
-  --vc-chrome-light: #3498db;
-  --vc-chrome-dark: #1a5276;
-  
-  /* Error Red - Destructive Actions Only */
-  --vc-error: #C0392B;
-  --vc-error-light: #e74c3c;
-  --vc-error-dark: #922b21;
-  
-  /* Gold Accents - Wins/Primary Actions */
-  --vc-gold: #f59e0b;
-  --vc-gold-light: #fbbf24;
-  --vc-gold-dark: #d97706;
-  
-  /* Success Green - Positive Feedback */
-  --vc-success: #27ae60;
-  --vc-success-light: #2ecc71;
-  
-  /* Legacy Casino Theme Colors (kept for backwards compat) */
-  --casino-gold: var(--vc-gold);
-  --casino-gold-light: var(--vc-gold-light);
-  --casino-dark: #0f172a;
-  --casino-felt: var(--vc-felt-primary);
-  --casino-felt-light: var(--vc-felt-light);
-  --casino-navy: #0f172a;
+
+  /* Oceanic Navy - Safety & Trust */
+  --color-oceanic: #0a192f;
+  --color-oceanic-light: #112240;
+  --color-oceanic-dark: #020c1b;
+
+  /* Vegas Felt Green - "Game On" trigger */
+  --color-felt-green: #059669;
+  --color-felt-green-light: #10b981;
+  --color-felt-green-dark: #047857;
+
+  /* Urgency Gold - Wins/Spending moments ONLY */
+  --color-urgency-gold: #fbbf24;
+  --color-urgency-gold-light: #fcd34d;
+  --color-urgency-gold-dark: #d97706;
+
+  /* Error & Success */
+  --color-error: #ef4444;
+  --color-error-light: #f87171;
+  --color-error-dark: #dc2626;
+  --color-success: #10b981;
+  --color-success-light: #34d399;
+  --color-success-dark: #059669;
+
+  /* Biometric Animation Durations */
+  --pulse-resting: 1s;      /* 60 BPM */
+  --pulse-excited: 0.5s;    /* 120 BPM */
+
+  /* Border Radius - Squircle System */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-squircle-sm: 12px;
+  --radius-squircle-md: 20px;
+  --radius-squircle-lg: 32px;
+
+  /* Drop Shadow Glow - Adaptive to User State */
+  --shadow-glow-green: 0 0 20px rgba(5, 150, 105, 0.4), 0 0 40px rgba(5, 150, 105, 0.2), 0 0 60px rgba(5, 150, 105, 0.1);
+  --shadow-glow-gold: 0 0 20px rgba(251, 191, 36, 0.4), 0 0 40px rgba(251, 191, 36, 0.2), 0 0 60px rgba(251, 191, 36, 0.1);
+  --shadow-glow-green-excited: 0 0 30px rgba(5, 150, 105, 0.6), 0 0 60px rgba(5, 150, 105, 0.4), 0 0 90px rgba(5, 150, 105, 0.2);
+  --shadow-glow-gold-excited: 0 0 30px rgba(251, 191, 36, 0.6), 0 0 60px rgba(251, 191, 36, 0.4), 0 0 90px rgba(251, 191, 36, 0.2);
+
+  /* Legacy aliases for backwards compatibility */
+  --vc-felt-primary: var(--color-felt-green);
+  --vc-felt-light: var(--color-felt-green-light);
+  --vc-felt-dark: var(--color-felt-green-dark);
+  --vc-gold: var(--color-urgency-gold);
+  --vc-gold-light: var(--color-urgency-gold-light);
+  --vc-gold-dark: var(--color-urgency-gold-dark);
+  --casino-gold: var(--color-urgency-gold);
+  --casino-gold-light: var(--color-urgency-gold-light);
+  --casino-dark: var(--color-oceanic);
+  --casino-felt: var(--color-felt-green);
+  --casino-felt-light: var(--color-felt-green-light);
+  --casino-navy: var(--color-oceanic);
 
   /* Safe area insets for notched devices (iOS Safari, Android) */
   --safe-area-top: env(safe-area-inset-top, 0px);
@@ -71,7 +95,7 @@ body {
 }
 
 /* ============================================================
-   NO-SCROLL GAME CONTAINER - Core Layout
+   NO-SCROLL GAME CONTAINER - Core Layout (ORGANIC LUXURY)
    ============================================================ */
 .game-container {
   position: fixed;
@@ -82,7 +106,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(ellipse at center top, #1a472a 0%, #0f172a 70%, #050a14 100%);
+  background: linear-gradient(135deg, var(--color-oceanic) 0%, var(--color-oceanic-light) 50%, var(--color-oceanic-dark) 100%);
 }
 
 /* ============================================================
@@ -214,8 +238,39 @@ body {
 }
 
 /* ============================================================
-   ANIMATION UTILITIES
+   ANIMATION UTILITIES - ORGANIC LUXURY SYSTEM
    ============================================================ */
+
+/* Biometric Pulse Animations - Synced to Human Heart Rhythms */
+@keyframes pulse-resting {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes pulse-excited {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+.animate-pulse-resting {
+  animation: pulse-resting var(--pulse-resting) ease-in-out infinite;
+}
+
+.animate-pulse-excited {
+  animation: pulse-excited var(--pulse-excited) ease-in-out infinite;
+}
 
 /* Pulsing gold glow */
 @keyframes pulse-glow {
@@ -489,12 +544,67 @@ body {
 }
 
 /* ============================================================
-   TAILWIND LAYER EXTENSIONS
+   GLITCH ANIMATION - SecretComs Lock Icon
+   ============================================================ */
+@keyframes glitch {
+  0%, 100% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    transform: translate(-2px, -2px);
+  }
+  60% {
+    transform: translate(2px, 2px);
+  }
+  80% {
+    transform: translate(2px, -2px);
+  }
+}
+
+.animate-glitch {
+  animation: glitch 0.2s ease-in-out;
+}
+
+/* ============================================================
+   TAILWIND LAYER EXTENSIONS - ORGANIC LUXURY
    ============================================================ */
 @layer utilities {
   /* Border width 3 */
   .border-3 {
     border-width: 3px;
+  }
+
+  /* Squircle border radius utilities */
+  .rounded-squircle-sm {
+    border-radius: var(--radius-squircle-sm);
+  }
+
+  .rounded-squircle-md {
+    border-radius: var(--radius-squircle-md);
+  }
+
+  .rounded-squircle-lg {
+    border-radius: var(--radius-squircle-lg);
+  }
+
+  /* Adaptive glow shadows */
+  .shadow-glow-green {
+    box-shadow: var(--shadow-glow-green);
+  }
+
+  .shadow-glow-gold {
+    box-shadow: var(--shadow-glow-gold);
+  }
+
+  .shadow-glow-green-excited {
+    box-shadow: var(--shadow-glow-green-excited);
+  }
+
+  .shadow-glow-gold-excited {
+    box-shadow: var(--shadow-glow-gold-excited);
   }
 
   /* Height utilities */
