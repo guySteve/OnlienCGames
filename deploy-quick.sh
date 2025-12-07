@@ -1,0 +1,78 @@
+#!/bin/bash
+################################################################################
+# VegasCore v4.0.0 - Quick Deployment (No gcloud dependency)
+# For environments where gcloud CLI is unavailable
+################################################################################
+
+set -e
+
+PROJECT_ID="onlinecgames"
+
+echo "=========================================="
+echo "🎰 VegasCore v4.0.0 Quick Deployment"
+echo "=========================================="
+echo "PROJECT_ID: $PROJECT_ID"
+echo "Region: us-central1"
+echo ""
+
+################################################################################
+# STEP 1: Database Migration
+################################################################################
+echo "📋 [STEP 1/4] Database Migration"
+echo "------------------------------------------"
+
+npx prisma db push --skip-generate --accept-data-loss
+
+echo "✅ Database schema synchronized"
+echo ""
+
+################################################################################
+# STEP 2: Docker Build & Tag
+################################################################################
+echo "📋 [STEP 2/4] Docker Build & Tag"
+echo "------------------------------------------"
+
+docker build --no-cache -t vegascore:v4.0.0 .
+
+echo "✅ Image built"
+echo ""
+
+docker tag vegascore:v4.0.0 gcr.io/$PROJECT_ID/vegascore:v4.0.0
+docker tag vegascore:v4.0.0 gcr.io/$PROJECT_ID/vegascore:latest
+
+echo "✅ Images tagged"
+echo ""
+
+################################################################################
+# STEP 3: Push to GCR
+################################################################################
+echo "📋 [STEP 3/4] Push to GCR"
+echo "------------------------------------------"
+
+docker push gcr.io/$PROJECT_ID/vegascore:v4.0.0
+docker push gcr.io/$PROJECT_ID/vegascore:latest
+
+echo "✅ Images pushed"
+echo ""
+
+################################################################################
+# STEP 4: Deploy Instructions
+################################################################################
+echo "📋 [STEP 4/4] Deploy to Cloud Run"
+echo "------------------------------------------"
+echo ""
+echo "⚠️  gcloud CLI requires Python. Please run this command manually:"
+echo ""
+echo "gcloud run deploy vegascore \\"
+echo "  --image gcr.io/$PROJECT_ID/vegascore:v4.0.0 \\"
+echo "  --platform managed \\"
+echo "  --region us-central1 \\"
+echo "  --allow-unauthenticated \\"
+echo "  --memory 512Mi \\"
+echo "  --cpu 1 \\"
+echo "  --min-instances 0 \\"
+echo "  --max-instances 5"
+echo ""
+echo "OR use Google Cloud Console:"
+echo "https://console.cloud.google.com/run/deploy/us-central1/vegascore?project=$PROJECT_ID"
+echo ""
