@@ -15,7 +15,8 @@
       "Bash(winget install:*)",
       "Bash(refreshenv)",
       "Bash(gcloud auth configure-docker:*)",
-      "Bash(gcloud run services describe:*)"
+      "Bash(gcloud run services describe:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

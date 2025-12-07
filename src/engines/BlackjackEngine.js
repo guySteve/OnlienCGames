@@ -497,6 +497,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
                     empty: false,
                     seatIndex: player.seatIndex,
                     ready: player.currentBet > 0,
+                    connected: player.connected, // CRITICAL: Include connected status
                     name: 'Player',
                     photo: null,
                     chips: player.chips,

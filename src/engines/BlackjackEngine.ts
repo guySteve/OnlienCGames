@@ -606,6 +606,7 @@ export class BlackjackEngine extends GameEngine {
       empty: true,
       seatIndex: i,
       ready: false,
+      connected: false,
       name: null as string | null,
       photo: null as string | null,
       chips: 0,
@@ -619,6 +620,7 @@ export class BlackjackEngine extends GameEngine {
           empty: false,
           seatIndex: player.seatIndex,
           ready: player.currentBet > 0,
+          connected: player.connected, // CRITICAL: Include connected status
           name: 'Player',
           photo: null,
           chips: player.chips,

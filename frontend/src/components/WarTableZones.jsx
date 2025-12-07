@@ -1,341 +1,185 @@
 /**
- * WarTableZones.jsx - Community Swarm Topology (Phase III Implementation)
- * 
- * ARCHITECTURE:
- * - 5 Zones arranged in semi-circle
- * - 5 Betting Spots per Zone (25 total)
- * - First-come-first-served spot claiming
- * - Armed Cursor betting mode
- * - Visual player identification via neon colors
- * 
- * TOPOLOGY:
- *     [Zone 0] [Zone 1] [Zone 2] [Zone 3] [Zone 4]
- *     [ o o o] [ o o o] [ o o o] [ o o o] [ o o o]  = 25 spots
- *     [ o o  ] [ o o  ] [ o o  ] [ o o  ] [ o o  ]
+ * WarTableSimple.jsx - Simplified Casino War Table
+ *
+ * Layout: 4 Hands × 4 Spots = 16 Total Betting Positions
+ * - Hand 0: Spots 0-3
+ * - Hand 1: Spots 4-7
+ * - Hand 2: Spots 8-11
+ * - Hand 3: Spots 12-15
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import DealerAvatar from './DealerAvatar';
 import BettingControls from './BettingControls';
-import GameInstructions from './common/GameInstructions';
 
 const WarTableZones = ({ socket, roomId, user, onExit }) => {
-  const [gameState, setGameState] = useState(null);
-  const [zones, setZones] = useState([]); // Array of 5 zones
-  const [houseCard, setHouseCard] = useState(null);
+  const [spots, setSpots] = useState(Array(16).fill(null).map((_, i) => ({
+    index: i,
+    bet: 0,
+    playerName: null,
+    playerColor: null,
+    card: null
+  })));
+  const [dealerCard, setDealerCard] = useState(null);
+  const [betAmount, setBetAmount] = useState(10);
   const [phase, setPhase] = useState('BETTING'); // BETTING, DEALING, RESULT
-  const [betCursorValue, setBetCursorValue] = useState(10);
-  const [mySpots, setMySpots] = useState([]); // Track which spots I own
-  const [dealerState, setDealerState] = useState('idle');
-  const [message, setMessage] = useState('Tap a spot to place your bet!');
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [message, setMessage] = useState('Place your bets!');
+  const [mySpots, setMySpots] = useState([]);
 
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for game state updates
     socket.on('war:state', handleStateUpdate);
     socket.on('war:dealt', handleDealt);
     socket.on('war:result', handleResult);
-
-    // Request initial state
     socket.emit('war:joinTable', { roomId });
 
     return () => {
-      socket.off('war:state', handleStateUpdate);
-      socket.off('war:dealt', handleDealt);
-      socket.off('war:result', handleResult);
+      socket.off('war:state');
+      socket.off('war:dealt');
+      socket.off('war:result');
     };
   }, [socket, roomId]);
 
   const handleStateUpdate = (state) => {
-    setGameState(state);
-    if (state.zones) {
-      setZones(state.zones);
+    if (state.spots) {
+      setSpots(state.spots);
     }
     if (state.phase) {
       setPhase(state.phase);
-      if (state.phase === 'BETTING') {
-        setDealerState('idle');
-        setMessage('Tap a spot to place your bet!');
-      }
     }
   };
 
-  const handleDealt = ({ houseCard, zones: newZones }) => {
-    setHouseCard(houseCard);
-    setZones(newZones);
+  const handleDealt = ({ houseCard, spots: newSpots }) => {
+    setDealerCard(houseCard);
+    setSpots(newSpots);
     setPhase('RESULT');
-    setDealerState('dealing');
-    setMessage('Cards dealt! Checking results...');
+    setMessage('Cards dealt!');
   };
 
-  const handleResult = ({ zones: resultZones, winners, houseCard: house }) => {
-    setZones(resultZones);
-    setHouseCard(house);
-    setDealerState(winners.length > 0 ? 'sympathetic' : 'celebrating');
-    
-    // Check if I won
+  const handleResult = ({ spots: resultSpots, winners }) => {
+    setSpots(resultSpots);
     const myWins = winners.filter(w => w.userId === user.id);
     if (myWins.length > 0) {
-      const totalWon = myWins.reduce((sum, w) => sum + w.payout, 0);
-      setMessage(`🎉 You won $${totalWon}!`);
+      setMessage(`You won ${myWins.length} hand(s)!`);
     } else {
       setMessage('Better luck next time!');
     }
-
-    // Reset after 3 seconds
-    setTimeout(() => {
-      setPhase('BETTING');
-      setHouseCard(null);
-      setMySpots([]);
-      setDealerState('idle');
-      setMessage('Tap a spot to place your bet!');
-    }, 3000);
   };
 
-  const handleSpotClick = useCallback((zoneIndex, spotIndex) => {
+  const placeBet = (spotIndex) => {
     if (phase !== 'BETTING') return;
-    if (betCursorValue < 10 || betCursorValue > user.chipBalance) return;
-
-    const globalSpotIndex = zoneIndex * 5 + spotIndex;
-
-    // Check if spot is already taken
-    const zone = zones[zoneIndex];
-    if (zone?.slots?.[spotIndex]?.userId) {
-      setMessage('Spot already taken!');
-      return;
-    }
-
-    // Place bet
-    socket?.emit('war:placeBet', {
-      roomId,
-      spotIndex: globalSpotIndex,
-      amount: betCursorValue
-    });
-
-    // Optimistic update
-    setMySpots(prev => [...prev, globalSpotIndex]);
-    setMessage(`Bet $${betCursorValue} placed on spot ${globalSpotIndex + 1}`);
-  }, [phase, betCursorValue, user.chipBalance, zones, socket, roomId, user.id]);
-
-  const renderCard = (card) => {
-    if (!card) return null;
-
-    const suitColors = {
-      '♥': 'text-red-500',
-      '♦': 'text-red-500',
-      '♠': 'text-slate-900',
-      '♣': 'text-slate-900'
-    };
-
-    return (
-      <motion.div
-        initial={{ rotateY: 180, scale: 0.8 }}
-        animate={{ rotateY: 0, scale: 1 }}
-        transition={{ duration: 0.4 }}
-        className="w-20 h-28 bg-white border-2 border-slate-300 rounded-lg shadow-xl flex flex-col items-center justify-center"
-      >
-        <span className={`text-3xl font-bold ${suitColors[card.suit]}`}>
-          {card.rank}
-        </span>
-        <span className={`text-4xl ${suitColors[card.suit]}`}>
-          {card.suit}
-        </span>
-      </motion.div>
-    );
+    socket.emit('war:placeBet', { roomId, spotIndex, amount: betAmount });
   };
 
-  const renderBettingSpot = (zoneIndex, spotIndex) => {
-    const zone = zones[zoneIndex] || {};
-    const spot = zone.slots?.[spotIndex] || {};
-    const globalSpotIndex = zoneIndex * 5 + spotIndex;
-    const isMySpot = spot.userId === user.id;
-    const isOccupied = !!spot.userId;
-
-    return (
-      <motion.button
-        key={`${zoneIndex}-${spotIndex}`}
-        onClick={() => handleSpotClick(zoneIndex, spotIndex)}
-        disabled={isOccupied && !isMySpot}
-        whileHover={!isOccupied ? { scale: 1.1 } : {}}
-        whileTap={!isOccupied ? { scale: 0.95 } : {}}
-        className={`
-          w-16 h-16 rounded-full border-4 flex items-center justify-center font-bold text-sm
-          transition-all relative
-          ${isOccupied
-            ? `border-[${spot.userColor || '#888'}] shadow-[0_0_20px_${spot.userColor || '#888'}]`
-            : 'border-slate-600 border-dashed hover:border-yellow-500 hover:shadow-[0_0_15px_rgba(234,179,8,0.5)]'
-          }
-          ${isMySpot ? 'ring-4 ring-white ring-offset-2' : ''}
-          ${phase !== 'BETTING' && 'cursor-not-allowed opacity-50'}
-        `}
-        style={{
-          backgroundColor: isOccupied ? (spot.userColor || '#888') + '20' : 'transparent',
-          borderColor: isOccupied ? (spot.userColor || '#888') : undefined
-        }}
-      >
-        {isOccupied ? (
-          <div className="flex flex-col items-center">
-            <span className="text-xs text-white">${spot.amount}</span>
-            {isMySpot && <span className="text-[10px] text-white">YOU</span>}
-          </div>
-        ) : (
-          <span className="text-slate-500 text-xl">•</span>
-        )}
-
-        {/* Result indicator */}
-        {phase === 'RESULT' && spot.result && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className={`
-              absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-              ${spot.result === 'WIN' ? 'bg-green-500' : spot.result === 'LOSS' ? 'bg-red-500' : 'bg-yellow-500'}
-            `}
-          >
-            {spot.result === 'WIN' ? '✓' : spot.result === 'LOSS' ? '✗' : '='}
-          </motion.div>
-        )}
-      </motion.button>
-    );
-  };
-
-  const renderZone = (zoneIndex) => {
-    const zone = zones[zoneIndex] || {};
-    const playerCard = zone.playerCard;
-
-    return (
-      <div
-        key={zoneIndex}
-        className="flex flex-col items-center gap-3 bg-slate-800/40 backdrop-blur-sm rounded-2xl p-4 border border-white/10"
-      >
-        {/* Zone number */}
-        <div className="text-xs text-slate-400 font-bold">Zone {zoneIndex + 1}</div>
-
-        {/* Player card for this zone */}
-        <div className="min-h-[120px] flex items-center justify-center">
-          {playerCard ? renderCard(playerCard) : (
-            <div className="w-20 h-28 bg-slate-700/50 border-2 border-dashed border-slate-600 rounded-lg flex items-center justify-center">
-              <span className="text-slate-600 text-2xl">?</span>
-            </div>
-          )}
-        </div>
-
-        {/* 5 betting spots in 2 rows */}
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            {[0, 1, 2].map(spotIndex => renderBettingSpot(zoneIndex, spotIndex))}
-          </div>
-          <div className="flex gap-2">
-            {[3, 4].map(spotIndex => renderBettingSpot(zoneIndex, spotIndex))}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Group spots into hands (4 spots per hand)
+  const hands = [
+    spots.slice(0, 4),   // Hand 0
+    spots.slice(4, 8),   // Hand 1
+    spots.slice(8, 12),  // Hand 2
+    spots.slice(12, 16)  // Hand 3
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-900 via-red-800 to-slate-900 pb-32">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-900 to-emerald-950 p-4">
       {/* Header */}
-      <div className="bg-slate-900/80 backdrop-blur-md border-b border-white/10 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <span>⚔️</span> Casino War - Community Table
-            </h1>
-            <p className="text-sm text-red-300">25 spots • Tap to bet • Highest card wins</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-800 px-4 py-2 rounded-lg">
-              <div className="text-xs text-slate-400">Your Chips</div>
-              <div className="text-xl font-bold text-yellow-400">${user.chipBalance?.toLocaleString()}</div>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold text-yellow-400">Casino War</h1>
+        <button
+          onClick={onExit}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white"
+        >
+          Exit
+        </button>
+      </div>
+
+      {/* Message */}
+      <div className="text-center mb-6">
+        <p className="text-xl text-white font-semibold">{message}</p>
+      </div>
+
+      {/* Dealer Card */}
+      <div className="flex justify-center mb-8">
+        <div className="text-center">
+          <p className="text-white mb-2">Dealer</p>
+          {dealerCard ? (
+            <div className="w-20 h-28 bg-white rounded-lg shadow-lg flex flex-col items-center justify-center">
+              <div className="text-4xl">{dealerCard.suit}</div>
+              <div className="text-2xl font-bold">{dealerCard.rank}</div>
             </div>
-            <button
-              onClick={() => setShowInstructions(true)}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Rules
-            </button>
-            <button
-              onClick={onExit}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition-colors"
-            >
-              Exit
-            </button>
-          </div>
+          ) : (
+            <div className="w-20 h-28 bg-gray-700 rounded-lg shadow-lg" />
+          )}
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Dealer Section */}
-        <div className="flex flex-col items-center mb-8">
-          <DealerAvatar
-            state={dealerState}
-            name="Dealer"
-            mood={phase === 'RESULT' ? (dealerState === 'celebrating' ? 'happy' : 'sympathetic') : 'neutral'}
-          />
-          
-          {/* House Card */}
-          <div className="mt-4">
-            {houseCard ? (
-              <div>
-                <div className="text-center text-yellow-400 font-bold mb-2">House Card</div>
-                {renderCard(houseCard)}
-              </div>
-            ) : (
-              <div className="w-20 h-28 bg-slate-700/50 border-2 border-dashed border-slate-600 rounded-lg flex items-center justify-center">
-                <span className="text-slate-600 text-3xl">⚔️</span>
-              </div>
-            )}
+      {/* 4 Hands Layout */}
+      <div className="max-w-6xl mx-auto grid grid-cols-4 gap-4 mb-8">
+        {hands.map((hand, handIndex) => (
+          <div key={handIndex} className="space-y-2">
+            <p className="text-center text-yellow-400 font-semibold mb-2">
+              Hand {handIndex + 1}
+            </p>
+
+            {/* 4 Spots per Hand */}
+            <div className="space-y-2">
+              {hand.map((spot) => (
+                <motion.div
+                  key={spot.index}
+                  onClick={() => placeBet(spot.index)}
+                  whileHover={{ scale: 1.05 }}
+                  className={`
+                    relative h-24 rounded-lg cursor-pointer
+                    transition-all duration-200
+                    ${spot.bet > 0
+                      ? 'bg-blue-600 border-2 border-blue-400'
+                      : 'bg-emerald-800 border-2 border-dashed border-emerald-600'
+                    }
+                    hover:border-yellow-400
+                  `}
+                >
+                  {/* Spot Content */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    {spot.card ? (
+                      <div className="text-center">
+                        <div className="text-3xl">{spot.card.suit}</div>
+                        <div className="text-xl font-bold text-white">{spot.card.rank}</div>
+                      </div>
+                    ) : spot.bet > 0 ? (
+                      <div className="text-center">
+                        <div className="text-sm text-white opacity-75">{spot.playerName}</div>
+                        <div className="text-xl font-bold text-yellow-400">${spot.bet}</div>
+                      </div>
+                    ) : (
+                      <div className="text-emerald-400 text-sm">
+                        Spot {spot.index + 1}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* "YOU" indicator */}
+                  {spot.playerId === user.id && (
+                    <div className="absolute top-1 right-1 bg-yellow-400 text-black text-xs px-2 py-1 rounded font-bold">
+                      YOU
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </div>
-
-        {/* Status Message */}
-        <div className="text-center mb-6">
-          <motion.div
-            key={message}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-block bg-slate-900/80 backdrop-blur-md px-6 py-3 rounded-full border border-white/20"
-          >
-            <span className="text-white font-semibold text-lg">{message}</span>
-          </motion.div>
-        </div>
-
-        {/* 5 Zones in semi-circle */}
-        <div className="flex justify-center gap-4 flex-wrap">
-          {[0, 1, 2, 3, 4].map(zoneIndex => renderZone(zoneIndex))}
-        </div>
-
-        {/* Legend */}
-        <div className="mt-8 bg-slate-900/60 backdrop-blur-md rounded-xl p-4 border border-white/10">
-          <div className="text-center text-slate-400 text-sm">
-            <span className="font-bold text-white">How to Play:</span> Use the controls below to set your bet amount, then tap any empty spot to place your bet. 
-            Each zone gets one card. If your zone's card beats the house, you win! Ties trigger War (auto-play).
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Betting Controls - Armed Cursor Mode */}
-      <BettingControls
-        phase={phase === 'BETTING' ? 'betting' : 'waiting'}
-        minBet={10}
-        balance={user.chipBalance || 0}
-        disabled={phase !== 'BETTING'}
-        armedCursorMode={true}
-        onCursorValueChange={setBetCursorValue}
-        gameType="war"
-      />
-
-      {/* Instructions Modal */}
-      <GameInstructions
-        gameType="WAR"
-        isOpen={showInstructions}
-        onClose={() => setShowInstructions(false)}
-      />
+      {/* Betting Controls */}
+      {phase === 'BETTING' && (
+        <BettingControls
+          betAmount={betAmount}
+          onBetChange={setBetAmount}
+          onBet={() => {}}
+          minBet={10}
+          maxBet={1000}
+        />
+      )}
     </div>
   );
 };

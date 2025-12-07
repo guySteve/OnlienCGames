@@ -96,7 +96,8 @@ function checkOperatingHours(req, res, next) {
         '/vite',
         '/@vite',
         '/node_modules',
-        '/src'  // Vite dev mode source files
+        '/src',  // Vite dev mode source files
+        '/socket.io'  // CRITICAL: Allow socket.io connections (has own operating hours check)
     ];
 
     // Check if path should be allowed

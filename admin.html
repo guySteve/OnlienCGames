@@ -457,7 +457,7 @@
       tbody.innerHTML = users.map(user => {
         const isOnline = onlineUsersMap.has(user.email);
         const onlineClass = isOnline ? 'online' : 'offline';
-        const email = (user.email || 'N/A').length > 25 ? (user.email || 'N/A').substring(0, 22) + '...' : (user.email || 'N/A');
+        const email = user.email || 'N/A'; // Show full email
         const name = user.displayName.length > 15 ? user.displayName.substring(0, 12) + '...' : user.displayName;
         return `
         <tr>
