@@ -186,13 +186,15 @@ function App() {
     console.log(`Joining game or creating room for game type: ${gameId}`);
     
     // For now, we just create a generic room based on a mock mapping.
-    const gameTypeMap = { '1': 'BLACKJACK', '2': 'WAR', '3': 'BINGO', '4': 'WAR' };
+    const gameTypeMap = { '1': 'BLACKJACK', '2': 'WAR', '3': 'BINGO', '4': 'LET_IT_RIDE' };
     const gameType = gameTypeMap[gameId] || 'WAR';
 
     if (gameType === 'BINGO') {
         emit('create_bingo_room', {});
     } else if (gameType === 'BLACKJACK') {
         emit('create_blackjack_room', {});
+    } else if (gameType === 'LET_IT_RIDE') {
+        emit('create_let_it_ride_room', {});
     } else {
         emit('create_room', {});
     }

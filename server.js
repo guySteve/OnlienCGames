@@ -1725,11 +1725,8 @@ class GameRoom {
   allSeatedReady() {
     const seated = this.seats.filter(s => s !== null);
     if (seated.length === 0) return false;
-    // All seated players must be connected, ready, and have bet
-    for (const p of seated) {
-      if (!(p.connected && p.ready && p.currentBet > 0)) return false;
-    }
-    return true;
+    // Check if at least ONE seated player is ready to fix single-player deadlock
+    return seated.some(p => p.connected && p.ready && p.currentBet > 0);
   }
   
   dealCards() {
@@ -2666,6 +2663,9 @@ io.on('connection', (socket) => {
 
       // Get properly initialized game state
       const gameState = bjGame.getGameState();
+      
+      // Manually emit seat_taken for creator
+      io.to(socket.id).emit('seat_taken', { seatIndex: 0, gameState });
 
       io.to(socket.id).emit('room_created', {
         roomId,
@@ -2678,6 +2678,66 @@ io.on('connection', (socket) => {
       
     } catch (error) {
       console.error('Error creating Blackjack room:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to create room' });
+    }
+  });
+
+  socket.on('create_let_it_ride_room', async (data = {}) => {
+    const roomId = 'lir_' + crypto.randomBytes(4).toString('hex');
+    const user = socket.request?.session?.passport?.user;
+    
+    if (!user) {
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to create a Let It Ride room' });
+    }
+    
+    try {
+      const LetItRideEngine = require('./src/engines/LetItRideEngine').LetItRideEngine;
+      const EngagementService = require('./src/services/EngagementService').EngagementService;
+      
+      const displayName = data.roomName ? sanitizeMessage(data.roomName).substring(0, 30) : null;
+      
+      const engagement = new EngagementService(prisma, redisClient || null);
+      const lirGame = new LetItRideEngine(
+        { roomId, displayName, minBet: 25, maxBet: 1000, maxPlayers: 5 },
+        prisma,
+        redisClient || null,
+        engagement
+      );
+      
+      if (data.playerSeed) {
+        await lirGame.initializeWithQRNG(data.playerSeed);
+      }
+
+      games.set(roomId, lirGame);
+      playerToGame.set(socket.id, roomId);
+      socket.join(roomId);
+
+      const profile = await getUserProfile(user.id);
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+
+      if (!dbUser) {
+        return io.to(socket.id).emit('error', { message: 'User not found in database' });
+      }
+
+      // Add player to the game at seat 0
+      await lirGame.addPlayer(dbUser.id, 0);
+
+      const gameState = lirGame.getGameState();
+
+      // Manually emit seat_taken for creator
+      io.to(socket.id).emit('seat_taken', { seatIndex: 0, gameState });
+
+      io.to(socket.id).emit('room_created', {
+        roomId,
+        gameState: gameState,
+        gameType: 'LET_IT_RIDE',
+        profile: profile,
+        dualSeeds: lirGame.getDualSeeds ? lirGame.getDualSeeds() : null
+      });
+      io.to('lobby').emit('rooms_update', getRoomsSummary());
+      
+    } catch (error) {
+      console.error('Error creating Let It Ride room:', error);
       io.to(socket.id).emit('error', { message: 'Failed to create room' });
     }
   });

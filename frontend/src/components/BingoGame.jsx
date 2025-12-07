@@ -307,14 +307,6 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
                   : 'Game in progress. Wait for the next round.'
                 }
               </p>
-              {phase === 'BUYING' && (
-                <button
-                  onClick={onBuyCard}
-                  className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold text-base rounded-xl shadow-lg hover:shadow-yellow-500/30 transition-all active:scale-95"
-                >
-                  Buy Card - 1 Chip
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -326,14 +318,25 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
           <div className="text-xs text-slate-400">Pot</div>
           <div className="text-lg font-bold text-yellow-400">${pot}</div>
         </div>
-        <div className="text-center">
-          <div className="text-xs text-slate-400">Phase</div>
-          <div className={`text-lg font-bold ${
-            phase === 'PLAYING' ? 'text-green-400' :
-            phase === 'COMPLETE' ? 'text-purple-400' : 'text-blue-400'
-          }`}>
-            {phase}
-          </div>
+        <div className="text-center bingo-controls">
+          {phase === 'BUYING' ? (
+            <button
+              onClick={onBuyCard}
+              className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold text-base rounded-xl shadow-lg hover:shadow-yellow-500/30 transition-all active:scale-95"
+            >
+              Buy Card (1)
+            </button>
+          ) : (
+            <div>
+              <div className="text-xs text-slate-400">Phase</div>
+              <div className={`text-lg font-bold ${
+                phase === 'PLAYING' ? 'text-green-400' :
+                phase === 'COMPLETE' ? 'text-purple-400' : 'text-blue-400'
+              }`}>
+                {phase}
+              </div>
+            </div>
+          )}
         </div>
         <div className="text-center">
           <div className="text-xs text-slate-400">Balls</div>

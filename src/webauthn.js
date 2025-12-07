@@ -24,15 +24,19 @@ const { prisma } = require('./db');
 // =============================================================================
 
 const RP_NAME = 'Moe\'s Card Room';
-const RP_ID = process.env.WEBAUTHN_RP_ID || 'playwar.games';
+const RP_ID = process.env.NODE_ENV === 'development'
+    ? 'localhost'
+    : (process.env.WEBAUTHN_RP_ID || 'playwar.games');
 const ORIGIN = process.env.PUBLIC_URL || `https://${RP_ID}`;
 
-// Support multiple origins for dev/prod
-const EXPECTED_ORIGINS = [
+// Support multiple origins for dev/prod, ensuring uniqueness.
+const EXPECTED_ORIGINS = [...new Set([
   ORIGIN,
-  process.env.WEBAUTHN_ORIGIN_DEV || 'http://localhost:3000',
-  process.env.WEBAUTHN_ORIGIN_PROD || ORIGIN
-].filter(Boolean);
+  'http://localhost:3000', // Explicitly include for dev
+  process.env.PUBLIC_URL,  // Explicitly include for prod
+  process.env.WEBAUTHN_ORIGIN_DEV,
+  process.env.WEBAUTHN_ORIGIN_PROD,
+].filter(Boolean))];
 
 console.log('🔐 WebAuthn Configuration:');
 console.log('  RP Name:', RP_NAME);
