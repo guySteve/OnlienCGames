@@ -412,6 +412,9 @@
         // Render recent moderations
         renderModerationLogs(data.recentModerations);
 
+        // Ensure users list loads when All Users tab is active by default
+        loadUsers(1);
+
       } catch (error) {
         console.error('Failed to load dashboard:', error);
         alert('Failed to load dashboard. Are you an admin?');
