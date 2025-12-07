@@ -104,10 +104,12 @@ async function handleRegistrationStart(req, res) {
       excludeCredentials,
 
       // Prefer platform authenticators (Touch ID, Windows Hello, etc.)
+      // REQUIRE resident key for discoverable credentials (passwordless login)
       authenticatorSelection: {
-        residentKey: 'preferred',
+        residentKey: 'required', // Changed from 'preferred' to 'required'
         userVerification: 'preferred',
-        authenticatorAttachment: 'platform'
+        authenticatorAttachment: 'platform',
+        requireResidentKey: true // Explicitly require resident key
       },
 
       // Support for older and newer devices
@@ -238,7 +240,8 @@ async function handleRegistrationFinish(req, res) {
  * POST /auth/webauthn/login-start
  *
  * Generates authentication challenge for biometric login.
- * Does NOT require existing session (passwordless login).
+ * Supports DISCOVERABLE CREDENTIALS (no email required).
+ * Does NOT require existing session (true passwordless login).
  *
  * Free-Tier Optimized:
  * - No DB queries (challenge generation only)
@@ -248,15 +251,30 @@ async function handleAuthenticationStart(req, res) {
   try {
     const { email } = req.body;
 
-    // For admin fast-login, we need to know which user is trying to authenticate
-    // This allows us to retrieve their specific authenticators
+    // DISCOVERABLE CREDENTIALS MODE (no email needed)
+    // The device will present all available credentials to the user
     if (!email) {
-      return res.status(400).json({
-        error: 'Email required',
-        message: 'Please provide your email address'
+      console.log('🔐 WebAuthn: Discoverable credential authentication (no email)');
+      
+      // Generate authentication options WITHOUT allowCredentials
+      // This tells the browser to let user select from ALL registered credentials on device
+      const options = await generateAuthenticationOptions({
+        rpID: RP_ID,
+        // NO allowCredentials = discoverable/resident key mode
+        userVerification: 'preferred',
+        timeout: 300000 // 5 minutes
       });
+
+      // Store challenge in session
+      req.session.webauthnChallenge = options.challenge;
+      req.session.webauthnDiscoverable = true; // Flag for finish handler
+
+      return res.json(options);
     }
 
+    // LEGACY MODE: Email-based authentication (for compatibility)
+    console.log('🔐 WebAuthn: Email-based authentication for:', email);
+    
     // Fetch user and their authenticators (single efficient query)
     const user = await prisma.user.findUnique({
       where: { email },
@@ -323,6 +341,7 @@ async function handleAuthenticationStart(req, res) {
  * POST /auth/webauthn/login-finish
  *
  * Verifies biometric signature and logs user in.
+ * Supports DISCOVERABLE CREDENTIALS (credential identifies the user).
  *
  * Free-Tier Optimized:
  * - Single DB query with nested select
@@ -340,15 +359,16 @@ async function handleAuthenticationFinish(req, res) {
     // Retrieve challenge from session
     const expectedChallenge = req.session.webauthnChallenge;
     const email = req.session.webauthnEmail;
+    const isDiscoverable = req.session.webauthnDiscoverable;
 
-    if (!expectedChallenge || !email) {
+    if (!expectedChallenge) {
       return res.status(400).json({
         error: 'Invalid session',
         message: 'Please restart the login process'
       });
     }
 
-    // Find the authenticator (efficient query with user data)
+    // Find the authenticator by credential ID (works for both modes)
     const authenticator = await prisma.authenticator.findUnique({
       where: {
         credentialID: Buffer.from(isoBase64URL.toBuffer(credential.id))
@@ -375,13 +395,16 @@ async function handleAuthenticationFinish(req, res) {
       });
     }
 
-    // Verify the user matches the email
-    if (authenticator.user.email !== email) {
+    // If email was provided (legacy mode), verify it matches
+    if (email && authenticator.user.email !== email) {
       return res.status(403).json({
         error: 'Access denied',
         message: 'Credential does not belong to this user'
       });
     }
+
+    // DISCOVERABLE MODE: The credential tells us who the user is!
+    console.log('✅ WebAuthn: Authenticated user via credential:', authenticator.user.email);
 
     // Verify the authentication response
     const verification = await verifyAuthenticationResponse({

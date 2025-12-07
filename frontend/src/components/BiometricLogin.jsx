@@ -18,6 +18,7 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
   const [isSupported, setIsSupported] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showEmailFallback, setShowEmailFallback] = useState(false);
   const [email, setEmail] = useState(adminEmail);
 
   // Check browser support on mount
@@ -25,26 +26,27 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
     setIsSupported(browserSupportsWebAuthn());
   }, []);
 
-  // Handle biometric login
+  // Handle biometric login - supports both passwordless and email-based
   const handleBiometricLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      // Validate email
-      if (!email || !email.includes('@')) {
+      // If email fallback is shown, validate email
+      if (showEmailFallback && (!email || !email.includes('@'))) {
         throw new Error('Please enter a valid email address');
       }
 
       // Step 1: Get authentication options from server
+      // If email is provided, use email-based mode; otherwise use discoverable credentials
       const optionsResponse = await fetch('/auth/webauthn/login-start', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify(showEmailFallback ? { email } : { userVerification: 'preferred' })
       });
 
       if (!optionsResponse.ok) {
@@ -122,9 +124,9 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
     <div className="biometric-login-container" style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <h2 style={styles.title}>🔐 Admin Fast Login</h2>
+          <h2 style={styles.title}>🔐 Biometric Login</h2>
           <p style={styles.description}>
-            Sign in instantly using your biometric authentication
+            Tap the button below and use your fingerprint, Face ID, or device PIN
           </p>
         </div>
 
@@ -135,21 +137,24 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
         )}
 
         <form onSubmit={handleBiometricLogin} style={styles.form}>
-          <div style={styles.inputGroup}>
-            <label htmlFor="email" style={styles.label}>
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
-              required
-              style={styles.input}
-              disabled={isLoading}
-            />
-          </div>
+          {showEmailFallback && (
+            <div style={styles.inputGroup}>
+              <label htmlFor="email" style={styles.label}>
+                Email Address
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                style={styles.input}
+                disabled={isLoading}
+                autoFocus
+              />
+            </div>
+          )}
 
           <button
             type="submit"
@@ -165,24 +170,64 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
               </>
             ) : (
               <>
-                🔐 Sign In with Biometric
+                {showEmailFallback ? '🔐 Sign In with Email + Biometric' : '👆 Use Biometric to Sign In'}
               </>
             )}
           </button>
+
+          {!showEmailFallback && (
+            <button
+              type="button"
+              onClick={() => setShowEmailFallback(true)}
+              style={styles.linkButton}
+              disabled={isLoading}
+            >
+              Or enter email if device not registered
+            </button>
+          )}
+
+          {showEmailFallback && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowEmailFallback(false);
+                setError(null);
+              }}
+              style={styles.linkButton}
+              disabled={isLoading}
+            >
+              ← Back to quick biometric login
+            </button>
+          )}
         </form>
 
         <div style={styles.infoBox}>
           <p style={styles.infoTitle}>ℹ️ How it works:</p>
-          <ol style={styles.infoList}>
-            <li>Enter your email address</li>
-            <li>Click "Sign In with Biometric"</li>
-            <li>Use your Touch ID, Face ID, or Windows Hello</li>
-            <li>You'll be instantly logged in!</li>
-          </ol>
-          <p style={styles.infoNote}>
-            <strong>Note:</strong> You must have previously set up biometric login
-            by signing in with Google and registering your biometric device.
-          </p>
+          {!showEmailFallback ? (
+            <>
+              <ol style={styles.infoList}>
+                <li>Tap the button above</li>
+                <li>Your device will prompt for biometric authentication</li>
+                <li>Use Touch ID, Face ID, fingerprint, or device PIN</li>
+                <li>You'll be instantly logged in!</li>
+              </ol>
+              <p style={styles.infoNote}>
+                <strong>Note:</strong> Your device must be registered. If not, click "Or enter email" below.
+              </p>
+            </>
+          ) : (
+            <>
+              <ol style={styles.infoList}>
+                <li>Enter your email address</li>
+                <li>Click "Sign In with Email + Biometric"</li>
+                <li>Use your Touch ID, Face ID, or fingerprint</li>
+                <li>You'll be logged in!</li>
+              </ol>
+              <p style={styles.infoNote}>
+                <strong>Tip:</strong> Register your device in Settings for faster login next time.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -273,6 +318,19 @@ const styles = {
   buttonDisabled: {
     backgroundColor: '#555',
     cursor: 'not-allowed'
+  },
+  linkButton: {
+    width: '100%',
+    padding: '0.75rem',
+    marginTop: '0.75rem',
+    backgroundColor: 'transparent',
+    color: '#7ab8ff',
+    border: '1px solid #3a5a7a',
+    borderRadius: '6px',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    textDecoration: 'none'
   },
   spinner: {
     display: 'inline-block',
