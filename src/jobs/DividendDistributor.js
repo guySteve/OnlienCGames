@@ -101,11 +101,14 @@ class DividendDistributor {
             this.lastRun = {
                 timestamp: new Date(),
                 duration: Date.now() - startTime,
-                results
+                results: {
+                    ...results,
+                    totalDistributed: Number(results.totalDistributed) // Convert BigInt to Number
+                }
             };
 
             // Store in Redis for monitoring
-            await this.redis.setex('job:dividend:last_run', 86400 * 7, JSON.stringify(this.lastRun));
+            await this.redis.set('job:dividend:last_run', JSON.stringify(this.lastRun), { ex: 86400 * 7 });
 
             console.log(`[DividendDistributor] Completed in ${this.lastRun.duration}ms`);
             console.log(`[DividendDistributor] Results: ${results.successful}/${results.processed} successful, ${results.failed} failed`);
