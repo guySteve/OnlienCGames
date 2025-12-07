@@ -16,7 +16,8 @@
       "Bash(refreshenv)",
       "Bash(gcloud auth configure-docker:*)",
       "Bash(gcloud run services describe:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(bash:*)"
     ],
     "deny": [],
     "ask": []
