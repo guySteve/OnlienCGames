@@ -1,18 +1,23 @@
 #!/bin/bash
 ################################################################################
-# Deploy to existing moes-casino service
+# Deploy to existing moes-casino service - VegasCore 5.0
 ################################################################################
 
 set -e
 
 PROJECT_ID="onlinecgames"
 SERVICE_NAME="moes-casino"
+VERSION="v5.0.0"
 
-echo "🚀 Deploying to existing service: $SERVICE_NAME"
+echo "=========================================="
+echo "🎰 VegasCore 5.0 - Organic Luxury Deployment"
+echo "=========================================="
+echo "🚀 Deploying to: $SERVICE_NAME"
+echo "📦 Version: $VERSION"
 echo ""
 
 gcloud run deploy $SERVICE_NAME \
-  --image gcr.io/$PROJECT_ID/vegascore:v4.0.0 \
+  --image gcr.io/$PROJECT_ID/vegascore:$VERSION \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
@@ -23,4 +28,6 @@ gcloud run deploy $SERVICE_NAME \
   --project $PROJECT_ID
 
 echo ""
-echo "✅ Deployment complete!"
+echo "✅ VegasCore 5.0 Deployment Complete!"
+echo "🎨 Organic Luxury design system active"
+echo "🏛️ Social 2.0 features live"

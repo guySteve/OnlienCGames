@@ -1,17 +1,19 @@
 #!/bin/bash
 ################################################################################
-# VegasCore v4.0.0 - Quick Deployment (No gcloud dependency)
+# VegasCore v5.0.0 - Quick Deployment (No gcloud dependency)
 # For environments where gcloud CLI is unavailable
 ################################################################################
 
 set -e
 
 PROJECT_ID="onlinecgames"
+VERSION="v5.0.0"
 
 echo "=========================================="
-echo "🎰 VegasCore v4.0.0 Quick Deployment"
+echo "🎰 VegasCore v5.0.0 - Organic Luxury"
 echo "=========================================="
 echo "PROJECT_ID: $PROJECT_ID"
+echo "VERSION: $VERSION"
 echo "Region: us-central1"
 echo ""
 
@@ -32,13 +34,13 @@ echo ""
 echo "📋 [STEP 2/4] Docker Build & Tag"
 echo "------------------------------------------"
 
-docker build --no-cache -t vegascore:v4.0.0 .
+docker build --no-cache -t vegascore:$VERSION .
 
 echo "✅ Image built"
 echo ""
 
-docker tag vegascore:v4.0.0 gcr.io/$PROJECT_ID/vegascore:v4.0.0
-docker tag vegascore:v4.0.0 gcr.io/$PROJECT_ID/vegascore:latest
+docker tag vegascore:$VERSION gcr.io/$PROJECT_ID/vegascore:$VERSION
+docker tag vegascore:$VERSION gcr.io/$PROJECT_ID/vegascore:latest
 
 echo "✅ Images tagged"
 echo ""
@@ -49,7 +51,7 @@ echo ""
 echo "📋 [STEP 3/4] Push to GCR"
 echo "------------------------------------------"
 
-docker push gcr.io/$PROJECT_ID/vegascore:v4.0.0
+docker push gcr.io/$PROJECT_ID/vegascore:$VERSION
 docker push gcr.io/$PROJECT_ID/vegascore:latest
 
 echo "✅ Images pushed"
@@ -63,8 +65,8 @@ echo "------------------------------------------"
 echo ""
 echo "⚠️  gcloud CLI requires Python. Please run this command manually:"
 echo ""
-echo "gcloud run deploy vegascore \\"
-echo "  --image gcr.io/$PROJECT_ID/vegascore:v4.0.0 \\"
+echo "gcloud run deploy moes-casino \\"
+echo "  --image gcr.io/$PROJECT_ID/vegascore:$VERSION \\"
 echo "  --platform managed \\"
 echo "  --region us-central1 \\"
 echo "  --allow-unauthenticated \\"
@@ -74,5 +76,9 @@ echo "  --min-instances 0 \\"
 echo "  --max-instances 5"
 echo ""
 echo "OR use Google Cloud Console:"
-echo "https://console.cloud.google.com/run/deploy/us-central1/vegascore?project=$PROJECT_ID"
+echo "https://console.cloud.google.com/run/deploy/us-central1/moes-casino?project=$PROJECT_ID"
+echo ""
+echo "✅ VegasCore 5.0 Build Complete!"
+echo "🎨 Organic Luxury design system packaged"
+echo "🏛️ Social 2.0 features ready"
 echo ""
