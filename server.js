@@ -63,7 +63,7 @@ function getOperatingHoursStatus() {
     const { etDate, etHour } = getCurrentEasternTime();
 
     // Operating hours are 10 PM (22) to 2 AM (02)
-    const isOpen = (etHour >= 22 || etHour < 2);
+    const isOpen = false; // FORCED CLOSED FOR TESTING - Change back to: etHour >= 22 || etHour < 2
 
     // Calculate the next opening time
     const nextOpenTime = new Date(etDate);
@@ -123,8 +123,11 @@ function checkOperatingHours(req, res, next) {
     }
 
     // Block API requests when closed (but frontend already loaded)
-    // Serve welcome page for non-admins when closed
-    return res.status(200).sendFile(path.join(__dirname, 'welcome.html'));
+    res.status(503).json({
+        error: 'Card room is currently closed.',
+        message: 'Moe\'s Card Room is only open from 10 PM to 2 AM Eastern Time.',
+        nextOpenTime: nextOpenTime.toISOString(),
+    });
 }
 
 
