@@ -176,7 +176,12 @@ function renderAuth() {
     const chipDisplay = document.getElementById('globalChipCount');
     if (chipDisplay) {
       chipDisplay.style.display = 'flex';
-      chipDisplay.textContent = auth.user.chipBalance.toLocaleString();
+      const locked = auth.user.lockedBalance || 0;
+      if (locked > 0) {
+        chipDisplay.textContent = `${auth.user.chipBalance.toLocaleString()} (${locked.toLocaleString()} locked)`;
+      } else {
+        chipDisplay.textContent = auth.user.chipBalance.toLocaleString();
+      }
     }
   } else {
     btn.style.display = 'inline-block';

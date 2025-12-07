@@ -563,6 +563,7 @@ app.get('/me', async (req, res) => {
         customAvatar: dbUser?.customAvatar || null,
         needsAvatarSetup: dbUser?.needsAvatarSetup ?? true,
         chipBalance: dbUser ? Number(dbUser.chipBalance) : 0,
+        lockedBalance: dbUser ? Number(dbUser.lockedBalance || 0) : 0,
         currentStreak: dbUser?.currentStreak || 0,
         canPlay: dbUser && dbUser.chipBalance > 0n,
       } 

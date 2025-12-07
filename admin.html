@@ -99,39 +99,71 @@
       border-radius: 12px;
     }
 
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+
     .user-table, .log-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      table-layout: auto;
+      font-size: 0.8em;
     }
 
     .user-table th, .log-table th {
       background: rgba(255, 215, 0, 0.2);
       color: #FFD700;
-      padding: 12px;
+      padding: 6px 4px;
       text-align: left;
       font-weight: bold;
+      font-size: 0.85em;
+      white-space: nowrap;
     }
 
     .user-table td, .log-table td {
       background: rgba(0, 0, 0, 0.3);
       color: white;
-      padding: 12px;
+      padding: 6px 4px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.85em;
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .user-table tr:hover td, .log-table tr:hover td {
       background: rgba(255, 255, 255, 0.1);
     }
 
+    .online-status {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+
+    .online-status.online {
+      background-color: #51CF66;
+      box-shadow: 0 0 8px #51CF66;
+    }
+
+    .online-status.offline {
+      background-color: #666;
+    }
+
     .action-btn {
-      padding: 6px 12px;
+      padding: 4px 8px;
       border: none;
-      border-radius: 6px;
+      border-radius: 4px;
       cursor: pointer;
-      font-size: 0.9em;
-      margin: 0 4px;
+      font-size: 0.75em;
+      margin: 0 2px;
       transition: all 0.3s ease;
+      white-space: nowrap;
     }
 
     .ban-btn {
@@ -161,47 +193,11 @@
       background: #3B8FFF;
     }
 
-    .search-box {
-      width: 100%;
-      padding: 12px;
-      background: rgba(0, 0, 0, 0.3);
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      color: white;
-      font-size: 1em;
-      margin-bottom: 20px;
-    }
-
-    .online-users {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
-    }
-
-    .online-user-card {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 15px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .online-user-card h4 {
-      margin: 0 0 10px 0;
-      color: #FFD700;
-    }
-
-    .online-user-card p {
-      margin: 5px 0;
-      color: rgba(255, 255, 255, 0.8);
-      font-size: 0.9em;
-    }
-
     .badge {
       display: inline-block;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8em;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.7em;
       font-weight: bold;
     }
 
@@ -218,6 +214,17 @@
     .badge-warning {
       background: #FFA500;
       color: white;
+    }
+
+    .search-box {
+      width: 100%;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9em;
+      margin-bottom: 15px;
     }
 
     .broadcast-section {
@@ -290,12 +297,12 @@
     <!-- Stats Overview -->
     <div class="stats-grid" id="statsGrid">
       <div class="stat-card">
-        <h3>Online Users</h3>
-        <div class="value" id="onlineCount">-</div>
-      </div>
-      <div class="stat-card">
         <h3>Total Users</h3>
         <div class="value" id="totalUsers">-</div>
+      </div>
+      <div class="stat-card">
+        <h3>Online Users</h3>
+        <div class="value" id="onlineCount">-</div>
       </div>
       <div class="stat-card">
         <h3>Banned Users</h3>
@@ -313,56 +320,55 @@
 
     <!-- Tabs -->
     <div class="admin-tabs">
-      <button class="admin-tab active" onclick="showTab('online')">Online Users</button>
-      <button class="admin-tab" onclick="showTab('users')">All Users</button>
+      <button class="admin-tab active" onclick="showTab('users')">All Users</button>
       <button class="admin-tab" onclick="showTab('moderation')">Moderation Logs</button>
       <button class="admin-tab" onclick="showTab('broadcast')">Broadcast</button>
     </div>
 
     <!-- Tab Contents -->
     <div class="admin-content">
-      <!-- Online Users Tab -->
-      <div id="onlineTab" class="tab-content">
-        <h2 style="color: white; margin-top: 0;">Currently Online</h2>
-        <div id="onlineUsersList" class="online-users"></div>
-      </div>
-
       <!-- All Users Tab -->
-      <div id="usersTab" class="tab-content" style="display: none;">
+      <div id="usersTab" class="tab-content">
         <input type="text" class="search-box" id="userSearch" placeholder="Search users by email, name..." onkeyup="searchUsers()">
-        <table class="user-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Display Name</th>
-              <th>Balance</th>
-              <th>Last Login</th>
-              <th>Warnings</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="usersTableBody"></tbody>
-        </table>
+        <div class="table-container">
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th style="width: 30px;"></th>
+                <th style="width: 180px;">Email</th>
+                <th style="width: 120px;">Name</th>
+                <th style="width: 70px;">Balance</th>
+                <th style="width: 80px;">Last Login</th>
+                <th style="width: 40px;">W</th>
+                <th style="width: 40px;">A</th>
+                <th style="width: 40px;">B</th>
+                <th style="width: 80px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
         <div class="pagination" id="usersPagination"></div>
       </div>
 
       <!-- Moderation Logs Tab -->
       <div id="moderationTab" class="tab-content" style="display: none;">
         <h2 style="color: white; margin-top: 0;">Moderation History</h2>
-        <table class="log-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Reason</th>
-              <th>Moderator</th>
-              <th>Auto</th>
-            </tr>
-          </thead>
-          <tbody id="logsTableBody"></tbody>
-        </table>
+        <div class="table-container">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th style="width: 100px;">Time</th>
+                <th style="width: 120px;">User</th>
+                <th style="width: 70px;">Action</th>
+                <th style="width: 200px;">Reason</th>
+                <th style="width: 100px;">Moderator</th>
+                <th style="width: 40px;">Auto</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody"></tbody>
+          </table>
+        </div>
         <div class="pagination" id="logsPagination"></div>
       </div>
 
@@ -413,17 +419,20 @@
       }
     }
 
+    let onlineUsersMap = new Map(); // Track online users by email
+
     function renderOnlineUsers(users) {
-      const container = document.getElementById('onlineUsersList');
-      container.innerHTML = users.map(user => `
-        <div class="online-user-card">
-          <h4>${user.displayName || 'Guest'}</h4>
-          <p><strong>Email:</strong> ${user.email || 'N/A'}</p>
-          <p><strong>IP:</strong> ${user.ipAddress}</p>
-          <p><strong>Socket:</strong> ${user.socketId}</p>
-          <p><strong>Connected:</strong> ${new Date(user.connectedAt).toLocaleTimeString()}</p>
-        </div>
-      `).join('');
+      // Update map of online users
+      onlineUsersMap.clear();
+      users.forEach(user => {
+        if (user.email) {
+          onlineUsersMap.set(user.email, true);
+        }
+      });
+      // Refresh users table if it's displayed
+      if (document.getElementById('usersTab').style.display !== 'none') {
+        renderUsersTable(allUsers);
+      }
     }
 
     async function loadUsers(page = 1) {
@@ -442,43 +451,57 @@
 
     function renderUsersTable(users) {
       const tbody = document.getElementById('usersTableBody');
-      tbody.innerHTML = users.map(user => `
+      tbody.innerHTML = users.map(user => {
+        const isOnline = onlineUsersMap.has(user.email);
+        const onlineClass = isOnline ? 'online' : 'offline';
+        const email = (user.email || 'N/A').length > 25 ? (user.email || 'N/A').substring(0, 22) + '...' : (user.email || 'N/A');
+        const name = user.displayName.length > 15 ? user.displayName.substring(0, 12) + '...' : user.displayName;
+        return `
         <tr>
-          <td>
-            ${user.email || 'N/A'}
-            ${user.isAdmin ? '<span class="badge badge-admin">ADMIN</span>' : ''}
+          <td style="text-align: center; padding: 4px;">
+            <span class="online-status ${onlineClass}" title="${isOnline ? 'Online' : 'Offline'}"></span>
           </td>
-          <td>${user.displayName}</td>
+          <td title="${user.email || 'N/A'}">${email}</td>
+          <td title="${user.displayName}">${name}</td>
           <td>${Number(user.chipBalance).toLocaleString()}</td>
-          <td>${user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}</td>
-          <td>
-            ${user.warnCount > 0 ? `<span class="badge badge-warning">${user.warnCount}</span>` : '0'}
+          <td>${user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('en-US', {month:'short',day:'numeric'}) : 'Never'}</td>
+          <td style="text-align: center;">
+            ${user.warnCount > 0 ? user.warnCount : '-'}
           </td>
-          <td>
-            ${user.isBanned ? '<span class="badge badge-banned">BANNED</span>' : '<span style="color: #51CF66;">Active</span>'}
+          <td style="text-align: center;">
+            ${user.isAdmin ? '✓' : '-'}
           </td>
-          <td>
+          <td style="text-align: center;">
+            ${user.isBanned ? '✓' : '-'}
+          </td>
+          <td style="padding: 2px;">
             ${user.isBanned 
               ? `<button class="action-btn unban-btn" onclick="unbanUser('${user.id}')">Unban</button>`
               : `<button class="action-btn ban-btn" onclick="banUser('${user.id}', '${user.displayName}')">Ban</button>`
             }
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     }
 
     function renderModerationLogs(logs) {
       const tbody = document.getElementById('logsTableBody');
-      tbody.innerHTML = logs.map(log => `
+      tbody.innerHTML = logs.map(log => {
+        const date = new Date(log.createdAt);
+        const timeStr = date.toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+        const userName = log.User.displayName.length > 15 ? log.User.displayName.substring(0, 12) + '...' : log.User.displayName;
+        const modName = (log.Moderator?.displayName || 'SYSTEM').length > 12 ? (log.Moderator?.displayName || 'SYSTEM').substring(0, 9) + '...' : (log.Moderator?.displayName || 'SYSTEM');
+        const reason = (log.reason || 'N/A').length > 30 ? (log.reason || 'N/A').substring(0, 27) + '...' : (log.reason || 'N/A');
+        return `
         <tr>
-          <td>${new Date(log.createdAt).toLocaleString()}</td>
-          <td>${log.User.displayName}</td>
+          <td title="${new Date(log.createdAt).toLocaleString()}">${timeStr}</td>
+          <td title="${log.User.displayName}">${userName}</td>
           <td><strong>${log.action}</strong></td>
-          <td>${log.reason || 'N/A'}</td>
-          <td>${log.Moderator?.displayName || 'SYSTEM'}</td>
-          <td>${log.autoModerated ? '✅' : '❌'}</td>
+          <td title="${log.reason || 'N/A'}">${reason}</td>
+          <td title="${log.Moderator?.displayName || 'SYSTEM'}">${modName}</td>
+          <td style="text-align: center;">${log.autoModerated ? '✓' : '-'}</td>
         </tr>
-      `).join('');
+      `}).join('');
     }
 
     function renderPagination(pagination, containerId, callback) {
@@ -592,9 +615,7 @@
       });
 
       // Show selected tab
-      if (tabName === 'online') {
-        document.getElementById('onlineTab').style.display = 'block';
-      } else if (tabName === 'users') {
+      if (tabName === 'users') {
         document.getElementById('usersTab').style.display = 'block';
         loadUsers();
       } else if (tabName === 'moderation') {
