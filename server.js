@@ -82,10 +82,11 @@ function getOperatingHoursStatus() {
  * Middleware to enforce casino operating hours for Express routes.
  */
 function checkOperatingHours(req, res, next) {
-    // Allow these paths to always pass (needed for frontend to load and show closed page)
+    // CRITICAL: Allow these paths to always pass (needed for frontend to load and show closed page)
+    // This includes WebAuthn routes for biometric login
     const allowedPaths = [
         '/health',
-        '/auth',
+        '/auth',  // Includes /auth/webauthn/* routes
         '/me',
         '/api/casino-status',
         '/logout',
@@ -94,7 +95,8 @@ function checkOperatingHours(req, res, next) {
         '/assets',
         '/vite',
         '/@vite',
-        '/node_modules'
+        '/node_modules',
+        '/src'  // Vite dev mode source files
     ];
 
     // Check if path should be allowed
@@ -107,7 +109,7 @@ function checkOperatingHours(req, res, next) {
     }
 
     // Allow static files (CSS, JS, images, etc.)
-    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json)$/)) {
+    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|jsx|ts|tsx)$/)) {
         return next();
     }
 
@@ -183,6 +185,41 @@ function getAutoMod() {
     autoMod = new AutoModerationService(prisma);
   }
   return autoMod;
+}
+
+// =============================================================================
+// PHASE IV: GLOBAL BINGO SINGLETON (Issue 9)
+// =============================================================================
+let globalBingoGame = null;
+
+function getGlobalBingoGame() {
+  if (!globalBingoGame) {
+    console.log('🎱 Initializing Global Bingo Hall...');
+    const BingoEngine = require('./src/engines/BingoEngine').BingoEngine;
+    const EngagementService = require('./src/services/EngagementService').EngagementService;
+    
+    // Use a special "global" room ID
+    const GLOBAL_BINGO_ROOM = 'bingo_hall_global';
+    
+    globalBingoGame = new BingoEngine(
+      {
+        roomId: GLOBAL_BINGO_ROOM,
+        minBet: 1,
+        maxBet: 100,
+        maxPlayers: 200 // Community hall capacity
+      },
+      prisma,
+      redisClient,
+      new EngagementService(prisma, redisClient)
+    );
+    
+    // Start the game loop immediately
+    globalBingoGame.startGame();
+    
+    console.log('✅ Global Bingo Hall is now running!');
+  }
+  
+  return globalBingoGame;
 }
 
 // Middleware to check if user is admin
@@ -581,7 +618,17 @@ app.get('/me', async (req, res) => {
 
 app.get('/api/casino-status', (req, res) => {
   const { isOpen, nextOpenTime } = getOperatingHoursStatus();
-  res.json({ isOpen, nextOpenTime: nextOpenTime.toISOString() });
+  
+  // Calculate server-authoritative milliseconds until open
+  // This eliminates client-side timezone calculation issues
+  const now = Date.now();
+  const msUntilOpen = isOpen ? 0 : Math.max(0, nextOpenTime.getTime() - now);
+  
+  res.json({ 
+    isOpen, 
+    nextOpenTime: nextOpenTime.toISOString(),
+    msUntilOpen  // NEW: Server-calculated delta for precise countdown
+  });
 });
 
 // Profile update endpoint
@@ -1011,7 +1058,7 @@ app.get('/api/admin/dashboard', isAdmin, async (req, res) => {
   }
 });
 
-// Get all users (paginated)
+// Get all users (paginated) - ENHANCED with online status
 app.get('/api/admin/users', isAdmin, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1037,20 +1084,45 @@ app.get('/api/admin/users', isAdmin, async (req, res) => {
         displayName: true,
         nickname: true,
         chipBalance: true,
+        totalWagered: true,
+        totalWon: true,
         createdAt: true,
         lastLogin: true,
         isBanned: true,
         isAdmin: true,
         warnCount: true,
         totalHandsPlayed: true,
-        ipAddress: true
+        ipAddress: true,
+        googleId: true
       }
     });
 
     const total = await prisma.user.count({ where });
 
+    // Enrich with online status from Socket.IO
+    // Get all connected socket IDs and their user data
+    const onlineUserIds = new Set();
+    if (io && io.sockets) {
+      for (const [socketId, socket] of io.sockets.sockets) {
+        if (socket.user && socket.user.id) {
+          onlineUserIds.add(socket.user.id);
+        }
+      }
+    }
+
+    // Add isOnline flag to each user
+    const enrichedUsers = users.map(user => ({
+      ...user,
+      chipBalance: Number(user.chipBalance),
+      totalWagered: Number(user.totalWagered),
+      totalWon: Number(user.totalWon),
+      isOnline: onlineUserIds.has(user.id),
+      // Calculate risk score (simple version - can be enhanced)
+      riskScore: user.warnCount * 10
+    }));
+
     res.json({
-      users,
+      users: enrichedUsers,
       pagination: {
         page,
         limit,
@@ -2533,69 +2605,54 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ===== BINGO GAME HANDLERS =====
+  // ===== BINGO GAME HANDLERS (PHASE IV: GLOBAL SINGLETON) =====
 
-  // Create Bingo room
-  socket.on('create_bingo_room', async (data = {}) => {
-    const roomId = 'bingo_' + crypto.randomBytes(4).toString('hex');
+  // Join Global Bingo Hall
+  socket.on('join_bingo_hall', async () => {
     const user = socket.request?.session?.passport?.user;
     
     if (!user) {
-      return io.to(socket.id).emit('error', { message: 'Must be logged in to create Bingo room' });
+      return io.to(socket.id).emit('error', { message: 'Must be logged in to join Bingo' });
     }
     
     try {
-      const BingoEngine = require('./src/engines/BingoEngine').BingoEngine;
-      const EngagementService = require('./src/services/EngagementService').EngagementService;
+      const bingoGame = getGlobalBingoGame();
+      const roomId = bingoGame.getRoomId();
       
-      // Get custom room name from data, sanitize and limit length
-      const displayName = data.roomName ? 
-        sanitizeMessage(data.roomName).substring(0, 30) : null;
-      
-      const engagement = new EngagementService(prisma, redisClient || null);
-      const bingoGame = new BingoEngine(
-        { roomId, displayName, minBet: 1, maxBet: 5, maxPlayers: 50 },
-        prisma,
-        redisClient || null,
-        engagement
-      );
-      
-      // Set up ball call callback for voice announcements
-      bingoGame.setBallCallCallback((ball) => {
-        io.to(roomId).emit('bingo_ball_called', { 
-          ball, 
-          letter: getBingoLetter(ball),
-          gameState: bingoGame.getGameState() 
-        });
-      });
-      
-      // Set up game end callback
-      bingoGame.setGameEndCallback((data) => {
-        if (data.type === 'ROUND_RESET') {
-          // New round starting
-          io.to(roomId).emit('bingo_round_reset', { 
-            gameState: bingoGame.getGameState(),
-            message: '🎱 New round starting! Buy your cards now!'
-          });
-          
-          // Auto-start next game after 30 seconds
-          setTimeout(async () => {
-            if (games.has(roomId)) {
-              await bingoGame.startNewHand();
-              io.to(roomId).emit('bingo_game_started', { gameState: bingoGame.getGameState() });
-            }
-          }, 30000);
-        } else {
-          // Winner announced
-          io.to(roomId).emit('bingo_winner', data);
-        }
-      });
-      
-      games.set(roomId, bingoGame);
-      playerToGame.set(socket.id, roomId);
+      // Join the global room
       socket.join(roomId);
+      playerToGame.set(socket.id, roomId);
       
       const profile = await getUserProfile(user.id);
+      const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+      
+      // Add player to game
+      await bingoGame.addPlayer(dbUser.id, profile.nickname, socket.id);
+      
+      // Send current game state to the new player
+      io.to(socket.id).emit('bingo_joined', {
+        gameState: bingoGame.getGameState(),
+        roomId,
+        message: 'Welcome to the Bingo Hall!'
+      });
+      
+      // Broadcast to room that player joined
+      io.to(roomId).emit('bingo_player_joined', {
+        playerName: profile.nickname,
+        playerCount: bingoGame.getPlayerCount()
+      });
+      
+      console.log(`👤 ${profile.nickname} joined Global Bingo Hall`);
+    } catch (error) {
+      console.error('Error joining Bingo hall:', error);
+      io.to(socket.id).emit('error', { message: 'Failed to join Bingo hall' });
+    }
+  });
+
+  // Legacy handler - redirect to global hall
+  socket.on('create_bingo_room', async (data = {}) => {
+    console.log('⚠️  Redirecting create_bingo_room to join_bingo_hall');
+    socket.emit('join_bingo_hall');
       io.to(socket.id).emit('bingo_room_created', { 
         roomId, 
         gameState: bingoGame.getGameState(),
@@ -2962,6 +3019,14 @@ function startServer() {
               console.log('✅ Social 2.0 services initialized');
             } catch (serviceErr) {
               console.error('⚠️  Social 2.0 services failed to initialize:', serviceErr.message);
+            }
+
+            // PHASE IV: Initialize Global Bingo Hall (Issue 9)
+            try {
+              getGlobalBingoGame();
+              console.log('✅ Global Bingo Hall activated');
+            } catch (bingoErr) {
+              console.error('⚠️  Global Bingo Hall failed to initialize:', bingoErr.message);
             }
 
             console.log('✅ All systems ready');

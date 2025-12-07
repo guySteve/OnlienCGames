@@ -21,17 +21,45 @@ const pulseVariants = {
   }
 };
 
-export function CasinoClosedView({ nextOpenTime, onLoginSuccess }) {
+export function CasinoClosedView({ nextOpenTime, msUntilOpen, onLoginSuccess }) {
   const [timeUntilOpen, setTimeUntilOpen] = useState('');
   const [showBiometricLogin, setShowBiometricLogin] = useState(false);
+  const [localTargetTime, setLocalTargetTime] = useState(null);
 
+  // Initialize local target time from server-provided delta
   useEffect(() => {
-    if (!nextOpenTime) return;
+    if (msUntilOpen !== undefined) {
+      // Server-authoritative: set target time based on server's calculation
+      setLocalTargetTime(Date.now() + msUntilOpen);
+    }
+  }, [msUntilOpen]);
+
+  // Re-sync with server every 60 seconds to correct for drift
+  useEffect(() => {
+    const syncWithServer = async () => {
+      try {
+        const response = await fetch('/api/casino-status');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.msUntilOpen !== undefined) {
+            setLocalTargetTime(Date.now() + data.msUntilOpen);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync countdown:', err);
+      }
+    };
+
+    const syncInterval = setInterval(syncWithServer, 60000); // Sync every 60 seconds
+    return () => clearInterval(syncInterval);
+  }, []);
+
+  // Countdown timer (local tick)
+  useEffect(() => {
+    if (!localTargetTime) return;
 
     const updateTimer = () => {
-      const now = new Date();
-      const openTime = new Date(nextOpenTime);
-      const diff = openTime - now;
+      const diff = localTargetTime - Date.now();
 
       if (diff <= 0) {
         setTimeUntilOpen('Card room is opening...');
@@ -51,7 +79,7 @@ export function CasinoClosedView({ nextOpenTime, onLoginSuccess }) {
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [nextOpenTime]);
+  }, [localTargetTime]);
 
   return (
     <motion.div

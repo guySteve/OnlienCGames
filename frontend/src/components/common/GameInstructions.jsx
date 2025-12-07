@@ -145,14 +145,22 @@ const GameInstructions = ({ gameType, isOpen, onClose }) => {
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
           />
 
-          {/* Modal */}
+          {/* Modal - SAFE-ZONE ENFORCED */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ pointerEvents: 'none' }}
           >
-            <div className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden border border-white/10">
+            <div 
+              className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl shadow-2xl w-full border border-white/10 flex flex-col"
+              style={{
+                maxWidth: '600px',
+                maxHeight: '85vh',
+                pointerEvents: 'auto'
+              }}
+            >
               {/* Header */}
               <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -169,8 +177,13 @@ const GameInstructions = ({ gameType, isOpen, onClose }) => {
                 </button>
               </div>
 
-              {/* Content */}
-              <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)] custom-scrollbar">
+              {/* Content - SCROLL ENABLED */}
+              <div 
+                className="p-6 overflow-y-auto custom-scrollbar flex-1"
+                style={{
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
                 {instructions.sections.map((section, index) => (
                   <div key={index} className="mb-6 last:mb-0">
                     <h3 className="text-xl font-bold text-amber-400 mb-2">

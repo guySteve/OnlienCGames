@@ -1614,11 +1614,26 @@ body{
   font-weight: bold;
 }
 
-/* ========== INFO MODAL STYLES ========== */
+/* ========== INFO MODAL STYLES (SAFE-ZONE ENFORCED) ========== */
 
 .info-modal {
-  max-width: 700px;
-  max-height: 80vh;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh; /* Critical: Leave 15% buffer */
+  display: flex;
+  flex-direction: column;
+  z-index: 9999; /* Float above everything */
+}
+
+.info-modal-content {
+  flex: 1;
+  overflow-y: auto; /* Critical: Enable internal scroll */
+  -webkit-overflow-scrolling: touch; /* iOS momentum scroll */
+  padding: 20px;
 }
 
 .info-tabs {

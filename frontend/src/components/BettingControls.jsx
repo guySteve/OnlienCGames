@@ -24,10 +24,20 @@ const BettingControls = ({
   pot = 0,
   disabled = false,
   phase = 'betting', // 'betting' | 'playing' | 'waiting'
-  gameType = 'blackjack'
+  gameType = 'blackjack',
+  armedCursorMode = false, // NEW: Enable "tap on spot to place" mode
+  onCursorValueChange = null // NEW: Callback when cursor value changes
 }) => {
   const [amount, setAmount] = useState(minBet || 10);
   const [showNumpad, setShowNumpad] = useState(false);
+  
+  // Notify parent when cursor value changes (for "Armed Cursor" mode)
+  const updateCursorValue = useCallback((newValue) => {
+    setAmount(newValue);
+    if (armedCursorMode && onCursorValueChange) {
+      onCursorValueChange(newValue);
+    }
+  }, [armedCursorMode, onCursorValueChange]);
 
   // Quick bet calculations
   const quickBets = [
@@ -72,11 +82,30 @@ const BettingControls = ({
   }, [minBet, balance]);
 
   const handleChipAdd = useCallback((chipValue) => {
-    setAmount(prev => {
-      const newVal = prev + chipValue;
-      return newVal <= balance ? newVal : prev;
-    });
-  }, [balance]);
+    const newVal = Math.min(amount + chipValue, balance);
+    updateCursorValue(newVal);
+  }, [amount, balance, updateCursorValue]);
+  
+  // NEW: Value modifiers for "Armed Cursor" mode
+  const handleHalve = useCallback(() => {
+    const newVal = Math.max(Math.floor(amount / 2), minBet);
+    updateCursorValue(newVal);
+  }, [amount, minBet, updateCursorValue]);
+  
+  const handleDouble = useCallback(() => {
+    const newVal = Math.min(amount * 2, balance);
+    updateCursorValue(newVal);
+  }, [amount, balance, updateCursorValue]);
+  
+  const handleAdd5 = useCallback(() => {
+    const newVal = Math.min(amount + 5, balance);
+    updateCursorValue(newVal);
+  }, [amount, balance, updateCursorValue]);
+  
+  const handleSubtract5 = useCallback(() => {
+    const newVal = Math.max(amount - 5, minBet);
+    updateCursorValue(newVal);
+  }, [amount, minBet, updateCursorValue]);
 
   // Numpad Overlay Component
   const NumpadOverlay = () => (
@@ -130,24 +159,61 @@ const BettingControls = ({
       <div className="fixed bottom-0 left-0 right-0 z-50" style={{ paddingBottom: 'var(--safe-area-bottom, 0px)' }}>
         <div className="bg-gradient-to-t from-slate-900 via-slate-900/98 to-slate-900/95 border-t border-white/10 backdrop-blur-md">
           <div className="max-w-2xl mx-auto p-3 sm:p-4">
-            {/* Quick Bet Buttons - Top Row */}
-            <div className="flex items-center justify-center gap-2 mb-3">
-              {quickBets.map(({ label, value }) => (
+            
+            {/* ARMED CURSOR MODE: Value Modifiers (NEW) */}
+            {armedCursorMode && (
+              <div className="flex items-center justify-center gap-2 mb-3">
                 <button
-                  key={label}
-                  onClick={() => setAmount(value)}
-                  className={`
-                    px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all
-                    ${amount === value 
-                      ? 'bg-yellow-500 text-black' 
-                      : 'bg-slate-800 text-white hover:bg-slate-700'
-                    }
-                  `}
+                  onClick={handleHalve}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
                 >
-                  {label}
+                  ÷2
                 </button>
-              ))}
-            </div>
+                <button
+                  onClick={handleSubtract5}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
+                >
+                  -5
+                </button>
+                <div className="px-6 py-2 bg-yellow-500/20 border border-yellow-500 rounded-lg">
+                  <div className="text-xs text-yellow-400">Cursor Value</div>
+                  <div className="text-lg font-bold text-yellow-300">${amount}</div>
+                </div>
+                <button
+                  onClick={handleAdd5}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
+                >
+                  +5
+                </button>
+                <button
+                  onClick={handleDouble}
+                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
+                >
+                  ×2
+                </button>
+              </div>
+            )}
+            
+            {/* Quick Bet Buttons - Top Row (ONLY if NOT in armed cursor mode) */}
+            {!armedCursorMode && (
+              <div className="flex items-center justify-center gap-2 mb-3">
+                {quickBets.map(({ label, value }) => (
+                  <button
+                    key={label}
+                    onClick={() => updateCursorValue(value)}
+                    className={`
+                      px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all
+                      ${amount === value 
+                        ? 'bg-yellow-500 text-black' 
+                        : 'bg-slate-800 text-white hover:bg-slate-700'
+                      }
+                    `}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Chip Selector */}
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 overflow-x-auto pb-1">

@@ -240,6 +240,7 @@ function App() {
             {!casinoStatus.isOpen && !user.isAdmin ? (
               <CasinoClosedView
                 nextOpenTime={casinoStatus.nextOpenTime}
+                msUntilOpen={casinoStatus.msUntilOpen}
                 onLoginSuccess={(adminUser) => {
                   setUser(adminUser);
                   window.location.reload();
