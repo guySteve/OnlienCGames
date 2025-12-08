@@ -21,6 +21,7 @@ const io = new Server(serverHttp, {
     }
 });
 
+initializeSocket(io, sessionMiddleware);
 
 async function startServer() {
     try {
