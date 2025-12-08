@@ -16,6 +16,7 @@ import BiometricSetupPrompt from './components/BiometricSetupPrompt';
 import GameTable from './components/GameTable';
 import WarTableZones from './components/WarTableZones';
 import BingoGame from './components/BingoGame';
+import LetItRideTable from './components/LetItRideTable';
 import BettingControls from './components/BettingControls';
 import SyndicateHUD from './components/SyndicateHUD';
 import HappyHourBanner from './components/HappyHourBanner';
@@ -360,6 +361,10 @@ const GameTableWrapper = ({ gameState, gameType, mySeats, onExit, user, currentR
                 />
             </div>
         );
+    }
+
+    if (gameType === 'LET_IT_RIDE') {
+        return <LetItRideTable socket={socket} gameState={gameState} user={user} />;
     }
 
     // For other games (Blackjack, Let It Ride), use the legacy GameTable

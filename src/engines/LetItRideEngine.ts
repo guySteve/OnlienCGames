@@ -65,8 +65,8 @@ export class LetItRideEngine extends GameEngine {
     this.initializeDeck();
   }
 
-  getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO' {
-    return 'WAR'; // Using WAR as placeholder since LetItRide not in union type
+  getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO' | 'LET_IT_RIDE' {
+    return 'LET_IT_RIDE';
   }
 
   private initializeDeck(): void {
