@@ -26,6 +26,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseGameEngine = exports.GameState = void 0;
 const client_1 = require("@prisma/client");
+const SyndicateService_1 = require("../services/SyndicateService");
 const LockManager_1 = require("../services/LockManager");
 /**
  * Game state machine (immutable across all games)
@@ -334,10 +335,46 @@ class BaseGameEngine {
         const playerKey = `${userId}:${seatIndex}`;
         await lockManager.withLock(`user:${userId}:balance`, async () => {
             await this.prisma.$transaction(async (tx) => {
+                // --- Syndicate Tax Logic ---
+                let finalAmount = amount;
+                let taxAmount = 0;
+                const BIG_WIN_THRESHOLD = 1000;
+                const MIN_TAX_AMOUNT = 10;
+                const TAX_RATE = 0.01;
+                if (amount >= BIG_WIN_THRESHOLD) {
+                    const userForTax = await tx.user.findUnique({
+                        where: { id: userId },
+                        select: { syndicateMembership: { select: { syndicateId: true } } }
+                    });
+                    if (userForTax?.syndicateMembership) {
+                        taxAmount = Math.max(MIN_TAX_AMOUNT, Math.floor(amount * TAX_RATE));
+                        finalAmount = amount - taxAmount;
+                        const syndicateService = (0, SyndicateService_1.getSyndicateService)();
+                        await syndicateService.contributeToTreasury(tx, userForTax.syndicateMembership.syndicateId, userId, taxAmount, {
+                            gameType: this.getGameType(),
+                            originalWin: amount,
+                            gameSessionId: this.config.tableId
+                        });
+                        // Create a separate transaction log for the tax
+                        await tx.transaction.create({
+                            data: {
+                                userId,
+                                amount: BigInt(-taxAmount),
+                                type: 'TIP',
+                                description: `Syndicate Treasury Tax (${(TAX_RATE * 100).toFixed(1)}%)`,
+                                metadata: {
+                                    syndicateId: userForTax.syndicateMembership.syndicateId,
+                                    originalWin: amount
+                                }
+                            }
+                        });
+                    }
+                }
+                // --- End Syndicate Tax Logic ---
                 // 1. ADD to database
                 await tx.user.update({
                     where: { id: userId },
-                    data: { chipBalance: { increment: BigInt(amount) } }
+                    data: { chipBalance: { increment: BigInt(finalAmount) } }
                 });
                 // 2. FETCH game state
                 const playersJson = await this.redis.get(this.stateKeys.players);
@@ -346,20 +383,21 @@ class BaseGameEngine {
                     : new Map();
                 const player = players.get(playerKey);
                 if (player) {
-                    player.chips += amount;
+                    player.chips += finalAmount;
                     // 3. SAVE to Redis
                     await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
                 }
-                // 4. RECORD transaction
+                // 4. RECORD transaction for the win
                 await tx.transaction.create({
                     data: {
                         userId,
-                        amount: BigInt(amount),
+                        amount: BigInt(finalAmount),
                         type: 'WIN',
                         metadata: {
                             tableId: this.config.tableId,
                             seatIndex,
-                            handNumber: await this.getHandNumber()
+                            handNumber: await this.getHandNumber(),
+                            taxDeducted: taxAmount
                         }
                     }
                 });

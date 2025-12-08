@@ -7,13 +7,13 @@
  * - In-Memory Game Loop: All round logic happens in class instance
  * - Batched DB Writes: Single write per round during payout phase only
  * - Lightweight State Broadcasting: Minimal JSON over sockets
- * - No Seat Ownership: Players bet on any of 25 spots, first-come-first-served
+ * - No Seat Ownership: Players bet on any of 16 spots, first-come-first-served
  *
  * TOPOLOGY
  * ========
- * - 5 Zones (arranged in semi-circle)
- * - 5 Spots per Zone
- * - Total: 25 playable betting spots (indices 0-24)
+ * - 4 Hands (betting positions)
+ * - 4 Spots per Hand
+ * - Total: 16 playable betting spots (indices 0-15)
  *
  * HARD ROCK CASINO WAR RULES
  * ===========================
@@ -98,7 +98,7 @@ async function fetchQRNGEntropy() {
  */
 class WarEngine extends GameEngine_1.GameEngine {
     // Game State (In-Memory)
-    spots = []; // 25 spots (indices 0-24)
+    spots = []; // 16 spots (indices 0-15)
     playerColors = new Map(); // userId -> persistent color
     playerInfo = new Map(); // userId -> player data
     houseCard = null;
@@ -120,7 +120,7 @@ class WarEngine extends GameEngine_1.GameEngine {
             maxBet: 10000,
             maxPlayers: 100 // Community table, no seat limit
         }, prisma, redis, engagement);
-        // Initialize 25 empty betting spots (5 zones × 5 spots)
+        // Initialize 25 empty betting spots
         this.spots = Array(25).fill(null).map(() => ({ bet: 0 }));
         this.deck = this.createDeck();
         this.state = GameEngine_1.GameState.PLACING_BETS;

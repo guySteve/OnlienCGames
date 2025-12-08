@@ -35,15 +35,14 @@ export default function SecretComs({ socket, currentUser, onClose }) {
   useEffect(() => {
     if (!socket) return;
 
-    // Receive encrypted message
+    // Receive real-time message (plaintext over encrypted WebSocket)
     socket.on('secretComs:message', (data) => {
-      const decryptedMessage = decryptMessage(data.encrypted, data.roomKey);
       const newMessage = {
         id: data.id,
         from: data.from,
-        content: decryptedMessage,
+        content: data.content, // Already plaintext from server
         timestamp: data.timestamp,
-        encrypted: true,
+        encrypted: false, // Real-time messages use WebSocket encryption
         viewed: false
       };
 
@@ -142,22 +141,23 @@ export default function SecretComs({ socket, currentUser, onClose }) {
   const sendMessage = () => {
     if (!inputMessage.trim() || !selectedRecipient) return;
 
+    // Encode as base64 for transport (server will sanitize)
     const encryptedContent = encryptMessage(inputMessage, selectedRecipient.roomKey);
 
     socket.emit('secretComs:send', {
       recipientId: selectedRecipient.id,
-      encrypted: encryptedContent,
+      encrypted: encryptedContent, // Base64 encoded
       timestamp: Date.now()
     });
 
-    // Add to local state
+    // Add to local state (plaintext - we sent it)
     setMessages(prev => [...prev, {
       id: `local-${Date.now()}`,
       from: currentUser,
       to: selectedRecipient.id,
       content: inputMessage,
       timestamp: Date.now(),
-      encrypted: true,
+      encrypted: false, // Real-time uses WebSocket encryption
       viewed: true,
       sent: true
     }]);

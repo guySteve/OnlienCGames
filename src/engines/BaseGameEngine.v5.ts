@@ -131,7 +131,7 @@ export abstract class BaseGameEngine {
   /**
    * Game type identifier (for polymorphism)
    */
-  abstract getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
+  abstract getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO' | 'LET_IT_RIDE';
 
   /**
    * Start new hand/round
@@ -303,7 +303,7 @@ export abstract class BaseGameEngine {
         });
 
         // 5. SAVE to Redis
-        await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+        await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
 
         // 6. UPDATE cache
         this.cachedPlayers = players;
@@ -340,7 +340,7 @@ export abstract class BaseGameEngine {
         players.delete(playerKey);
 
         // 3. SAVE to Redis
-        await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+        await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
 
         // 4. UPDATE cache
         this.cachedPlayers = players;
@@ -405,7 +405,7 @@ export abstract class BaseGameEngine {
           player.currentBet += amount;
 
           // 5. SAVE to Redis
-          await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+          await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
 
           // 6. UPDATE pot
           await this.addToPot(amount);
@@ -414,8 +414,10 @@ export abstract class BaseGameEngine {
           await tx.transaction.create({
             data: {
               userId,
-              amount: BigInt(-amount),
+              amount: -amount,
               type: 'BET',
+              balanceBefore: user.chipBalance,
+              balanceAfter: user.chipBalance - BigInt(amount),
               metadata: {
                 tableId: this.config.tableId,
                 seatIndex,
@@ -455,6 +457,13 @@ export abstract class BaseGameEngine {
       async () => {
         await this.prisma.$transaction(async (tx) => {
           // --- Syndicate Tax Logic ---
+          // 1. FETCH user balance
+          const user = await tx.user.findUnique({
+            where: { id: userId }
+          });
+
+          if (!user) return;
+
           let finalAmount = amount;
           let taxAmount = 0;
           const BIG_WIN_THRESHOLD = 1000;
@@ -488,7 +497,9 @@ export abstract class BaseGameEngine {
               await tx.transaction.create({
                 data: {
                   userId,
-                  amount: BigInt(-taxAmount),
+                  amount: -taxAmount,
+                  balanceBefore: user.chipBalance,
+                  balanceAfter: user.chipBalance - BigInt(taxAmount),
                   type: 'TIP',
                   description: `Syndicate Treasury Tax (${(TAX_RATE * 100).toFixed(1)}%)`,
                   metadata: {
@@ -501,13 +512,13 @@ export abstract class BaseGameEngine {
           }
           // --- End Syndicate Tax Logic ---
 
-          // 1. ADD to database
+          // 2. ADD to database
           await tx.user.update({
             where: { id: userId },
             data: { chipBalance: { increment: BigInt(finalAmount) } }
           });
 
-          // 2. FETCH game state
+          // 3. FETCH game state
           const playersJson = await this.redis.get(this.stateKeys.players);
           const players: Map<string, Player> = playersJson
             ? new Map(JSON.parse(playersJson))
@@ -517,15 +528,17 @@ export abstract class BaseGameEngine {
           if (player) {
             player.chips += finalAmount;
 
-            // 3. SAVE to Redis
-            await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+            // 4. SAVE to Redis
+            await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
           }
 
-          // 4. RECORD transaction for the win
+          // 5. RECORD transaction for the win
           await tx.transaction.create({
             data: {
               userId,
-              amount: BigInt(finalAmount),
+              amount: finalAmount,
+              balanceBefore: user.chipBalance,
+              balanceAfter: user.chipBalance + BigInt(finalAmount),
               type: 'WIN',
               metadata: {
                 tableId: this.config.tableId,

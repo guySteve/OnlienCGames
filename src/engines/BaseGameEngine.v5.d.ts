@@ -82,7 +82,7 @@ export declare abstract class BaseGameEngine {
     /**
      * Game type identifier (for polymorphism)
      */
-    abstract getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO';
+    abstract getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO' | 'LET_IT_RIDE';
     /**
      * Start new hand/round
      */

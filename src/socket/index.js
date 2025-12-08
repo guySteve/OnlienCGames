@@ -120,7 +120,8 @@ function initializeSocket(io, sessionMiddleware) {
                 }
 
                 // Note: Frontend sends base64-encoded message
-                // We re-encrypt it properly on the server for security
+                // For real-time messages, we send plaintext (WebSocket is already TLS-encrypted)
+                // Only Dead Drops need server-side encryption (at-rest protection)
                 try {
                     // Decrypt what frontend sent (base64)
                     const plaintext = Buffer.from(encrypted, 'base64').toString('utf8');
@@ -132,10 +133,8 @@ function initializeSocket(io, sessionMiddleware) {
                         return socket.emit('error', { message: 'Invalid message content' });
                     }
 
-                    // Re-encrypt with proper AES-256-GCM
-                    const properlyEncrypted = encryptDeadDrop(sanitized);
-
-                    // Send to recipient (if online)
+                    // Send to recipient (if online) - PLAINTEXT for real-time
+                    // WebSocket over TLS provides transport encryption
                     io.to(recipientId).emit('secretComs:message', {
                         id: crypto.randomUUID(),
                         from: {
@@ -143,8 +142,9 @@ function initializeSocket(io, sessionMiddleware) {
                             username: sender.displayName,
                             avatar: sender.customAvatar
                         },
-                        encrypted: properlyEncrypted, // Server-encrypted
-                        timestamp: timestamp || Date.now()
+                        content: sanitized, // Plaintext (WebSocket is encrypted)
+                        timestamp: timestamp || Date.now(),
+                        encrypted: false // Flag for frontend
                     });
 
                     // Acknowledge to sender

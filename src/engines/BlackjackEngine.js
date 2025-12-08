@@ -485,6 +485,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
             empty: true,
             seatIndex: i,
             ready: false,
+            connected: false,
             name: null,
             photo: null,
             chips: 0,
