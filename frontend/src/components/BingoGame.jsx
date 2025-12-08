@@ -120,6 +120,48 @@ const BingoCard = ({ card, drawnNumbers, onClaim, animations }) => {
   );
 };
 
+// Waiting Room Component for Late Joiners
+const BingoWaitingRoom = ({ nextGameTimestamp }) => {
+    const [timeLeft, setTimeLeft] = useState('');
+
+    useEffect(() => {
+        if (!nextGameTimestamp) return;
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const remaining = Math.max(0, nextGameTimestamp - now);
+            
+            if (remaining === 0) {
+                setTimeLeft('Starting...');
+                clearInterval(interval);
+                return;
+            }
+
+            const minutes = Math.floor((remaining / 1000) / 60);
+            const seconds = Math.floor((remaining / 1000) % 60);
+            setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [nextGameTimestamp]);
+
+    return (
+        <div className="text-center space-y-4 p-6 bg-slate-800/50 rounded-2xl border border-dashed border-white/10 max-w-sm">
+            <div className="text-5xl animate-pulse">⏳</div>
+            <h2 className="text-xl font-bold text-white">Game in Progress</h2>
+            <p className="text-slate-400 text-sm">
+                You can join the next round.
+            </p>
+            {timeLeft && (
+                <div className="bg-black/30 py-3 px-5 rounded-xl">
+                    <div className="text-xs text-slate-400">Next round starts in</div>
+                    <div className="text-2xl font-mono font-bold text-yellow-400">{timeLeft}</div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 // Ball Display Component
 const BallDisplay = ({ currentBall, drawnNumbers, animations, sounds }) => {
   const ballRef = useRef(null);
@@ -298,16 +340,17 @@ const BingoGame = ({ gameState, playerCard, onBuyCard, onClaimBingo, onExit }) =
               animations={animations}
             />
           ) : (
-            <div className="text-center space-y-4 p-6 bg-slate-800/50 rounded-2xl border border-white/10 max-w-sm">
-              <div className="text-5xl">🎱</div>
-              <h2 className="text-xl font-bold text-white">Get Your Card!</h2>
-              <p className="text-slate-400 text-sm">
-                {phase === 'BUYING'
-                  ? 'Purchase a bingo card to join the game.'
-                  : 'Game in progress. Wait for the next round.'
-                }
-              </p>
-            </div>
+             (phase === 'PLAYING' || phase === 'COMPLETE') 
+                ? <BingoWaitingRoom nextGameTimestamp={gameState?.nextGameTimestamp} />
+                : (
+                    <div className="text-center space-y-4 p-6 bg-slate-800/50 rounded-2xl border border-white/10 max-w-sm">
+                        <div className="text-5xl">🎱</div>
+                        <h2 className="text-xl font-bold text-white">Get Your Card!</h2>
+                        <p className="text-slate-400 text-sm">
+                            Purchase a bingo card to join the game.
+                        </p>
+                    </div>
+                )
           )}
         </div>
       </main>
