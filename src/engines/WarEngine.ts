@@ -167,8 +167,8 @@ export class WarEngine extends GameEngine {
       engagement
     );
 
-    // Initialize 16 empty betting spots (4 hands × 4 spots)
-    this.spots = Array(16).fill(null).map(() => ({ bet: 0 }));
+    // Initialize 25 empty betting spots
+    this.spots = Array(25).fill(null).map(() => ({ bet: 0 }));
     this.deck = this.createDeck();
     this.state = GameState.PLACING_BETS;
   }

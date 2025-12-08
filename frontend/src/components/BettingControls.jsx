@@ -13,7 +13,8 @@ import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const BettingControls = ({ 
-  onBet, 
+  onBet,
+  onClear, // NEW: Callback to clear all player's bets
   onHit, 
   onStand, 
   onDouble, 
@@ -238,12 +239,22 @@ const BettingControls = ({
             {/* Fitts's Law Layout: Actions positioned for thumb accessibility */}
             <div className="flex items-center gap-3">
               {/* LEFT SIDE: Secondary/Destructive Actions (harder to reach = safety) */}
-              <button
-                onClick={() => setAmount(minBet)}
-                className="px-4 py-3 rounded-xl bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white text-sm font-medium transition-all"
-              >
-                Reset
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAmount(minBet)}
+                  className="px-3 py-3 rounded-xl bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white text-sm font-medium transition-all"
+                >
+                  Reset
+                </button>
+                {onClear && (
+                  <button
+                    onClick={onClear}
+                    className="px-3 py-3 rounded-xl bg-red-800/70 text-red-300 hover:bg-red-700 hover:text-white text-sm font-medium transition-all"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
 
               {/* CENTER: Bet Amount Display (tappable for numpad) */}
               <div className="relative flex-1">
