@@ -20,6 +20,7 @@ import BettingControls from './components/BettingControls';
 import SyndicateHUD from './components/SyndicateHUD';
 import HappyHourBanner from './components/HappyHourBanner';
 import ProvablyFairVerifier from './components/ProvablyFairVerifier';
+import SecretComs from './components/SecretComs';
 
 
 // Mock API for demo purposes
@@ -52,10 +53,12 @@ function App() {
   // The new view state machine: loading, home, lobby, game, bingo, settings
   const [view, setView] = useState('loading');
   const [currentGameType, setCurrentGameType] = useState(null);
+  const [showComs, setShowComs] = useState(false);
 
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [mySeats, setMySeats] = useState([]);
   const [bingoCards, setBingoCards] = useState([]);
+
 
   // Casino operating hours status
   const [casinoStatus, setCasinoStatus] = useState({ isOpen: true, nextOpenTime: null });
@@ -243,6 +246,7 @@ function App() {
                 user={user}
                 onLogout={handleLogout}
                 onSettings={handleSettings}
+                onComs={() => setShowComs(true)}
                 socket={socket}
               />
             )}
@@ -308,6 +312,17 @@ function App() {
       <>
         <AnimatePresence mode="wait">
           {renderView()}
+        </AnimatePresence>
+
+        {/* Secret Comms - shows over everything */}
+        <AnimatePresence>
+            {showComs && user && (
+                <SecretComs
+                    socket={socket}
+                    currentUser={user}
+                    onClose={() => setShowComs(false)}
+                />
+            )}
         </AnimatePresence>
 
         {/* Biometric setup prompt - shows after login if not set up */}

@@ -152,12 +152,20 @@ const SyndicateHUD = ({ socket, userId, isExpanded = false, onToggle }) => {
                     <div className="text-4xl mb-2">🏛️</div>
                     <h3 className="text-white font-bold mb-1">Join a Syndicate</h3>
                     <p className="text-slate-400 text-sm mb-3">Team up for shared rewards</p>
-                    <button
-                        onClick={() => window.location.href = '/syndicates'}
-                        className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold py-2 px-4 rounded-lg hover:from-yellow-400 hover:to-orange-400 transition-all"
-                    >
-                        Browse Syndicates
-                    </button>
+                    <div className="flex flex-col gap-2">
+                        <button
+                            onClick={() => window.location.href = '/syndicates'}
+                            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold py-2 px-4 rounded-lg hover:from-yellow-400 hover:to-orange-400 transition-all"
+                        >
+                            Browse Syndicates
+                        </button>
+                        <button
+                            onClick={() => window.location.href = '/syndicates/create'}
+                            className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-lg transition-all"
+                        >
+                            Create Syndicate
+                        </button>
+                    </div>
                 </div>
             </motion.div>
         );

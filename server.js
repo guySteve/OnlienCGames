@@ -2039,6 +2039,42 @@ io.on('connection', (socket) => {
     }
   }
 
+  // --- DEAD DROP CHECK ON CONNECT ---
+  if (user) {
+    (async () => {
+      try {
+        const pendingDrops = await prisma.deadDropMessage.findMany({
+          where: {
+            toUserId: user.dbId,
+            viewed: false,
+            expiresAt: { gt: new Date() }
+          },
+          include: { fromUser: { select: { id: true, displayName: true, nickname: true } } }
+        });
+
+        if (pendingDrops.length > 0) {
+          for (const drop of pendingDrops) {
+            socket.emit('secretComs:deadDrop', {
+              id: drop.id,
+              from: { id: drop.fromUser.id, username: drop.fromUser.nickname || drop.fromUser.displayName },
+              encrypted: drop.encryptedContent,
+              timestamp: drop.createdAt,
+              expiresAt: drop.expiresAt
+            });
+          }
+          // Mark as viewed to prevent re-sending
+          await prisma.deadDropMessage.updateMany({
+            where: { id: { in: pendingDrops.map(d => d.id) } },
+            data: { viewed: true }
+          });
+        }
+      } catch (e) {
+        console.error('Dead drop check failed:', e);
+      }
+    })();
+  }
+  // --- END DEAD DROP CHECK ---
+
   // Join lobby channel and send existing rooms
   socket.join('lobby');
   io.to(socket.id).emit('rooms_list', getRoomsSummary());
@@ -2261,6 +2297,45 @@ io.on('connection', (socket) => {
       console.error('Room chat error:', error);
     }
   });
+
+  socket.on('secretComs:deadDrop', async (data) => {
+    const user = socket.request?.session?.passport?.user;
+    if (!user) return; // Must be logged in
+
+    const { recipientId, encrypted, expiresIn = 86400000 } = data;
+    if (!recipientId || !encrypted) return;
+
+    try {
+      // Find recipient's user record to ensure they exist
+      const recipient = await prisma.user.findUnique({
+        where: { id: recipientId }
+      });
+
+      if (!recipient) {
+        socket.emit('error', { message: 'Recipient not found.' });
+        return;
+      }
+      
+      const expiresAt = new Date(Date.now() + expiresIn);
+
+      await prisma.deadDropMessage.create({
+        data: {
+          fromUserId: user.dbId,
+          toUserId: recipientId,
+          encryptedContent: encrypted,
+          expiresAt,
+        }
+      });
+
+      // Optional: Confirm to sender that the drop was placed
+      socket.emit('secretComs:deadDropPlaced', { recipientId, expiresAt });
+
+    } catch (e) {
+      console.error('Failed to save dead drop message:', e);
+      socket.emit('error', { message: 'Could not place dead drop.' });
+    }
+  });
+
 
   // Betting - supports specific seat for multi-seat
   socket.on('place_bet', (data = {}) => {

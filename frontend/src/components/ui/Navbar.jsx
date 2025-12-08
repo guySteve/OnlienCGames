@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AnimatedCounter } from './AnimatedCounter';
-import SecretComs from '../SecretComs';
 
 const navVariants = {
     initial: { y: -80, opacity: 0 },
@@ -10,11 +9,10 @@ const navVariants = {
     exit: { y: -80, opacity: 0, transition: { duration: 0.3, ease: 'easeIn' }}
 }
 
-export function Navbar({ user, onLogout, onSettings, socket }) {
-  const [showSecretComs, setShowSecretComs] = useState(false);
+export function Navbar({ user, onLogout, onSettings, onComs, socket }) {
   const [lockGlitch, setLockGlitch] = useState(false);
 
-  // Trigger glitch animation when new message received
+  // You might want to listen to a global event or a prop to trigger this
   const handleSecretMessage = () => {
     setLockGlitch(true);
     setTimeout(() => setLockGlitch(false), 200);
@@ -54,7 +52,7 @@ export function Navbar({ user, onLogout, onSettings, socket }) {
 
               {/* SecretComs Lock Icon */}
               <button
-                onClick={() => setShowSecretComs(true)}
+                onClick={onComs}
                 className={`text-slate-400 hover:text-white text-lg transition-colors ${lockGlitch ? 'animate-glitch' : ''}`}
                 title="SecretComs - Encrypted Chat"
               >
@@ -76,16 +74,6 @@ export function Navbar({ user, onLogout, onSettings, socket }) {
           </div>
         </div>
       </motion.header>
-
-      {/* SecretComs Overlay */}
-      {showSecretComs && (
-        <SecretComs
-          socket={socket}
-          userId={user?.id}
-          onClose={() => setShowSecretComs(false)}
-          onMessageReceived={handleSecretMessage}
-        />
-      )}
     </>
   );
 }

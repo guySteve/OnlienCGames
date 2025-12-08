@@ -156,12 +156,36 @@ model User {
   // WebAuthn biometric authentication
   authenticators        Authenticator[]
 
+  // Secret Comms
+  sentDeadDrops     DeadDropMessage[] @relation("SentDeadDrops")
+  receivedDeadDrops DeadDropMessage[] @relation("ReceivedDeadDrops")
+
   @@index([currentStreak])
   @@index([email])
   @@index([googleId])
   @@index([lastLogin])
   @@index([isBanned])
   @@index([isAdmin])
+}
+
+// =============================================================================
+// SECRET COMS (ENCRYPTED MESSAGING)
+// =============================================================================
+model DeadDropMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  fromUserId String
+  fromUser  User     @relation("SentDeadDrops", fields: [fromUserId], references: [id], onDelete: Cascade)
+  
+  toUserId  String
+  toUser    User     @relation("ReceivedDeadDrops", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  encryptedContent String   @db.Text
+  viewed           Boolean  @default(false)
+
+  @@index([toUserId, viewed, expiresAt])
 }
 
 // =============================================================================

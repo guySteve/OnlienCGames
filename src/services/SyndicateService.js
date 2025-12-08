@@ -640,6 +640,67 @@ class SyndicateService {
     }
 
     /**
+     * Contribute to treasury within an existing transaction
+     * @param {object} tx - Prisma transaction context
+     * @param {string} syndicateId - ID of the syndicate
+     * @param {string} userId - ID of the contributing user
+     * @param {number} amount - Amount to contribute
+     * @param {object} metadata - Additional data for logging
+     */
+    async contributeToTreasury(tx, syndicateId, userId, amount, metadata = {}) {
+        const { gameType = 'Unknown Game', originalWin = amount, gameSessionId = null } = metadata;
+
+        const syndicate = await tx.syndicate.findUnique({ where: { id: syndicateId } });
+        if (!syndicate) throw new Error('Syndicate not found for treasury contribution');
+
+        const membership = await tx.syndicateMember.findFirst({ where: { userId, syndicateId } });
+        if (!membership) throw new Error('User is not a member of the syndicate for contribution');
+
+        // Credit to syndicate treasury
+        const updatedSyndicate = await tx.syndicate.update({
+            where: { id: syndicateId },
+            data: {
+                treasuryBalance: { increment: amount },
+                lifetimeEarnings: { increment: amount },
+            }
+        });
+
+        // Record syndicate transaction
+        await tx.syndicateTransaction.create({
+            data: {
+                syndicateId,
+                userId,
+                amount: BigInt(amount),
+                type: 'TAX_CONTRIBUTION',
+                balanceBefore: syndicate.treasuryBalance,
+                balanceAfter: updatedSyndicate.treasuryBalance,
+                description: `Tax from ${gameType} win`,
+                metadata: { originalWin, gameSessionId }
+            }
+        });
+
+        // Update member contribution tracking
+        await tx.syndicateMember.update({
+            where: { id: membership.id },
+            data: {
+                contributedChips: { increment: amount },
+                weeklyContribution: { increment: amount },
+            }
+        });
+
+        // Emit real-time event
+        await this.emitSyndicateEvent('treasury_contribution', {
+            syndicateId,
+            contributorId: userId,
+            amount,
+            newBalance: Number(updatedSyndicate.treasuryBalance),
+            gameType
+        });
+
+        return updatedSyndicate;
+    }
+
+    /**
      * Manual donation to treasury
      */
     async donateToTreasury(userId, amount) {

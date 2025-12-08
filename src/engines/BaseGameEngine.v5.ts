@@ -26,6 +26,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
+import { getSyndicateService, SyndicateService } from '../services/SyndicateService';
 import { getLockManager, LOCK_PRESETS, LockResult } from '../services/LockManager';
 
 /**
@@ -453,10 +454,57 @@ export abstract class BaseGameEngine {
       `user:${userId}:balance`,
       async () => {
         await this.prisma.$transaction(async (tx) => {
+          // --- Syndicate Tax Logic ---
+          let finalAmount = amount;
+          let taxAmount = 0;
+          const BIG_WIN_THRESHOLD = 1000;
+          const MIN_TAX_AMOUNT = 10;
+          const TAX_RATE = 0.01;
+
+          if (amount >= BIG_WIN_THRESHOLD) {
+            const userForTax = await tx.user.findUnique({
+              where: { id: userId },
+              select: { syndicateMembership: { select: { syndicateId: true } } }
+            });
+
+            if (userForTax?.syndicateMembership) {
+              taxAmount = Math.max(MIN_TAX_AMOUNT, Math.floor(amount * TAX_RATE));
+              finalAmount = amount - taxAmount;
+
+              const syndicateService = getSyndicateService();
+              await syndicateService.contributeToTreasury(
+                tx,
+                userForTax.syndicateMembership.syndicateId,
+                userId,
+                taxAmount,
+                {
+                  gameType: this.getGameType(),
+                  originalWin: amount,
+                  gameSessionId: this.config.tableId
+                }
+              );
+
+              // Create a separate transaction log for the tax
+              await tx.transaction.create({
+                data: {
+                  userId,
+                  amount: BigInt(-taxAmount),
+                  type: 'TIP',
+                  description: `Syndicate Treasury Tax (${(TAX_RATE * 100).toFixed(1)}%)`,
+                  metadata: {
+                    syndicateId: userForTax.syndicateMembership.syndicateId,
+                    originalWin: amount
+                  }
+                }
+              });
+            }
+          }
+          // --- End Syndicate Tax Logic ---
+
           // 1. ADD to database
           await tx.user.update({
             where: { id: userId },
-            data: { chipBalance: { increment: BigInt(amount) } }
+            data: { chipBalance: { increment: BigInt(finalAmount) } }
           });
 
           // 2. FETCH game state
@@ -467,22 +515,23 @@ export abstract class BaseGameEngine {
 
           const player = players.get(playerKey);
           if (player) {
-            player.chips += amount;
+            player.chips += finalAmount;
 
             // 3. SAVE to Redis
             await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
           }
 
-          // 4. RECORD transaction
+          // 4. RECORD transaction for the win
           await tx.transaction.create({
             data: {
               userId,
-              amount: BigInt(amount),
+              amount: BigInt(finalAmount),
               type: 'WIN',
               metadata: {
                 tableId: this.config.tableId,
                 seatIndex,
-                handNumber: await this.getHandNumber()
+                handNumber: await this.getHandNumber(),
+                taxDeducted: taxAmount
               }
             }
           });
