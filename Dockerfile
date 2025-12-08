@@ -57,8 +57,10 @@ COPY --from=frontend-builder --chown=node:node /app/frontend/dist ./frontend/dis
 # Make scripts executable
 RUN chmod +x start.sh || true
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
+
+EXPOSE 8080
 
 # Free-Tier Memory Optimization: Cap Node.js heap at 460MB (512MB container - 52MB system overhead)
 CMD ["node", "--max-old-space-size=460", "server.js"]

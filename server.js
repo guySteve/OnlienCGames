@@ -10,7 +10,7 @@ const { initSyndicateService, initReferralService, initGenerosityService, initEn
 const { createDividendDistributor } = require('./src/jobs/DividendDistributor');
 const { createHappyHourScheduler } = require('./src/jobs/HappyHourScheduler');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 const serverHttp = http.createServer(app);
 
@@ -21,36 +21,18 @@ const io = new Server(serverHttp, {
     }
 });
 
-initializeSocket(io, sessionMiddleware);
 
 async function startServer() {
     try {
-        // Start listening immediately so platform health checks succeed
-        serverHttp.listen(PORT, () => {
-            console.log(`✅ Server listening on port ${PORT}`);
+        await new Promise((resolve, reject) => {
+            serverHttp.listen(PORT, () => {
+                console.log(`✅ Server listening on port ${PORT}`);
+                resolve();
+            });
+            serverHttp.on('error', (err) => {
+                reject(err);
+            });
         });
-
-        // Perform initialization asynchronously; failures are logged but don't block startup
-        initializeAuth().catch(err => console.error('Auth init error:', err));
-        checkDatabaseConnection().then((dbConnected) => {
-            if (dbConnected) {
-                const redisClient = require('./src/redis').redisClient;
-                try {
-                    initSyndicateService(prisma, redisClient, io);
-                    initReferralService(prisma, redisClient, getSyndicateService());
-                    initGenerosityService(prisma, redisClient, io);
-                    initEngagementServiceV2(prisma, redisClient, getSyndicateService());
-
-                    const dividendDistributor = createDividendDistributor(prisma, redisClient, getSyndicateService(), io);
-                    dividendDistributor.start();
-
-                    const happyHourScheduler = createHappyHourScheduler(prisma, redisClient, io);
-                    happyHourScheduler.start();
-                } catch (svcErr) {
-                    console.error('Service init error:', svcErr);
-                }
-            }
-        }).catch(err => console.error('DB check error:', err));
 
     } catch (err) {
         console.error('❌ Fatal startup error:', err);
