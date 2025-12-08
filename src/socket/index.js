@@ -9,6 +9,12 @@ const { LetItRideEngine } = require('../engines/LetItRideEngine');
 const { BlackjackEngine } = require('../engines/BlackjackEngine');
 const { WarEngine } = require('../engines/WarEngine');
 const { BingoEngine } = require('../engines/BingoEngine');
+const {
+    encryptDeadDrop,
+    decryptDeadDrop,
+    sanitizeMessage: sanitizeSecretMessage,
+    validateMessage
+} = require('../utils/secretComsEncryption');
 
 const games = new Map();
 const playerToGame = new Map();
@@ -75,6 +81,407 @@ function initializeSocket(io, sessionMiddleware) {
             // ... this is likely legacy, should be create_private_war
         });
 
+        // =============================================================================
+        // SECRET COMMS - Dead Drop Encrypted Messaging
+        // =============================================================================
+
+        /**
+         * Send encrypted message to online user (real-time)
+         */
+        socket.on('secretComs:send', async ({ recipientId, encrypted, timestamp }) => {
+            try {
+                if (!user || !user.id) {
+                    return socket.emit('error', { message: 'Authentication required' });
+                }
+
+                // Validate input
+                if (!recipientId || !encrypted) {
+                    return socket.emit('error', { message: 'Invalid message data' });
+                }
+
+                // Get sender info
+                const sender = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: { id: true, displayName: true, customAvatar: true }
+                });
+
+                if (!sender) {
+                    return socket.emit('error', { message: 'Sender not found' });
+                }
+
+                // Check if recipient exists
+                const recipient = await prisma.user.findUnique({
+                    where: { id: recipientId },
+                    select: { id: true }
+                });
+
+                if (!recipient) {
+                    return socket.emit('error', { message: 'Recipient not found' });
+                }
+
+                // Note: Frontend sends base64-encoded message
+                // We re-encrypt it properly on the server for security
+                try {
+                    // Decrypt what frontend sent (base64)
+                    const plaintext = Buffer.from(encrypted, 'base64').toString('utf8');
+
+                    // Sanitize
+                    const sanitized = sanitizeSecretMessage(plaintext);
+
+                    if (!validateMessage(sanitized)) {
+                        return socket.emit('error', { message: 'Invalid message content' });
+                    }
+
+                    // Re-encrypt with proper AES-256-GCM
+                    const properlyEncrypted = encryptDeadDrop(sanitized);
+
+                    // Send to recipient (if online)
+                    io.to(recipientId).emit('secretComs:message', {
+                        id: crypto.randomUUID(),
+                        from: {
+                            id: sender.id,
+                            username: sender.displayName,
+                            avatar: sender.customAvatar
+                        },
+                        encrypted: properlyEncrypted, // Server-encrypted
+                        timestamp: timestamp || Date.now()
+                    });
+
+                    // Acknowledge to sender
+                    socket.emit('secretComs:messageSent', {
+                        success: true,
+                        recipientId,
+                        timestamp
+                    });
+
+                } catch (encError) {
+                    console.error('SecretComs encryption error:', encError);
+                    return socket.emit('error', { message: 'Encryption failed' });
+                }
+
+            } catch (error) {
+                console.error('SecretComs send error:', error);
+                socket.emit('error', { message: 'Failed to send message' });
+            }
+        });
+
+        /**
+         * Leave encrypted Dead Drop for offline user
+         */
+        socket.on('secretComs:deadDrop', async ({ recipientId, encrypted, expiresIn }) => {
+            try {
+                if (!user || !user.id) {
+                    return socket.emit('error', { message: 'Authentication required' });
+                }
+
+                // Validate input
+                if (!recipientId || !encrypted) {
+                    return socket.emit('error', { message: 'Invalid Dead Drop data' });
+                }
+
+                const expirationMs = expiresIn || 86400000; // Default 24 hours
+                const expiresAt = new Date(Date.now() + expirationMs);
+
+                // Get sender info
+                const sender = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: { id: true, displayName: true, customAvatar: true }
+                });
+
+                if (!sender) {
+                    return socket.emit('error', { message: 'Sender not found' });
+                }
+
+                // Check if recipient exists
+                const recipient = await prisma.user.findUnique({
+                    where: { id: recipientId },
+                    select: { id: true }
+                });
+
+                if (!recipient) {
+                    return socket.emit('error', { message: 'Recipient not found' });
+                }
+
+                try {
+                    // Decrypt what frontend sent (base64)
+                    const plaintext = Buffer.from(encrypted, 'base64').toString('utf8');
+
+                    // Sanitize
+                    const sanitized = sanitizeSecretMessage(plaintext);
+
+                    if (!validateMessage(sanitized)) {
+                        return socket.emit('error', { message: 'Invalid message content' });
+                    }
+
+                    // Encrypt with proper AES-256-GCM
+                    const encryptedContent = encryptDeadDrop(sanitized);
+
+                    // Store in database
+                    const deadDrop = await prisma.deadDropMessage.create({
+                        data: {
+                            fromUserId: sender.id,
+                            toUserId: recipientId,
+                            encryptedContent,
+                            expiresAt,
+                            viewed: false
+                        },
+                        include: {
+                            fromUser: {
+                                select: {
+                                    id: true,
+                                    displayName: true,
+                                    customAvatar: true
+                                }
+                            }
+                        }
+                    });
+
+                    // Notify recipient if online
+                    io.to(recipientId).emit('secretComs:deadDrop', {
+                        id: deadDrop.id,
+                        from: {
+                            id: sender.id,
+                            username: sender.displayName,
+                            avatar: sender.customAvatar
+                        },
+                        timestamp: deadDrop.createdAt.getTime(),
+                        expiresAt: deadDrop.expiresAt.getTime()
+                    });
+
+                    // Acknowledge to sender
+                    socket.emit('secretComs:deadDropCreated', {
+                        success: true,
+                        dropId: deadDrop.id,
+                        recipientId,
+                        expiresAt: deadDrop.expiresAt.getTime()
+                    });
+
+                } catch (encError) {
+                    console.error('Dead Drop encryption error:', encError);
+                    return socket.emit('error', { message: 'Encryption failed' });
+                }
+
+            } catch (error) {
+                console.error('Dead Drop creation error:', error);
+                socket.emit('error', { message: 'Failed to create Dead Drop' });
+            }
+        });
+
+        /**
+         * Retrieve and decrypt Dead Drop
+         */
+        socket.on('secretComs:retrieveDeadDrop', async ({ dropId }) => {
+            try {
+                if (!user || !user.id) {
+                    return socket.emit('error', { message: 'Authentication required' });
+                }
+
+                if (!dropId) {
+                    return socket.emit('error', { message: 'Drop ID required' });
+                }
+
+                // Fetch Dead Drop
+                const drop = await prisma.deadDropMessage.findUnique({
+                    where: { id: dropId },
+                    include: {
+                        fromUser: {
+                            select: {
+                                id: true,
+                                displayName: true,
+                                customAvatar: true
+                            }
+                        }
+                    }
+                });
+
+                if (!drop) {
+                    return socket.emit('error', { message: 'Dead Drop not found' });
+                }
+
+                // Verify recipient
+                if (drop.toUserId !== user.id) {
+                    return socket.emit('error', { message: 'Unauthorized' });
+                }
+
+                // Check expiration
+                if (new Date() > drop.expiresAt) {
+                    // Delete expired drop
+                    await prisma.deadDropMessage.delete({ where: { id: dropId } });
+                    return socket.emit('error', { message: 'Dead Drop expired' });
+                }
+
+                try {
+                    // Decrypt message
+                    const decryptedContent = decryptDeadDrop(drop.encryptedContent);
+
+                    // Mark as viewed
+                    await prisma.deadDropMessage.update({
+                        where: { id: dropId },
+                        data: { viewed: true }
+                    });
+
+                    // Send decrypted message to client
+                    socket.emit('secretComs:deadDropRetrieved', {
+                        id: drop.id,
+                        from: {
+                            id: drop.fromUser.id,
+                            username: drop.fromUser.displayName,
+                            avatar: drop.fromUser.customAvatar
+                        },
+                        content: decryptedContent, // Send plaintext (over encrypted socket)
+                        timestamp: drop.createdAt.getTime(),
+                        expiresAt: drop.expiresAt.getTime()
+                    });
+
+                } catch (decError) {
+                    console.error('Dead Drop decryption error:', decError);
+                    return socket.emit('error', { message: 'Decryption failed - message may be corrupted' });
+                }
+
+            } catch (error) {
+                console.error('Dead Drop retrieval error:', error);
+                socket.emit('error', { message: 'Failed to retrieve Dead Drop' });
+            }
+        });
+
+        /**
+         * Get pending Dead Drops for current user
+         */
+        socket.on('secretComs:getPendingDrops', async () => {
+            try {
+                if (!user || !user.id) {
+                    return socket.emit('error', { message: 'Authentication required' });
+                }
+
+                const now = new Date();
+
+                // Get all unviewed, non-expired drops
+                const drops = await prisma.deadDropMessage.findMany({
+                    where: {
+                        toUserId: user.id,
+                        viewed: false,
+                        expiresAt: {
+                            gt: now
+                        }
+                    },
+                    include: {
+                        fromUser: {
+                            select: {
+                                id: true,
+                                displayName: true,
+                                customAvatar: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        createdAt: 'desc'
+                    }
+                });
+
+                // Send list to client (without decrypting - client requests individual drops)
+                socket.emit('secretComs:pendingDrops', {
+                    drops: drops.map(drop => ({
+                        id: drop.id,
+                        from: {
+                            id: drop.fromUser.id,
+                            username: drop.fromUser.displayName,
+                            avatar: drop.fromUser.customAvatar
+                        },
+                        timestamp: drop.createdAt.getTime(),
+                        expiresAt: drop.expiresAt.getTime()
+                    }))
+                });
+
+            } catch (error) {
+                console.error('Get pending drops error:', error);
+                socket.emit('error', { message: 'Failed to fetch Dead Drops' });
+            }
+        });
+
+        /**
+         * Typing indicator for Secret Comms
+         */
+        socket.on('secretComs:typing', async ({ recipientId, username }) => {
+            try {
+                if (!user || !user.id) return;
+
+                io.to(recipientId).emit('secretComs:typing', {
+                    userId: user.id,
+                    username: username || user.displayName
+                });
+            } catch (error) {
+                console.error('Typing indicator error:', error);
+            }
+        });
+
+        /**
+         * Get friends list for Secret Comms
+         */
+        socket.on('secretComs:getFriends', async () => {
+            try {
+                if (!user || !user.id) {
+                    return socket.emit('error', { message: 'Authentication required' });
+                }
+
+                // Get accepted friendships
+                const friendships = await prisma.friendship.findMany({
+                    where: {
+                        OR: [
+                            { userId: user.id, status: 'ACCEPTED' },
+                            { friendId: user.id, status: 'ACCEPTED' }
+                        ]
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                displayName: true,
+                                customAvatar: true,
+                                lastLogin: true
+                            }
+                        },
+                        friend: {
+                            select: {
+                                id: true,
+                                displayName: true,
+                                customAvatar: true,
+                                lastLogin: true
+                            }
+                        }
+                    }
+                });
+
+                // Extract friends and determine online status
+                const friends = friendships.map(f => {
+                    const friend = f.userId === user.id ? f.friend : f.user;
+
+                    // Check if friend is online (has active socket)
+                    // This is a simplified check - in production you'd track connected sockets
+                    const isOnline = friend.lastLogin &&
+                        (Date.now() - friend.lastLogin.getTime() < 300000); // 5 min
+
+                    return {
+                        id: friend.id,
+                        username: friend.displayName,
+                        avatar: friend.customAvatar,
+                        online: isOnline
+                    };
+                });
+
+                const online = friends.filter(f => f.online);
+                const offline = friends.filter(f => !f.online);
+
+                socket.emit('friends:status', { online, offline });
+
+            } catch (error) {
+                console.error('Get friends error:', error);
+                socket.emit('error', { message: 'Failed to fetch friends' });
+            }
+        });
+
+        // =============================================================================
+        // END SECRET COMMS
+        // =============================================================================
 
         socket.on('disconnect', () => {
             const roomId = playerToGame.get(socket.id);

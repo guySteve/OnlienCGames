@@ -7,15 +7,19 @@
  * - Can pull back first two bets, final bet ($) must stay
  * - Minimum winning hand: Pair of 10s or better
  * - Payouts based on poker hand rankings
+ *
+ * ARCHITECTURE: Redis-First (v5)
+ * - All game state stored in Redis for persistence
+ * - Survives server restarts and enables horizontal scaling
+ * - Uses BaseGameEngine.v5 pattern with saveCustomState()
  */
 
-import { GameEngine, GameState, GameConfig } from './GameEngine';
+import { BaseGameEngine, GameState, GameConfig } from './BaseGameEngine.v5';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
+import { Redis } from 'ioredis';
 import * as crypto from 'crypto';
 import { EventEmitter } from 'events';
-
-type Redis = any;
 
 interface Card {
   rank: string;
@@ -35,11 +39,19 @@ interface LetItRidePlayer {
   totalBet: number;
 }
 
-export class LetItRideEngine extends GameEngine {
-  private deck: Card[] = [];
-  private communityCards: Card[] = [];
-  private lirPlayers: Map<string, LetItRidePlayer> = new Map();
-  private currentDecisionPhase: 1 | 2 | 3 = 1;
+/**
+ * Custom game state stored in Redis
+ */
+interface LetItRideCustomState {
+  deck: Card[];
+  communityCards: Card[];
+  lirPlayers: Array<[string, LetItRidePlayer]>; // Serializable Map
+  currentDecisionPhase: 1 | 2 | 3;
+}
+
+export class LetItRideEngine extends BaseGameEngine {
+  // NO in-memory state fields - all state comes from Redis
+  // These are removed: deck, communityCards, lirPlayers, currentDecisionPhase
 
   private readonly PAYOUT_TABLE = {
     'ROYAL_FLUSH': 1000,
@@ -62,14 +74,40 @@ export class LetItRideEngine extends GameEngine {
     engagement: EngagementService
   ) {
     super(config, prisma, redis, engagement);
-    this.initializeDeck();
+  }
+
+  /**
+   * Initialize game state (override BaseGameEngine)
+   * Called after construction to load state from Redis
+   */
+  async initialize(): Promise<void> {
+    await super.initialize();
+
+    // Load custom state or initialize defaults
+    const customState = await this.loadCustomState<LetItRideCustomState>();
+
+    if (!customState) {
+      // First time initialization
+      const deck = this.createFreshDeck();
+      this.shuffleDeck(deck);
+
+      await this.saveCustomState<LetItRideCustomState>({
+        deck,
+        communityCards: [],
+        lirPlayers: [],
+        currentDecisionPhase: 1
+      });
+    }
   }
 
   getGameType(): 'WAR' | 'BLACKJACK' | 'BINGO' | 'LET_IT_RIDE' {
     return 'LET_IT_RIDE';
   }
 
-  private initializeDeck(): void {
+  /**
+   * Create a fresh deck (pure function - no state modification)
+   */
+  private createFreshDeck(): Card[] {
     const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     const suits = ['♠', '♥', '♦', '♣'];
     const values: Record<string, number> = {
@@ -77,38 +115,50 @@ export class LetItRideEngine extends GameEngine {
       'J': 11, 'Q': 12, 'K': 13, 'A': 14
     };
 
-    this.deck = [];
+    const deck: Card[] = [];
     for (const suit of suits) {
       for (const rank of ranks) {
-        this.deck.push({ rank, suit, value: values[rank] });
+        deck.push({ rank, suit, value: values[rank] });
       }
     }
 
-    this.shuffleDeck();
+    return deck;
   }
 
-  private shuffleDeck(): void {
-    // Cryptographically secure Fisher-Yates shuffle
+  /**
+   * Shuffle deck (pure function - returns shuffled copy)
+   */
+  private shuffleDeck(deck: Card[]): void {
+    // Cryptographically secure Fisher-Yates shuffle (in-place)
     const seed = crypto.randomBytes(32);
-    for (let i = this.deck.length - 1; i > 0; i--) {
+    for (let i = deck.length - 1; i > 0; i--) {
       const j = seed[i % 32] % (i + 1);
-      [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+      [deck[i], deck[j]] = [deck[j], deck[i]];
     }
   }
 
-  private dealCard(): Card {
-    return this.deck.pop()!;
+  /**
+   * Deal card from deck (modifies deck in-place, returns card)
+   */
+  private dealCard(deck: Card[]): Card {
+    const card = deck.pop();
+    if (!card) {
+      throw new Error('Deck is empty - cannot deal card');
+    }
+    return card;
   }
 
   async placeBet(userId: string, amount: number, seatIndex: number = 0): Promise<boolean> {
-    if (this.state !== GameState.PLACING_BETS) {
+    // Redis-First: Load state from Redis
+    const currentState = this.getState();
+    if (currentState !== GameState.PLACING_BETS) {
       return false;
     }
 
     // Let It Ride requires three equal bets
     const totalBet = amount * 3;
 
-    if (!this.validateBet(totalBet)) {
+    if (totalBet < this.config.minBet || totalBet > this.config.maxBet) {
       return false;
     }
 
@@ -117,7 +167,15 @@ export class LetItRideEngine extends GameEngine {
       return false;
     }
 
-    this.lirPlayers.set(`${userId}:${seatIndex}`, {
+    // Load custom state
+    const customState = await this.loadCustomState<LetItRideCustomState>();
+    if (!customState) {
+      throw new Error('Game state not initialized');
+    }
+
+    const lirPlayers = new Map(customState.lirPlayers);
+
+    lirPlayers.set(`${userId}:${seatIndex}`, {
       userId,
       seatIndex,
       hand: [],
@@ -129,22 +187,41 @@ export class LetItRideEngine extends GameEngine {
       totalBet: amount * 3
     });
 
+    // Save updated state
+    await this.saveCustomState<LetItRideCustomState>({
+      ...customState,
+      lirPlayers: Array.from(lirPlayers.entries())
+    });
+
     this.events.emit('bet_placed', { userId, seatIndex, amount: totalBet });
-    await this.saveStateToRedis();
     return true;
   }
 
   async startNewHand(): Promise<void> {
-    this.handNumber++;
-    this.state = GameState.DEALING;
-    this.communityCards = [];
-    this.currentDecisionPhase = 1;
+    // Redis-First: Update state
+    await this.incrementHandNumber();
+    await this.setState(GameState.DEALING);
 
-    this.events.emit('hand_started', { handNumber: this.handNumber });
+    // Load custom state
+    const customState = await this.loadCustomState<LetItRideCustomState>();
+    if (!customState) {
+      throw new Error('Game state not initialized');
+    }
+
+    // Reset deck for new hand
+    const deck = this.createFreshDeck();
+    this.shuffleDeck(deck);
+
+    const communityCards: Card[] = [];
+    const currentDecisionPhase: 1 | 2 | 3 = 1;
+
+    const handNumber = await this.getHandNumber();
+    this.events.emit('hand_started', { handNumber });
 
     // Deal 3 cards to each player
-    for (const player of Array.from(this.lirPlayers.values())) {
-      player.hand = [this.dealCard(), this.dealCard(), this.dealCard()];
+    const lirPlayers = new Map(customState.lirPlayers);
+    for (const [key, player] of lirPlayers.entries()) {
+      player.hand = [this.dealCard(deck), this.dealCard(deck), this.dealCard(deck)];
       this.events.emit('player_dealt', {
         userId: player.userId,
         seatIndex: player.seatIndex,
@@ -153,11 +230,19 @@ export class LetItRideEngine extends GameEngine {
     }
 
     // Deal 2 community cards face down
-    this.communityCards = [this.dealCard(), this.dealCard()];
+    communityCards.push(this.dealCard(deck));
+    communityCards.push(this.dealCard(deck));
 
-    this.state = GameState.PLAYER_TURN;
+    // Save updated state
+    await this.saveCustomState<LetItRideCustomState>({
+      deck,
+      communityCards,
+      lirPlayers: Array.from(lirPlayers.entries()),
+      currentDecisionPhase
+    });
+
+    await this.setState(GameState.PLAYER_TURN);
     this.events.emit('decision_phase', { phase: 1 });
-    await this.saveStateToRedis();
   }
 
   async playerDecision(
@@ -166,12 +251,21 @@ export class LetItRideEngine extends GameEngine {
     decision: 'PULL_BACK' | 'LET_IT_RIDE',
     betNumber: 1 | 2
   ): Promise<boolean> {
-    if (this.state !== GameState.PLAYER_TURN) {
+    // Redis-First: Check state
+    const currentState = this.getState();
+    if (currentState !== GameState.PLAYER_TURN) {
       return false;
     }
 
+    // Load custom state
+    const customState = await this.loadCustomState<LetItRideCustomState>();
+    if (!customState) {
+      throw new Error('Game state not initialized');
+    }
+
     const playerKey = `${userId}:${seatIndex}`;
-    const player = this.lirPlayers.get(playerKey);
+    const lirPlayers = new Map(customState.lirPlayers);
+    const player = lirPlayers.get(playerKey);
     if (!player) return false;
 
     const betKey = betNumber === 1 ? 'bet1' : 'bet2';
@@ -196,34 +290,56 @@ export class LetItRideEngine extends GameEngine {
       });
     }
 
+    let updatedPhase = customState.currentDecisionPhase;
+
     // Check if all players have made decision
     // For now, auto-advance (in real game, wait for all players)
     if (betNumber === 1) {
       // Reveal first community card
       this.events.emit('community_revealed', {
         cardIndex: 0,
-        card: this.communityCards[0]
+        card: customState.communityCards[0]
       });
-      this.currentDecisionPhase = 2;
+      updatedPhase = 2;
       this.events.emit('decision_phase', { phase: 2 });
     } else {
       // Reveal second community card and resolve
       this.events.emit('community_revealed', {
         cardIndex: 1,
-        card: this.communityCards[1]
+        card: customState.communityCards[1]
       });
+      updatedPhase = 3;
+      // Will resolve in next step
+    }
+
+    // Save updated state
+    await this.saveCustomState<LetItRideCustomState>({
+      ...customState,
+      lirPlayers: Array.from(lirPlayers.entries()),
+      currentDecisionPhase: updatedPhase
+    });
+
+    if (betNumber === 2) {
       await this.resolveHand();
     }
 
-    await this.saveStateToRedis();
     return true;
   }
 
   async resolveHand(): Promise<void> {
-    this.state = GameState.RESOLVING;
+    // Redis-First: Update state
+    await this.setState(GameState.RESOLVING);
 
-    for (const player of Array.from(this.lirPlayers.values())) {
-      const fullHand = [...player.hand, ...this.communityCards];
+    // Load custom state
+    const customState = await this.loadCustomState<LetItRideCustomState>();
+    if (!customState) {
+      throw new Error('Game state not initialized');
+    }
+
+    const lirPlayers = new Map(customState.lirPlayers);
+
+    for (const [key, player] of lirPlayers.entries()) {
+      const fullHand = [...player.hand, ...customState.communityCards];
       const handRank = this.evaluateHand(fullHand);
       const payout = this.calculatePayout(player, handRank);
 
@@ -339,34 +455,65 @@ export class LetItRideEngine extends GameEngine {
   }
 
   private async completeHand(): Promise<void> {
-    const sessionId = `${this.config.roomId}:${this.handNumber}`;
-    await this.persistChipChanges(sessionId);
+    const handNumber = await this.getHandNumber();
+    const sessionId = `${this.config.tableId}:${handNumber}`;
 
-    this.events.emit('hand_complete', { sessionId, handNumber: this.handNumber });
+    this.events.emit('hand_complete', { sessionId, handNumber });
 
-    this.lirPlayers.clear();
-    this.communityCards = [];
-    this.pot = 0;
-    this.initializeDeck();
+    // Redis-First: Reset for new hand
+    const deck = this.createFreshDeck();
+    this.shuffleDeck(deck);
 
-    this.state = GameState.PLACING_BETS;
-    await this.saveStateToRedis();
+    await this.saveCustomState<LetItRideCustomState>({
+      deck,
+      communityCards: [],
+      lirPlayers: [],
+      currentDecisionPhase: 1
+    });
+
+    await this.resetPot();
+    await this.setState(GameState.PLACING_BETS);
   }
 
-  getGameState(): any {
+  async getGameState(): Promise<any> {
+    // Redis-First: Load state
+    const customState = await this.loadCustomState<LetItRideCustomState>();
+    const handNumber = await this.getHandNumber();
+
+    if (!customState) {
+      return {
+        gameType: 'LET_IT_RIDE',
+        tableId: this.config.tableId,
+        state: this.getState(),
+        handNumber,
+        communityCards: [],
+        currentDecisionPhase: 1,
+        players: []
+      };
+    }
+
+    const lirPlayers = new Map(customState.lirPlayers);
+
     return {
       gameType: 'LET_IT_RIDE',
-      roomId: this.config.roomId,
-      state: this.state,
-      handNumber: this.handNumber,
-      communityCards: this.communityCards,
-      currentDecisionPhase: this.currentDecisionPhase,
-      players: Array.from(this.lirPlayers.values()).map(p => ({
+      tableId: this.config.tableId,
+      state: this.getState(),
+      handNumber,
+      communityCards: customState.communityCards,
+      currentDecisionPhase: customState.currentDecisionPhase,
+      players: Array.from(lirPlayers.values()).map(p => ({
         userId: p.userId,
         seatIndex: p.seatIndex,
         hand: p.hand,
         bets: p.bets
       }))
     };
+  }
+
+  /**
+   * Implement required method from BaseGameEngine
+   */
+  async startHand(): Promise<void> {
+    return this.startNewHand();
   }
 }
