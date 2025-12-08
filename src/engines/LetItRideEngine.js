@@ -190,7 +190,7 @@ class LetItRideEngine extends BaseGameEngine_v5_1.BaseGameEngine {
         this.events.emit('hand_started', { handNumber });
         // Deal 3 cards to each player
         const lirPlayers = new Map(customState.lirPlayers);
-        for (const [key, player] of Array.from(lirPlayers.entries())) {
+        for (const [_key, player] of Array.from(lirPlayers.entries())) {
             player.hand = [this.dealCard(deck), this.dealCard(deck), this.dealCard(deck)];
             this.events.emit('player_dealt', {
                 userId: player.userId,
@@ -288,7 +288,7 @@ class LetItRideEngine extends BaseGameEngine_v5_1.BaseGameEngine {
             throw new Error('Game state not initialized');
         }
         const lirPlayers = new Map(customState.lirPlayers);
-        for (const [key, player] of Array.from(lirPlayers.entries())) {
+        for (const [_key, player] of Array.from(lirPlayers.entries())) {
             const fullHand = [...player.hand, ...customState.communityCards];
             const handRank = this.evaluateHand(fullHand);
             const payout = this.calculatePayout(player, handRank);

@@ -219,7 +219,7 @@ class BaseGameEngine {
                 lastAction: new Date()
             });
             // 5. SAVE to Redis
-            await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+            await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
             // 6. UPDATE cache
             this.cachedPlayers = players;
             return true;
@@ -244,7 +244,7 @@ class BaseGameEngine {
             // 2. REMOVE player
             players.delete(playerKey);
             // 3. SAVE to Redis
-            await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+            await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
             // 4. UPDATE cache
             this.cachedPlayers = players;
         }, LockManager_1.LOCK_PRESETS.FAST);
@@ -296,15 +296,17 @@ class BaseGameEngine {
                 player.chips -= amount;
                 player.currentBet += amount;
                 // 5. SAVE to Redis
-                await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+                await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
                 // 6. UPDATE pot
                 await this.addToPot(amount);
                 // 7. RECORD transaction for audit
                 await tx.transaction.create({
                     data: {
                         userId,
-                        amount: BigInt(-amount),
+                        amount: -amount,
                         type: 'BET',
+                        balanceBefore: user.chipBalance,
+                        balanceAfter: user.chipBalance - BigInt(amount),
                         metadata: {
                             tableId: this.config.tableId,
                             seatIndex,
@@ -336,6 +338,12 @@ class BaseGameEngine {
         await lockManager.withLock(`user:${userId}:balance`, async () => {
             await this.prisma.$transaction(async (tx) => {
                 // --- Syndicate Tax Logic ---
+                // 1. FETCH user balance
+                const user = await tx.user.findUnique({
+                    where: { id: userId }
+                });
+                if (!user)
+                    return;
                 let finalAmount = amount;
                 let taxAmount = 0;
                 const BIG_WIN_THRESHOLD = 1000;
@@ -359,7 +367,9 @@ class BaseGameEngine {
                         await tx.transaction.create({
                             data: {
                                 userId,
-                                amount: BigInt(-taxAmount),
+                                amount: -taxAmount,
+                                balanceBefore: user.chipBalance,
+                                balanceAfter: user.chipBalance - BigInt(taxAmount),
                                 type: 'TIP',
                                 description: `Syndicate Treasury Tax (${(TAX_RATE * 100).toFixed(1)}%)`,
                                 metadata: {
@@ -371,12 +381,12 @@ class BaseGameEngine {
                     }
                 }
                 // --- End Syndicate Tax Logic ---
-                // 1. ADD to database
+                // 2. ADD to database
                 await tx.user.update({
                     where: { id: userId },
                     data: { chipBalance: { increment: BigInt(finalAmount) } }
                 });
-                // 2. FETCH game state
+                // 3. FETCH game state
                 const playersJson = await this.redis.get(this.stateKeys.players);
                 const players = playersJson
                     ? new Map(JSON.parse(playersJson))
@@ -384,14 +394,16 @@ class BaseGameEngine {
                 const player = players.get(playerKey);
                 if (player) {
                     player.chips += finalAmount;
-                    // 3. SAVE to Redis
-                    await this.redis.set(this.stateKeys.players, JSON.stringify([...players]));
+                    // 4. SAVE to Redis
+                    await this.redis.set(this.stateKeys.players, JSON.stringify(Array.from(players.entries())));
                 }
-                // 4. RECORD transaction for the win
+                // 5. RECORD transaction for the win
                 await tx.transaction.create({
                     data: {
                         userId,
-                        amount: BigInt(finalAmount),
+                        amount: finalAmount,
+                        balanceBefore: user.chipBalance,
+                        balanceAfter: user.chipBalance + BigInt(finalAmount),
                         type: 'WIN',
                         metadata: {
                             tableId: this.config.tableId,

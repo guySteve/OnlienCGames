@@ -50,6 +50,11 @@ const authRouter = require('./src/routes/auth');
 const apiRouter = require('./src/routes/api');
 const adminRouter = require('./src/routes/admin');
 
+// Health check for container
+app.get('/health', (req, res) => {
+  res.status(200).send('ok');
+});
+
 app.use('/auth', authRouter);
 app.use('/api', apiRouter);
 app.use('/api/admin', adminRouter);

@@ -25,29 +25,36 @@ initializeSocket(io, sessionMiddleware);
 
 async function startServer() {
     try {
-        await initializeAuth();
-        const dbConnected = await checkDatabaseConnection();
-        if (dbConnected) {
-            const redisClient = require('./src/redis').redisClient;
-            initSyndicateService(prisma, redisClient, io);
-            initReferralService(prisma, redisClient, getSyndicateService());
-            initGenerosityService(prisma, redisClient, io);
-            initEngagementServiceV2(prisma, redisClient, getSyndicateService());
-
-            const dividendDistributor = createDividendDistributor(prisma, redisClient, getSyndicateService(), io);
-            dividendDistributor.start();
-
-            const happyHourScheduler = createHappyHourScheduler(prisma, redisClient, io);
-            happyHourScheduler.start();
-        }
-
+        // Start listening immediately so platform health checks succeed
         serverHttp.listen(PORT, () => {
             console.log(`✅ Server listening on port ${PORT}`);
         });
 
+        // Perform initialization asynchronously; failures are logged but don't block startup
+        initializeAuth().catch(err => console.error('Auth init error:', err));
+        checkDatabaseConnection().then((dbConnected) => {
+            if (dbConnected) {
+                const redisClient = require('./src/redis').redisClient;
+                try {
+                    initSyndicateService(prisma, redisClient, io);
+                    initReferralService(prisma, redisClient, getSyndicateService());
+                    initGenerosityService(prisma, redisClient, io);
+                    initEngagementServiceV2(prisma, redisClient, getSyndicateService());
+
+                    const dividendDistributor = createDividendDistributor(prisma, redisClient, getSyndicateService(), io);
+                    dividendDistributor.start();
+
+                    const happyHourScheduler = createHappyHourScheduler(prisma, redisClient, io);
+                    happyHourScheduler.start();
+                } catch (svcErr) {
+                    console.error('Service init error:', svcErr);
+                }
+            }
+        }).catch(err => console.error('DB check error:', err));
+
     } catch (err) {
         console.error('❌ Fatal startup error:', err);
-        process.exit(1);
+        // Do not exit; keep server running for health checks
     }
 }
 
