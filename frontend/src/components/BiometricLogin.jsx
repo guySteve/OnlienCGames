@@ -99,7 +99,18 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
 
     } catch (err) {
       console.error('Biometric login error:', err);
-      setError(err.message || 'Failed to log in with biometric');
+      const errorMessage = err.message || 'Failed to log in with biometric';
+      
+      // Check if we should automatically switch to the email fallback
+      const isDiscoverableCredentialError = !showEmailFallback && 
+        (errorMessage.includes('find') || errorMessage.includes('credential'));
+        
+      if (isDiscoverableCredentialError) {
+        setError('No registered device found. Please enter your email to try again.');
+        setShowEmailFallback(true);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
