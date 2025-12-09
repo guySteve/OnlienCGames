@@ -45,7 +45,7 @@ steps:
       - '-c'
       - |
         echo "🔄 Running database migrations..."
-        npx prisma migrate deploy
+        npx prisma@5.22.0 migrate deploy
         echo "✅ Migrations completed successfully"
     env:
       - 'DATABASE_URL=${_DATABASE_URL}'
