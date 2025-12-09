@@ -5,7 +5,6 @@ const { Server } = require('socket.io');
 const { app, sessionMiddleware } = require('./app');
 const { initializeSocket } = require('./src/socket');
 const { initializeAuth } = require('./src/auth');
-const { checkDatabaseConnection } = require('./src/db');
 const { initSyndicateService, initReferralService, initGenerosityService, initEngagementServiceV2 } = require('./src/services/SyndicateService');
 const { createDividendDistributor } = require('./src/jobs/DividendDistributor');
 const { createHappyHourScheduler } = require('./src/jobs/HappyHourScheduler');
