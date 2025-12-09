@@ -30,9 +30,6 @@
 
 import { BaseGameEngine, GameState } from './BaseGameEngine.v5';
 import { getLockManager, LOCK_PRESETS, LockError } from '../services/LockManager';
-import { PrismaClient } from '@prisma/client';
-import { Redis } from 'ioredis';
-import { EngagementService } from '../services/EngagementService';
 
 /**
  * Blackjack-specific action types
@@ -259,7 +256,7 @@ export class BlackjackEngineV5 extends BaseGameEngine {
    */
   private async handleHit(
     customState: BlackjackCustomState,
-    player: BlackjackPlayerState,
+    _player: BlackjackPlayerState,
     hand: BlackjackHand
   ): Promise<ActionResult> {
     // Deal card
@@ -290,8 +287,8 @@ export class BlackjackEngineV5 extends BaseGameEngine {
    * Handle STAND action
    */
   private async handleStand(
-    customState: BlackjackCustomState,
-    player: BlackjackPlayerState,
+    _customState: BlackjackCustomState,
+    _player: BlackjackPlayerState,
     hand: BlackjackHand
   ): Promise<ActionResult> {
     hand.status = 'stand';
@@ -310,7 +307,7 @@ export class BlackjackEngineV5 extends BaseGameEngine {
     userId: string,
     seatIndex: number,
     customState: BlackjackCustomState,
-    player: BlackjackPlayerState,
+    _player: BlackjackPlayerState,
     hand: BlackjackHand
   ): Promise<ActionResult> {
     // Validate double is allowed
@@ -404,8 +401,8 @@ export class BlackjackEngineV5 extends BaseGameEngine {
   private async handleSurrender(
     userId: string,
     seatIndex: number,
-    customState: BlackjackCustomState,
-    player: BlackjackPlayerState,
+    _customState: BlackjackCustomState,
+    _player: BlackjackPlayerState,
     hand: BlackjackHand
   ): Promise<ActionResult> {
     // Validate surrender is allowed (first action only)

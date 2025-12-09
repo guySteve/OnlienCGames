@@ -15,9 +15,10 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
   // AUTHENTICATION MIDDLEWARE
   // ==========================================================================
 
-  const requireAuth = (req: Request, res: Response, next: any) => {
+  const requireAuth = (req: Request, res: Response, next: any): void => {
     if (!req.user || !req.user.id) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
     }
     next();
   };
@@ -32,7 +33,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
    */
   router.get('/profile', requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user!.id;
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -58,7 +59,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       const xpRequired = user.xpLevel ** 2 * 100;
       const xpProgress = (user.xpPoints / xpRequired) * 100;
 
-      res.json({
+      return res.json({
         user: {
           id: user.id,
           displayName: user.displayName,
@@ -95,7 +96,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       });
     } catch (error) {
       console.error('Profile error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -105,7 +106,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
    */
   router.post('/profile/update', requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const { nickname, customAvatar } = req.body;
 
       if (nickname && (typeof nickname !== 'string' || nickname.length > 30)) {
@@ -124,14 +125,14 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
         }
       });
 
-      res.json({
+      return res.json({
         success: true,
         nickname: updated.nickname,
         customAvatar: updated.customAvatar
       });
     } catch (error) {
       console.error('Profile update error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -145,7 +146,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
    */
   router.post('/claim-daily-reward', requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const result = await engagement.claimDailyReward(userId);
 
       if (!result.success) {
@@ -155,7 +156,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
         });
       }
 
-      res.json({
+      return res.json({
         success: true,
         reward: result.reward,
         nextClaimAt: result.nextClaimAt,
@@ -163,7 +164,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       });
     } catch (error) {
       console.error('Daily reward error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -173,10 +174,10 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
    */
   router.get('/streak-status', requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const status = await engagement.getStreakStatus(userId);
 
-      res.json({
+      return res.json({
         currentStreak: status.currentStreak,
         nextReward: status.nextReward,
         canClaimAt: status.canClaimAt,
@@ -185,7 +186,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       });
     } catch (error) {
       console.error('Streak status error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -238,7 +239,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
         }
       });
 
-      res.json({
+      return res.json({
         leaderboard: users.map((u, index) => ({
           rank: index + 1,
           userId: u.id,
@@ -253,7 +254,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       });
     } catch (error) {
       console.error('Leaderboard error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -267,7 +268,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
    */
   router.get('/transactions', requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const offset = parseInt(req.query.offset as string) || 0;
 
@@ -290,7 +291,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
 
       const total = await prisma.transaction.count({ where: { userId } });
 
-      res.json({
+      return res.json({
         transactions: transactions.map(t => ({
           id: t.id,
           date: t.createdAt,
@@ -310,7 +311,7 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       });
     } catch (error) {
       console.error('Transactions error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -322,17 +323,17 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
    * GET /api/global-ticker
    * Get recent global events (big wins, mystery drops, etc.)
    */
-  router.get('/global-ticker', async (req: Request, res: Response) => {
+  router.get('/global-ticker', async (_req: Request, res: Response) => {
     try {
       const redis = engagement['redis']; // Access private redis instance
       const events = await redis.lrange('global:ticker', 0, 49);
 
-      res.json({
-        events: events.map(e => JSON.parse(e))
+      return res.json({
+        events: events.map((e: string) => JSON.parse(e))
       });
     } catch (error) {
       console.error('Global ticker error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -340,10 +341,11 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
   // ADMIN ROUTES (Protected)
   // ==========================================================================
 
-  const requireAdmin = (req: Request, res: Response, next: any) => {
+  const requireAdmin = (req: Request, res: Response, next: any): void => {
     // TODO: Implement proper admin role check
     if (!req.user || !req.user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
+      res.status(403).json({ error: 'Forbidden' });
+      return;
     }
     next();
   };
@@ -357,14 +359,14 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
       const { multiplier } = req.body;
       await engagement.triggerHappyHour(multiplier || 1.5);
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Happy Hour started!',
         multiplier: multiplier || 1.5
       });
     } catch (error) {
       console.error('Happy Hour trigger error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -397,20 +399,20 @@ export function createApiRouter(prisma: PrismaClient, engagement: EngagementServ
             balanceBefore: user.chipBalance,
             balanceAfter: u.chipBalance,
             description: reason || 'Admin adjustment',
-            metadata: { adminId: req.user.id }
+            metadata: { adminId: req.user!.id }
           }
         });
 
         return u;
       });
 
-      res.json({
+      return res.json({
         success: true,
         newBalance: Number(updated.chipBalance)
       });
     } catch (error) {
       console.error('Admin chip adjustment error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 

@@ -42,7 +42,7 @@ const SENSITIVE_KEYS = [
 // Email redaction pattern (partially mask emails)
 const EMAIL_PATTERN = /([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
 const redactEmail = (email) => {
-    return email.replace(EMAIL_PATTERN, (match, user, domain) => {
+    return email.replace(EMAIL_PATTERN, (_match, user, domain) => {
         const maskedUser = user.length > 2
             ? user[0] + '*'.repeat(user.length - 2) + user[user.length - 1]
             : '***';

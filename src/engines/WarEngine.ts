@@ -433,7 +433,7 @@ export class WarEngine extends GameEngine {
       this.warPhase = true;
       this.state = GameState.PLAYER_TURN;
 
-      for (const { index, spot } of tieSpots) {
+      for (const { spot } of tieSpots) {
         spot.decision = 'pending';
       }
 

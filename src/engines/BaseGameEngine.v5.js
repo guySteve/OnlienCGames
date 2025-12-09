@@ -26,6 +26,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseGameEngine = exports.GameState = void 0;
 const client_1 = require("@prisma/client");
+// @ts-expect-error - SyndicateService is a JS file without type definitions
 const SyndicateService_1 = require("../services/SyndicateService");
 const LockManager_1 = require("../services/LockManager");
 /**

@@ -253,7 +253,7 @@ export class LockManager {
    */
   async extendLock(lock: Lock, additionalTtl: number): Promise<boolean> {
     try {
-      const extendedLock = await lock.extend(additionalTtl);
+      await lock.extend(additionalTtl);
       console.log(`🔒 Lock extended by ${additionalTtl}ms`);
       return true;
     } catch (error) {

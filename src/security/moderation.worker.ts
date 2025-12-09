@@ -33,7 +33,7 @@
  * @security CRITICAL
  */
 
-import { parentPort, workerData } from 'worker_threads';
+import { parentPort } from 'worker_threads';
 
 /**
  * Moderation task (from main thread)

@@ -1,0 +1,43 @@
+// server.js
+require('dotenv').config();
+const http = require('http');
+const { Server } = require('socket.io');
+const { app, sessionMiddleware } = require('./app');
+const { initializeSocket } = require('./src/socket');
+const { initializeAuth } = require('./src/auth');
+const { checkDatabaseConnection } = require('./src/db');
+const { initSyndicateService, initReferralService, initGenerosityService, initEngagementServiceV2 } = require('./src/services/SyndicateService');
+const { createDividendDistributor } = require('./src/jobs/DividendDistributor');
+const { createHappyHourScheduler } = require('./src/jobs/HappyHourScheduler');
+
+const PORT = process.env.PORT || 8080;
+
+const serverHttp = http.createServer(app);
+
+const io = new Server(serverHttp, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+    }
+});
+
+
+async function startServer() {
+    try {
+        await new Promise((resolve, reject) => {
+            serverHttp.listen(PORT, () => {
+                console.log(`Γ£à Server listening on port ${PORT}`);
+                resolve();
+            });
+            serverHttp.on('error', (err) => {
+                reject(err);
+            });
+        });
+
+    } catch (err) {
+        console.error('Γ¥î Fatal startup error:', err);
+        // Do not exit; keep server running for health checks
+    }
+}
+
+startServer();

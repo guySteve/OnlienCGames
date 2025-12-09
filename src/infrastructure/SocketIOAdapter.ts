@@ -24,7 +24,7 @@
  * @version 5.0.0
  */
 
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, ServerOptions } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient, RedisClientType } from 'redis';
 import type { Server as HttpServer } from 'http';
@@ -218,7 +218,7 @@ export async function setupRedisAdapter(
 export async function createScalableSocketIO(
   httpServer: HttpServer,
   redisConfig: RedisAdapterConfig,
-  socketConfig?: Partial<Parameters<typeof SocketIOServer>[1]>
+  socketConfig?: Partial<ServerOptions>
 ): Promise<SocketIOServer> {
   // Create Socket.IO server
   const io = new SocketIOServer(httpServer, {

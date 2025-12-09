@@ -102,14 +102,14 @@ class GameEngine {
      * Called at end of each hand
      */
     async persistChipChanges(sessionId) {
-        for (const [key, player] of this.players.entries()) {
+        for (const player of this.players.values()) {
             const user = await this.prisma.user.findUnique({ where: { id: player.userId } });
             if (!user)
                 continue;
             const chipDelta = player.chips - Number(user.chipBalance);
             if (chipDelta !== 0) {
                 await this.prisma.$transaction(async (tx) => {
-                    const updated = await tx.user.update({
+                    await tx.user.update({
                         where: { id: player.userId },
                         data: {
                             chipBalance: player.chips,

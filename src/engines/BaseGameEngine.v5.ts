@@ -26,8 +26,9 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { EngagementService } from '../services/EngagementService';
-import { getSyndicateService, SyndicateService } from '../services/SyndicateService';
-import { getLockManager, LOCK_PRESETS, LockResult } from '../services/LockManager';
+// @ts-expect-error - SyndicateService is a JS file without type definitions
+import { getSyndicateService } from '../services/SyndicateService';
+import { getLockManager, LOCK_PRESETS } from '../services/LockManager';
 
 /**
  * Game state machine (immutable across all games)

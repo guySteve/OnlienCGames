@@ -10,7 +10,7 @@
  * 4. Time Pressure (Happy Hour)
  */
 
-import { PrismaClient, TransactionType, User } from '@prisma/client';
+import { PrismaClient, TransactionType } from '@prisma/client';
 import crypto from 'crypto';
 // import { Redis } from 'ioredis';
 
@@ -107,7 +107,7 @@ export class EngagementService {
     const nextClaim = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     // Update user in transaction
-    const updatedUser = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       // Credit chips
       const updated = await tx.user.update({
         where: { id: userId },
@@ -269,7 +269,6 @@ export class EngagementService {
     userId: string;
     data: any;
   }): Promise<void> {
-    const key = `global:ticker:${Date.now()}`;
     await this.redis.lpush('global:ticker', JSON.stringify(event));
     await this.redis.ltrim('global:ticker', 0, 99); // Keep last 100 events
     await this.redis.expire('global:ticker', 3600);

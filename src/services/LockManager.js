@@ -210,7 +210,7 @@ class LockManager {
      */
     async extendLock(lock, additionalTtl) {
         try {
-            const extendedLock = await lock.extend(additionalTtl);
+            await lock.extend(additionalTtl);
             console.log(`🔒 Lock extended by ${additionalTtl}ms`);
             return true;
         }

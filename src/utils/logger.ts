@@ -40,8 +40,8 @@ const SENSITIVE_KEYS = [
 const EMAIL_PATTERN = /([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
 
 const redactEmail = (email: string): string => {
-  return email.replace(EMAIL_PATTERN, (match, user, domain) => {
-    const maskedUser = user.length > 2 
+  return email.replace(EMAIL_PATTERN, (_match, user, domain) => {
+    const maskedUser = user.length > 2
       ? user[0] + '*'.repeat(user.length - 2) + user[user.length - 1]
       : '***';
     return `${maskedUser}@${domain}`;

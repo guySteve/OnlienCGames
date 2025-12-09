@@ -119,7 +119,7 @@ class DealerBrain extends events_1.EventEmitter {
     /**
      * Generate dealer commentary based on context
      */
-    generateCommentary(context, event) {
+    generateCommentary(_context, event) {
         if (Math.random() > this.personality.chattiness) {
             return null; // Silent dealers talk less
         }

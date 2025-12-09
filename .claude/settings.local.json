@@ -18,7 +18,9 @@
       "Bash(gcloud run services describe:*)",
       "Bash(npx tsc:*)",
       "Bash(bash:*)",
-      "Bash(node -c:*)"
+      "Bash(node -c:*)",
+      "Bash(npm run build:ts:*)",
+      "Bash(gcloud config get-value:*)"
     ],
     "deny": [],
     "ask": []

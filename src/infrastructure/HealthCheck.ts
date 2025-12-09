@@ -129,7 +129,7 @@ async function checkRedis(
 
   try {
     // Race between ping and timeout
-    const result = await Promise.race([
+    await Promise.race([
       redis.ping(),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Redis timeout')), timeout)
@@ -354,7 +354,6 @@ function checkSystem(): ComponentHealth {
 export async function performHealthCheck(
   config: HealthCheckConfig
 ): Promise<HealthCheckResult> {
-  const startTime = Date.now();
   const timeout = config.timeout || DEFAULT_CONFIG.timeout;
 
   // Run all checks in parallel (fastest)
@@ -432,7 +431,7 @@ export async function performHealthCheck(
  * @returns Express request handler
  */
 export function createHealthCheckHandler(config: HealthCheckConfig) {
-  return async (req: Request, res: Response) => {
+  return async (_req: Request, res: Response) => {
     try {
       const result = await performHealthCheck(config);
 
@@ -477,7 +476,7 @@ export function createHealthCheckHandler(config: HealthCheckConfig) {
  * @returns Express request handler
  */
 export function createReadinessHandler(config: HealthCheckConfig) {
-  return async (req: Request, res: Response) => {
+  return async (_req: Request, res: Response) => {
     try {
       const timeout = 2000; // 2 seconds (fast)
 

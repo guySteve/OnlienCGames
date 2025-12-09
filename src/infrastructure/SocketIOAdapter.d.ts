@@ -23,7 +23,7 @@
  * @see https://socket.io/docs/v4/redis-adapter/
  * @version 5.0.0
  */
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, ServerOptions } from 'socket.io';
 import type { Server as HttpServer } from 'http';
 /**
  * Redis Adapter Configuration
@@ -85,7 +85,7 @@ export declare function setupRedisAdapter(io: SocketIOServer, config: RedisAdapt
  * });
  * ```
  */
-export declare function createScalableSocketIO(httpServer: HttpServer, redisConfig: RedisAdapterConfig, socketConfig?: Partial<Parameters<typeof SocketIOServer>[1]>): Promise<SocketIOServer>;
+export declare function createScalableSocketIO(httpServer: HttpServer, redisConfig: RedisAdapterConfig, socketConfig?: Partial<ServerOptions>): Promise<SocketIOServer>;
 /**
  * Get adapter statistics (for monitoring)
  *

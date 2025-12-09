@@ -111,7 +111,7 @@ export declare function performHealthCheck(config: HealthCheckConfig): Promise<H
  * @param config - Health check configuration
  * @returns Express request handler
  */
-export declare function createHealthCheckHandler(config: HealthCheckConfig): (req: Request, res: Response) => Promise<void>;
+export declare function createHealthCheckHandler(config: HealthCheckConfig): (_req: Request, res: Response) => Promise<void>;
 /**
  * Lightweight readiness check (Cloud Run startup probe)
  *
@@ -123,7 +123,7 @@ export declare function createHealthCheckHandler(config: HealthCheckConfig): (re
  * @param config - Health check configuration
  * @returns Express request handler
  */
-export declare function createReadinessHandler(config: HealthCheckConfig): (req: Request, res: Response) => Promise<void>;
+export declare function createReadinessHandler(config: HealthCheckConfig): (_req: Request, res: Response) => Promise<void>;
 export {};
 /**
  * USAGE EXAMPLE (server.js):

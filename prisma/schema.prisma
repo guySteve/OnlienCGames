@@ -28,8 +28,8 @@ model GameSession {
   roomId          String
   hostUserId      String
   initialDeckSeed String?
-  playerSeed      String?       // Player's seed commitment for Provably Fair 2.0
-  serverSeed      String?       // Server's QRNG-derived seed for Provably Fair 2.0
+  playerSeed      String? // Player's seed commitment for Provably Fair 2.0
+  serverSeed      String? // Server's QRNG-derived seed for Provably Fair 2.0
   finalState      Json
   totalPot        Int
   winners         Json
@@ -137,24 +137,24 @@ model User {
   moderationActions     ModerationLog[]   @relation("Moderator")
 
   // Social 2.0 Relations
-  syndicateMembership   SyndicateMember?
-  referralCodes         ReferralCode[]
-  referralsGiven        Referral[]        @relation("Referrer")
-  referralReceived      Referral?         @relation("Referee")
-  tipRecords            TipRecord[]
-  patronBadges          UserPatronBadge[]
+  syndicateMembership SyndicateMember?
+  referralCodes       ReferralCode[]
+  referralsGiven      Referral[]        @relation("Referrer")
+  referralReceived    Referral?         @relation("Referee")
+  tipRecords          TipRecord[]
+  patronBadges        UserPatronBadge[]
 
   // Referral tracking
-  referredBy            String?           // User ID who referred this user
-  referralCode          String?           // Code used during signup
+  referredBy   String? // User ID who referred this user
+  referralCode String? // Code used during signup
 
   // Generosity stats
-  totalTipped           BigInt            @default(0)
-  tipStreak             Int               @default(0)
-  lastTipDate           DateTime?
+  totalTipped BigInt    @default(0)
+  tipStreak   Int       @default(0)
+  lastTipDate DateTime?
 
   // WebAuthn biometric authentication
-  authenticators        Authenticator[]
+  authenticators Authenticator[]
 
   // Secret Comms
   sentDeadDrops     DeadDropMessage[] @relation("SentDeadDrops")
@@ -177,13 +177,13 @@ model DeadDropMessage {
   expiresAt DateTime
 
   fromUserId String
-  fromUser  User     @relation("SentDeadDrops", fields: [fromUserId], references: [id], onDelete: Cascade)
-  
-  toUserId  String
-  toUser    User     @relation("ReceivedDeadDrops", fields: [toUserId], references: [id], onDelete: Cascade)
+  fromUser   User   @relation("SentDeadDrops", fields: [fromUserId], references: [id], onDelete: Cascade)
 
-  encryptedContent String   @db.Text
-  viewed           Boolean  @default(false)
+  toUserId String
+  toUser   User   @relation("ReceivedDeadDrops", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  encryptedContent String  @db.Text
+  viewed           Boolean @default(false)
 
   @@index([toUserId, viewed, expiresAt])
 }
@@ -194,36 +194,36 @@ model DeadDropMessage {
 
 model Authenticator {
   // Primary Key (Auto-incrementing integer for efficient Free Tier)
-  id                   Int      @id @default(autoincrement())
-  createdAt            DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
 
   // Link to User
-  userId               String
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // FIDO2/WebAuthn Specific Fields (Bytes for space efficiency)
-  credentialID         Bytes    @unique
-  credentialPublicKey  Bytes
-  counter              BigInt   @default(0)
+  credentialID        Bytes  @unique
+  credentialPublicKey Bytes
+  counter             BigInt @default(0)
 
   // Optional metadata
-  transports           String?  // JSON array of transport types
-  deviceName           String?  @db.VarChar(100)
+  transports String? // JSON array of transport types
+  deviceName String? @db.VarChar(100)
 
   @@unique([userId, credentialID])
   @@index([userId])
 }
 
 model ChatMessage {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  userId      String
-  roomId      String?
-  message     String   @db.Text
-  isFiltered  Boolean  @default(false)
-  isFlagged   Boolean  @default(false)
-  flagReason  String?
-  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  userId     String
+  roomId     String?
+  message    String   @db.Text
+  isFiltered Boolean  @default(false)
+  isFlagged  Boolean  @default(false)
+  flagReason String?
+  User       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([roomId])
@@ -232,16 +232,16 @@ model ChatMessage {
 }
 
 model ModerationLog {
-  id            String         @id @default(cuid())
-  createdAt     DateTime       @default(now())
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
   moderatorId   String?
   userId        String
   action        ModAction
   reason        String?
   details       Json?
-  autoModerated Boolean        @default(false)
-  Moderator     User?          @relation("Moderator", fields: [moderatorId], references: [id])
-  User          User           @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
+  autoModerated Boolean   @default(false)
+  Moderator     User?     @relation("Moderator", fields: [moderatorId], references: [id])
+  User          User      @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([moderatorId])
@@ -260,13 +260,13 @@ enum ModAction {
 }
 
 model Friendship {
-  id          String           @id @default(cuid())
-  createdAt   DateTime         @default(now())
-  userId      String
-  friendId    String
-  status      FriendshipStatus @default(PENDING)
-  user        User             @relation("FriendInitiator", fields: [userId], references: [id], onDelete: Cascade)
-  friend      User             @relation("FriendReceiver", fields: [friendId], references: [id], onDelete: Cascade)
+  id        String           @id @default(cuid())
+  createdAt DateTime         @default(now())
+  userId    String
+  friendId  String
+  status    FriendshipStatus @default(PENDING)
+  user      User             @relation("FriendInitiator", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User             @relation("FriendReceiver", fields: [friendId], references: [id], onDelete: Cascade)
 
   @@unique([userId, friendId])
   @@index([userId, status])
@@ -360,37 +360,37 @@ enum VipTier {
 // =============================================================================
 
 model Syndicate {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Identity
-  name            String            @unique @db.VarChar(30)
-  tag             String            @unique @db.VarChar(6) // e.g., [ACES]
-  description     String?           @db.VarChar(500)
-  iconUrl         String?           @db.VarChar(500)
-  bannerUrl       String?           @db.VarChar(500)
+  name        String  @unique @db.VarChar(30)
+  tag         String  @unique @db.VarChar(6) // e.g., [ACES]
+  description String? @db.VarChar(500)
+  iconUrl     String? @db.VarChar(500)
+  bannerUrl   String? @db.VarChar(500)
 
   // Treasury
-  treasuryBalance BigInt            @default(0)
-  lifetimeEarnings BigInt           @default(0)
-  taxRate         Float             @default(0.01) // 1% default tax
+  treasuryBalance  BigInt @default(0)
+  lifetimeEarnings BigInt @default(0)
+  taxRate          Float  @default(0.01) // 1% default tax
 
   // Stats
-  totalMembers    Int               @default(1)
-  totalWins       BigInt            @default(0)
-  weeklyXP        Int               @default(0)
+  totalMembers Int    @default(1)
+  totalWins    BigInt @default(0)
+  weeklyXP     Int    @default(0)
 
   // Settings
-  isPublic        Boolean           @default(true)
-  minLevelToJoin  Int               @default(1)
-  maxMembers      Int               @default(50)
+  isPublic       Boolean @default(true)
+  minLevelToJoin Int     @default(1)
+  maxMembers     Int     @default(50)
 
   // Relationships
-  members         SyndicateMember[]
-  transactions    SyndicateTransaction[]
-  dividends       SyndicateDividend[]
-  invites         SyndicateInvite[]
+  members      SyndicateMember[]
+  transactions SyndicateTransaction[]
+  dividends    SyndicateDividend[]
+  invites      SyndicateInvite[]
 
   @@index([name])
   @@index([isPublic, minLevelToJoin])
@@ -398,27 +398,27 @@ model Syndicate {
 }
 
 model SyndicateMember {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  syndicateId     String
-  userId          String            @unique
+  syndicateId String
+  userId      String @unique
 
   // Role hierarchy: MEMBER < OFFICER < LEADER
-  role            SyndicateRole     @default(MEMBER)
+  role SyndicateRole @default(MEMBER)
 
   // Contribution tracking
-  contributedChips BigInt           @default(0)
-  weeklyContribution BigInt         @default(0)
-  dividendsReceived BigInt          @default(0)
+  contributedChips   BigInt @default(0)
+  weeklyContribution BigInt @default(0)
+  dividendsReceived  BigInt @default(0)
 
   // Activity
-  lastActive      DateTime          @default(now())
-  gamesPlayed     Int               @default(0)
+  lastActive  DateTime @default(now())
+  gamesPlayed Int      @default(0)
 
-  syndicate       Syndicate         @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syndicate Syndicate @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([syndicateId, userId])
   @@index([userId])
@@ -427,21 +427,21 @@ model SyndicateMember {
 }
 
 model SyndicateTransaction {
-  id              String                    @id @default(cuid())
-  createdAt       DateTime                  @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  syndicateId     String
-  userId          String?                   // null for system transactions
+  syndicateId String
+  userId      String? // null for system transactions
 
-  amount          BigInt
-  type            SyndicateTransactionType
-  balanceBefore   BigInt
-  balanceAfter    BigInt
+  amount        BigInt
+  type          SyndicateTransactionType
+  balanceBefore BigInt
+  balanceAfter  BigInt
 
-  description     String?
-  metadata        Json?
+  description String?
+  metadata    Json?
 
-  syndicate       Syndicate                 @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+  syndicate Syndicate @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
 
   @@index([syndicateId, createdAt])
   @@index([userId])
@@ -449,10 +449,10 @@ model SyndicateTransaction {
 }
 
 model SyndicateDividend {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  syndicateId     String
+  syndicateId String
 
   // Distribution details
   totalAmount     BigInt
@@ -460,29 +460,29 @@ model SyndicateDividend {
   amountPerMember BigInt
 
   // Eligibility criteria snapshot
-  minContribution BigInt            @default(0)
+  minContribution BigInt   @default(0)
   periodStart     DateTime
   periodEnd       DateTime
 
-  metadata        Json?             // Contains per-member breakdown
+  metadata Json? // Contains per-member breakdown
 
-  syndicate       Syndicate         @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+  syndicate Syndicate @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
 
   @@index([syndicateId, createdAt])
 }
 
 model SyndicateInvite {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  syndicateId     String
-  fromUserId      String
-  toUserId        String
+  syndicateId String
+  fromUserId  String
+  toUserId    String
 
-  status          InviteStatus      @default(PENDING)
-  expiresAt       DateTime
+  status    InviteStatus @default(PENDING)
+  expiresAt DateTime
 
-  syndicate       Syndicate         @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
+  syndicate Syndicate @relation(fields: [syndicateId], references: [id], onDelete: Cascade)
 
   @@index([toUserId, status])
   @@index([syndicateId])
@@ -495,12 +495,12 @@ enum SyndicateRole {
 }
 
 enum SyndicateTransactionType {
-  TAX_CONTRIBUTION      // Auto-deducted from big wins
-  MANUAL_DONATION       // Player voluntary donation
-  DIVIDEND_PAYOUT       // Weekly distribution to members
-  LEADER_WITHDRAWAL     // Leader withdraws for events
-  REFERRAL_BONUS        // Bonus from member referrals
-  WEEKLY_RESET          // Weekly contribution reset
+  TAX_CONTRIBUTION // Auto-deducted from big wins
+  MANUAL_DONATION // Player voluntary donation
+  DIVIDEND_PAYOUT // Weekly distribution to members
+  LEADER_WITHDRAWAL // Leader withdraws for events
+  REFERRAL_BONUS // Bonus from member referrals
+  WEEKLY_RESET // Weekly contribution reset
 }
 
 // =============================================================================
@@ -508,31 +508,31 @@ enum SyndicateTransactionType {
 // =============================================================================
 
 model Referral {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  referrerId      String            // User who shared the code
-  refereeId       String            @unique // New user who signed up
+  referrerId String // User who shared the code
+  refereeId  String @unique // New user who signed up
 
   // Referral code used
-  code            String
+  code String
 
   // Syndicate bonus (if referrer is in a syndicate)
-  syndicateId     String?
-  syndicateBonusPaid BigInt         @default(0)
+  syndicateId        String?
+  syndicateBonusPaid BigInt  @default(0)
 
   // Rewards tracking
-  referrerReward  BigInt            @default(0)
-  refereeReward   BigInt            @default(0)
+  referrerReward BigInt @default(0)
+  refereeReward  BigInt @default(0)
 
   // Milestones
   refereeFirstGame DateTime?
-  refereeLevelFive DateTime?        // Unlocks bonus rewards
+  refereeLevelFive DateTime? // Unlocks bonus rewards
 
-  status          ReferralStatus    @default(PENDING)
+  status ReferralStatus @default(PENDING)
 
-  referrer        User              @relation("Referrer", fields: [referrerId], references: [id])
-  referee         User              @relation("Referee", fields: [refereeId], references: [id])
+  referrer User @relation("Referrer", fields: [referrerId], references: [id])
+  referee  User @relation("Referee", fields: [refereeId], references: [id])
 
   @@index([referrerId])
   @@index([code])
@@ -540,35 +540,35 @@ model Referral {
 }
 
 model ReferralCode {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  userId          String
-  code            String            @unique @db.VarChar(12)
+  userId String
+  code   String @unique @db.VarChar(12)
 
   // Usage tracking
-  usageCount      Int               @default(0)
-  maxUses         Int?              // null = unlimited
+  usageCount Int  @default(0)
+  maxUses    Int? // null = unlimited
 
   // Rewards
-  referrerBonus   Int               @default(500)   // Chips for referrer
-  refereeBonus    Int               @default(1000)  // Chips for new user
-  syndicateBonus  Int               @default(100)   // Chips to syndicate treasury
+  referrerBonus  Int @default(500) // Chips for referrer
+  refereeBonus   Int @default(1000) // Chips for new user
+  syndicateBonus Int @default(100) // Chips to syndicate treasury
 
-  isActive        Boolean           @default(true)
-  expiresAt       DateTime?
+  isActive  Boolean   @default(true)
+  expiresAt DateTime?
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([code])
 }
 
 enum ReferralStatus {
-  PENDING         // Signed up but not played
-  ACTIVATED       // Played first game
-  COMPLETED       // Reached level 5
-  EXPIRED         // Never activated within 7 days
+  PENDING // Signed up but not played
+  ACTIVATED // Played first game
+  COMPLETED // Reached level 5
+  EXPIRED // Never activated within 7 days
 }
 
 // =============================================================================
@@ -576,21 +576,21 @@ enum ReferralStatus {
 // =============================================================================
 
 model TipRecord {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  userId          String
-  amount          Int
+  userId String
+  amount Int
 
   // Visibility
-  isAnonymous     Boolean           @default(false)
-  message         String?           @db.VarChar(100)
+  isAnonymous Boolean @default(false)
+  message     String? @db.VarChar(100)
 
   // Period tracking for leaderboards
-  weekNumber      Int               // ISO week number
-  yearNumber      Int
+  weekNumber Int // ISO week number
+  yearNumber Int
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([yearNumber, weekNumber])
@@ -598,52 +598,52 @@ model TipRecord {
 }
 
 model PatronBadge {
-  id              String            @id @default(cuid())
+  id String @id @default(cuid())
 
   // Badge definition
-  key             String            @unique
-  name            String
-  description     String
-  iconUrl         String
-  tier            PatronTier
+  key         String     @unique
+  name        String
+  description String
+  iconUrl     String
+  tier        PatronTier
 
   // Requirements
-  minTotalTips    BigInt            @default(0)
-  minWeeklyTips   Int               @default(0)
-  minTipStreak    Int               @default(0)
+  minTotalTips  BigInt @default(0)
+  minWeeklyTips Int    @default(0)
+  minTipStreak  Int    @default(0)
 
   // Display
-  frameColor      String?           // CSS color for avatar frame
-  chatBadge       String?           // Emoji/icon shown in chat
+  frameColor String? // CSS color for avatar frame
+  chatBadge  String? // Emoji/icon shown in chat
 
   // Relations
-  userBadges      UserPatronBadge[]
+  userBadges UserPatronBadge[]
 
   @@index([tier])
 }
 
 model UserPatronBadge {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  userId          String
-  badgeId         String
+  userId  String
+  badgeId String
 
   // For time-limited badges
-  expiresAt       DateTime?
+  expiresAt DateTime?
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badge           PatronBadge       @relation(fields: [badgeId], references: [id])
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge PatronBadge @relation(fields: [badgeId], references: [id])
 
   @@unique([userId, badgeId])
   @@index([userId])
 }
 
 enum PatronTier {
-  SUPPORTER       // 100+ total tips
-  BENEFACTOR      // 1000+ total tips
-  PHILANTHROPIST  // 5000+ total tips
-  LEGEND          // 25000+ total tips
+  SUPPORTER // 100+ total tips
+  BENEFACTOR // 1000+ total tips
+  PHILANTHROPIST // 5000+ total tips
+  LEGEND // 25000+ total tips
 }
 
 // =============================================================================
@@ -651,32 +651,30 @@ enum PatronTier {
 // =============================================================================
 
 model HappyHourSchedule {
-  id              String            @id @default(cuid())
-  createdAt       DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
   // Scheduling
-  dayOfWeek       Int?              // 0-6 (null = any day)
-  hourOfDay       Int?              // 0-23 (null = random)
+  dayOfWeek Int? // 0-6 (null = any day)
+  hourOfDay Int? // 0-23 (null = random)
 
   // Event config
-  durationMinutes Int               @default(60)
-  multiplier      Float             @default(1.5)
-  bonusType       HappyHourBonus    @default(XP_BOOST)
+  durationMinutes Int            @default(60)
+  multiplier      Float          @default(1.5)
+  bonusType       HappyHourBonus @default(XP_BOOST)
 
   // Randomization
-  isRandom        Boolean           @default(false)
-  minGapHours     Int               @default(4) // Min hours between random events
+  isRandom    Boolean @default(false)
+  minGapHours Int     @default(4) // Min hours between random events
 
-  isActive        Boolean           @default(true)
+  isActive Boolean @default(true)
 
   @@index([isActive, dayOfWeek, hourOfDay])
 }
 
 enum HappyHourBonus {
-  XP_BOOST        // Multiplied XP
-  CHIP_BOOST      // Multiplied chip wins
-  MYSTERY_BOOST   // Increased mystery drop rate
-  STREAK_PROTECT  // Streak cannot be lost
+  XP_BOOST // Multiplied XP
+  CHIP_BOOST // Multiplied chip wins
+  MYSTERY_BOOST // Increased mystery drop rate
+  STREAK_PROTECT // Streak cannot be lost
 }
-
-

@@ -361,8 +361,8 @@ export class CircuitBreakerService extends EventEmitter {
       let suspiciousCount = 0;
 
       for (const tx of transactions) {
-        // OUTFLOW: Money leaving the casino
-        if (tx.type === 'WITHDRAWAL' || tx.type === 'WIN') {
+        // OUTFLOW: Money leaving the casino (player wins)
+        if (tx.type === 'WIN' || tx.type === 'ADMIN_CREDIT' || tx.type === 'REFUND') {
           totalOutflow += tx.amount;
 
           // Flag suspicious: Single transaction > 100k chips
@@ -371,8 +371,8 @@ export class CircuitBreakerService extends EventEmitter {
           }
         }
 
-        // INFLOW: Money entering the casino
-        if (tx.type === 'DEPOSIT' || tx.type === 'LOSS') {
+        // INFLOW: Money entering the casino (player bets/loses)
+        if (tx.type === 'BET' || tx.type === 'ADMIN_DEBIT') {
           totalInflow += tx.amount;
         }
       }

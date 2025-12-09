@@ -171,7 +171,7 @@ class BlackjackEngineV5 extends BaseGameEngine_v5_1.BaseGameEngine {
      * 3. Check for bust
      * 4. Update state
      */
-    async handleHit(customState, player, hand) {
+    async handleHit(customState, _player, hand) {
         // Deal card
         const card = this.dealCard(customState);
         hand.cards.push(card);
@@ -195,7 +195,7 @@ class BlackjackEngineV5 extends BaseGameEngine_v5_1.BaseGameEngine {
     /**
      * Handle STAND action
      */
-    async handleStand(customState, player, hand) {
+    async handleStand(_customState, _player, hand) {
         hand.status = 'stand';
         return {
             success: true,
@@ -207,7 +207,7 @@ class BlackjackEngineV5 extends BaseGameEngine_v5_1.BaseGameEngine {
      *
      * CRITICAL: Money operation - uses deductChips (atomic transaction)
      */
-    async handleDouble(userId, seatIndex, customState, player, hand) {
+    async handleDouble(userId, seatIndex, customState, _player, hand) {
         // Validate double is allowed
         if (hand.cards.length !== 2 || hand.doubled) {
             throw new Error('INVALID_ACTION');
@@ -275,7 +275,7 @@ class BlackjackEngineV5 extends BaseGameEngine_v5_1.BaseGameEngine {
      *
      * CRITICAL: Money operation - awards half bet back
      */
-    async handleSurrender(userId, seatIndex, customState, player, hand) {
+    async handleSurrender(userId, seatIndex, _customState, _player, hand) {
         // Validate surrender is allowed (first action only)
         if (hand.cards.length !== 2) {
             throw new Error('INVALID_ACTION');

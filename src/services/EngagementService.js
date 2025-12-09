@@ -91,7 +91,7 @@ class EngagementService {
         const reward = this.calculateStreakReward(newStreak);
         const nextClaim = new Date(now.getTime() + 24 * 60 * 60 * 1000);
         // Update user in transaction
-        const updatedUser = await this.prisma.$transaction(async (tx) => {
+        await this.prisma.$transaction(async (tx) => {
             // Credit chips
             const updated = await tx.user.update({
                 where: { id: userId },
@@ -219,7 +219,6 @@ class EngagementService {
      * Creates FOMO and social envy
      */
     async emitGlobalEvent(event) {
-        const key = `global:ticker:${Date.now()}`;
         await this.redis.lpush('global:ticker', JSON.stringify(event));
         await this.redis.ltrim('global:ticker', 0, 99); // Keep last 100 events
         await this.redis.expire('global:ticker', 3600);

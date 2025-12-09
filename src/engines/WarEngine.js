@@ -346,7 +346,7 @@ class WarEngine extends GameEngine_1.GameEngine {
             // War phase - wait for player decisions
             this.warPhase = true;
             this.state = GameEngine_1.GameState.PLAYER_TURN;
-            for (const { index, spot } of tieSpots) {
+            for (const { spot } of tieSpots) {
                 spot.decision = 'pending';
             }
             this.events.emit('war_decisions_required', {

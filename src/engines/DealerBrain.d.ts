@@ -52,7 +52,7 @@ export declare class DealerBrain extends EventEmitter {
     /**
      * Generate dealer commentary based on context
      */
-    generateCommentary(context: GameContext, event: string): string | null;
+    generateCommentary(_context: GameContext, event: string): string | null;
     /**
      * Update emotional state based on game events
      */

@@ -105,7 +105,6 @@ const DEFAULT_CONFIG = {
  * ```
  */
 class AdminAlertService extends events_1.EventEmitter {
-    prisma;
     redis;
     config;
     // Rate limiting
@@ -132,9 +131,8 @@ class AdminAlertService extends events_1.EventEmitter {
         rateLimitedAlerts: 0,
         aggregatedAlerts: 0
     };
-    constructor(prisma, redis, config = {}) {
+    constructor(redis, config = {}) {
         super();
-        this.prisma = prisma;
         this.redis = redis;
         this.config = { ...DEFAULT_CONFIG, ...config };
         console.log('🚨 Admin Alert Service initialized');
@@ -255,7 +253,6 @@ class AdminAlertService extends events_1.EventEmitter {
      */
     async sendToConsole(alert) {
         const icon = this.getSeverityIcon(alert.severity);
-        const color = this.getSeverityColor(alert.severity);
         console.error('');
         console.error('='.repeat(80));
         console.error(`${icon} ADMIN ALERT [${alert.severity}] ${icon}`);
@@ -428,22 +425,6 @@ class AdminAlertService extends events_1.EventEmitter {
             case AlertSeverity.CRITICAL: return '🚨';
             case AlertSeverity.EMERGENCY: return '🆘';
             default: return '📢';
-        }
-    }
-    /**
-     * Get severity color (for terminal output)
-     *
-     * @param severity - Alert severity
-     * @returns ANSI color code
-     * @private
-     */
-    getSeverityColor(severity) {
-        switch (severity) {
-            case AlertSeverity.INFO: return '\x1b[36m'; // Cyan
-            case AlertSeverity.WARNING: return '\x1b[33m'; // Yellow
-            case AlertSeverity.CRITICAL: return '\x1b[31m'; // Red
-            case AlertSeverity.EMERGENCY: return '\x1b[35m'; // Magenta
-            default: return '\x1b[0m'; // Reset
         }
     }
     /**

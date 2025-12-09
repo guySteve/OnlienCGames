@@ -24,7 +24,6 @@
  * @security CRITICAL
  */
 
-import { PrismaClient } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { EventEmitter } from 'events';
 
@@ -180,7 +179,6 @@ const DEFAULT_CONFIG: AdminAlertConfig = {
  * ```
  */
 export class AdminAlertService extends EventEmitter {
-  private prisma: PrismaClient;
   private redis: Redis;
   private config: AdminAlertConfig;
 
@@ -212,12 +210,10 @@ export class AdminAlertService extends EventEmitter {
   };
 
   constructor(
-    prisma: PrismaClient,
     redis: Redis,
     config: Partial<AdminAlertConfig> = {}
   ) {
     super();
-    this.prisma = prisma;
     this.redis = redis;
     this.config = { ...DEFAULT_CONFIG, ...config };
 
@@ -360,7 +356,6 @@ export class AdminAlertService extends EventEmitter {
    */
   private async sendToConsole(alert: Alert): Promise<void> {
     const icon = this.getSeverityIcon(alert.severity);
-    const color = this.getSeverityColor(alert.severity);
 
     console.error('');
     console.error('='.repeat(80));
@@ -555,23 +550,6 @@ export class AdminAlertService extends EventEmitter {
       case AlertSeverity.CRITICAL: return '🚨';
       case AlertSeverity.EMERGENCY: return '🆘';
       default: return '📢';
-    }
-  }
-
-  /**
-   * Get severity color (for terminal output)
-   *
-   * @param severity - Alert severity
-   * @returns ANSI color code
-   * @private
-   */
-  private getSeverityColor(severity: AlertSeverity): string {
-    switch (severity) {
-      case AlertSeverity.INFO: return '\x1b[36m';      // Cyan
-      case AlertSeverity.WARNING: return '\x1b[33m';   // Yellow
-      case AlertSeverity.CRITICAL: return '\x1b[31m';  // Red
-      case AlertSeverity.EMERGENCY: return '\x1b[35m'; // Magenta
-      default: return '\x1b[0m';                       // Reset
     }
   }
 

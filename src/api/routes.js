@@ -14,7 +14,8 @@ function createApiRouter(prisma, engagement) {
     // ==========================================================================
     const requireAuth = (req, res, next) => {
         if (!req.user || !req.user.id) {
-            return res.status(401).json({ error: 'Not authenticated' });
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
         }
         next();
     };
@@ -47,7 +48,7 @@ function createApiRouter(prisma, engagement) {
             // Calculate next level progress
             const xpRequired = user.xpLevel ** 2 * 100;
             const xpProgress = (user.xpPoints / xpRequired) * 100;
-            res.json({
+            return res.json({
                 user: {
                     id: user.id,
                     displayName: user.displayName,
@@ -85,7 +86,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Profile error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     /**
@@ -109,7 +110,7 @@ function createApiRouter(prisma, engagement) {
                     customAvatar: customAvatar || undefined
                 }
             });
-            res.json({
+            return res.json({
                 success: true,
                 nickname: updated.nickname,
                 customAvatar: updated.customAvatar
@@ -117,7 +118,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Profile update error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     // ==========================================================================
@@ -137,7 +138,7 @@ function createApiRouter(prisma, engagement) {
                     nextClaimAt: result.nextClaimAt
                 });
             }
-            res.json({
+            return res.json({
                 success: true,
                 reward: result.reward,
                 nextClaimAt: result.nextClaimAt,
@@ -146,7 +147,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Daily reward error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     /**
@@ -157,7 +158,7 @@ function createApiRouter(prisma, engagement) {
         try {
             const userId = req.user.id;
             const status = await engagement.getStreakStatus(userId);
-            res.json({
+            return res.json({
                 currentStreak: status.currentStreak,
                 nextReward: status.nextReward,
                 canClaimAt: status.canClaimAt,
@@ -167,7 +168,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Streak status error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     // ==========================================================================
@@ -214,7 +215,7 @@ function createApiRouter(prisma, engagement) {
                     vipStatus: true
                 }
             });
-            res.json({
+            return res.json({
                 leaderboard: users.map((u, index) => ({
                     rank: index + 1,
                     userId: u.id,
@@ -230,7 +231,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Leaderboard error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     // ==========================================================================
@@ -262,7 +263,7 @@ function createApiRouter(prisma, engagement) {
                 }
             });
             const total = await prisma.transaction.count({ where: { userId } });
-            res.json({
+            return res.json({
                 transactions: transactions.map(t => ({
                     id: t.id,
                     date: t.createdAt,
@@ -283,7 +284,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Transactions error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     // ==========================================================================
@@ -293,17 +294,17 @@ function createApiRouter(prisma, engagement) {
      * GET /api/global-ticker
      * Get recent global events (big wins, mystery drops, etc.)
      */
-    router.get('/global-ticker', async (req, res) => {
+    router.get('/global-ticker', async (_req, res) => {
         try {
             const redis = engagement['redis']; // Access private redis instance
             const events = await redis.lrange('global:ticker', 0, 49);
-            res.json({
-                events: events.map(e => JSON.parse(e))
+            return res.json({
+                events: events.map((e) => JSON.parse(e))
             });
         }
         catch (error) {
             console.error('Global ticker error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     // ==========================================================================
@@ -312,7 +313,8 @@ function createApiRouter(prisma, engagement) {
     const requireAdmin = (req, res, next) => {
         // TODO: Implement proper admin role check
         if (!req.user || !req.user.id) {
-            return res.status(403).json({ error: 'Forbidden' });
+            res.status(403).json({ error: 'Forbidden' });
+            return;
         }
         next();
     };
@@ -324,7 +326,7 @@ function createApiRouter(prisma, engagement) {
         try {
             const { multiplier } = req.body;
             await engagement.triggerHappyHour(multiplier || 1.5);
-            res.json({
+            return res.json({
                 success: true,
                 message: 'Happy Hour started!',
                 multiplier: multiplier || 1.5
@@ -332,7 +334,7 @@ function createApiRouter(prisma, engagement) {
         }
         catch (error) {
             console.error('Happy Hour trigger error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     /**
@@ -366,14 +368,14 @@ function createApiRouter(prisma, engagement) {
                 });
                 return u;
             });
-            res.json({
+            return res.json({
                 success: true,
                 newBalance: Number(updated.chipBalance)
             });
         }
         catch (error) {
             console.error('Admin chip adjustment error:', error);
-            res.status(500).json({ error: 'Internal server error' });
+            return res.status(500).json({ error: 'Internal server error' });
         }
     });
     return router;

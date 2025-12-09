@@ -214,7 +214,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         this.events.emit('hand_started', { handNumber: this.handNumber });
         // Deal initial cards (player-dealer-player-dealer)
         for (let round = 0; round < 2; round++) {
-            for (const [key, player] of this.bjPlayers.entries()) {
+            for (const player of this.bjPlayers.values()) {
                 const card = this.dealCard();
                 player.hands[0].cards.push(card);
                 this.events.emit('player_card_dealt', { userId: player.userId, seatIndex: player.seatIndex, card, handIndex: 0 });
@@ -388,7 +388,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         await this.resolveHand();
     }
     async resolveDealerBlackjack() {
-        for (const [key, player] of this.bjPlayers.entries()) {
+        for (const player of this.bjPlayers.values()) {
             if (player.insurance > 0) {
                 const payout = player.insurance * this.INSURANCE_PAYOUT;
                 this.awardChips(player.userId, player.seatIndex, payout);
@@ -409,7 +409,7 @@ class BlackjackEngine extends GameEngine_1.GameEngine {
         this.state = GameEngine_1.GameState.RESOLVING;
         const dealerValue = this.calculateHandValue(this.dealerHand);
         const dealerBusted = dealerValue > 21;
-        for (const [key, player] of this.bjPlayers.entries()) {
+        for (const player of this.bjPlayers.values()) {
             for (const hand of player.hands) {
                 if (hand.status === 'bust') {
                     continue;

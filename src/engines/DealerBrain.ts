@@ -155,7 +155,7 @@ export class DealerBrain extends EventEmitter {
   /**
    * Generate dealer commentary based on context
    */
-  public generateCommentary(context: GameContext, event: string): string | null {
+  public generateCommentary(_context: GameContext, event: string): string | null {
     if (Math.random() > this.personality.chattiness) {
       return null; // Silent dealers talk less
     }

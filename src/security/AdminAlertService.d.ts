@@ -23,7 +23,6 @@
  * @version 5.0.0
  * @security CRITICAL
  */
-import { PrismaClient } from '@prisma/client';
 import { Redis } from 'ioredis';
 import { EventEmitter } from 'events';
 /**
@@ -159,14 +158,13 @@ export interface AdminAlertConfig {
  * ```
  */
 export declare class AdminAlertService extends EventEmitter {
-    private prisma;
     private redis;
     private config;
     private alertCounter;
     private resetInterval;
     private recentAlerts;
     private metrics;
-    constructor(prisma: PrismaClient, redis: Redis, config?: Partial<AdminAlertConfig>);
+    constructor(redis: Redis, config?: Partial<AdminAlertConfig>);
     /**
      * Send alert to all configured channels
      *
@@ -244,14 +242,6 @@ export declare class AdminAlertService extends EventEmitter {
      * @private
      */
     private getSeverityIcon;
-    /**
-     * Get severity color (for terminal output)
-     *
-     * @param severity - Alert severity
-     * @returns ANSI color code
-     * @private
-     */
-    private getSeverityColor;
     /**
      * Get severity color code (for Discord embeds)
      *
