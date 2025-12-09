@@ -4,9 +4,12 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const session = require('express-session');
-const passport = require('passport');
 const fs = require('fs');
 const { prisma } = require('./src/db');
+
+// Initialize Passport BEFORE using it
+require('./src/config/passport');
+const passport = require('passport');
 const { checkOperatingHours } = require('./src/middleware/operatingHours');
 const { isAdmin } = require('./src/middleware/auth');
 const webauthn = require('./src/webauthn');
