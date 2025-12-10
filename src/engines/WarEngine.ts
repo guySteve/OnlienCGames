@@ -30,8 +30,8 @@
 import { GameEngine, GameState } from './GameEngine';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
-import crypto from 'crypto';
-import https from 'https';
+import * as crypto from 'crypto';
+import * as https from 'https';
 import { EventEmitter } from 'events';
 
 type Redis = any;
@@ -630,7 +630,7 @@ export class WarEngine extends GameEngine {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        for (const [userId, payout] of this.pendingPayouts.entries()) {
+        for (const [userId, payout] of Array.from(this.pendingPayouts.entries())) {
           const player = this.playerInfo.get(userId);
           if (!player) continue;
 

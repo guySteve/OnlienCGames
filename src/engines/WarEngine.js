@@ -27,14 +27,44 @@
  *     - War Win: Player wins (+1 unit on war bet)
  *     - War Tie: Player wins (+2 units total)
  */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarEngine = void 0;
 const GameEngine_1 = require("./GameEngine");
-const crypto_1 = __importDefault(require("crypto"));
-const https_1 = __importDefault(require("https"));
+const crypto = __importStar(require("crypto"));
+const https = __importStar(require("https"));
 const events_1 = require("events");
 const SUITS = ['♠', '♥', '♦', '♣'];
 const RANKS = [
@@ -75,21 +105,21 @@ const NEON_COLORS = [
  */
 async function fetchQRNGEntropy() {
     return new Promise((resolve) => {
-        const request = https_1.default.get('https://drand.cloudflare.com/public/latest', (response) => {
+        const request = https.get('https://drand.cloudflare.com/public/latest', (response) => {
             let data = '';
             response.on('data', chunk => data += chunk);
             response.on('end', () => {
                 try {
                     const parsed = JSON.parse(data);
-                    resolve(parsed.randomness || crypto_1.default.randomBytes(32).toString('hex'));
+                    resolve(parsed.randomness || crypto.randomBytes(32).toString('hex'));
                 }
                 catch (e) {
-                    resolve(crypto_1.default.randomBytes(32).toString('hex'));
+                    resolve(crypto.randomBytes(32).toString('hex'));
                 }
             });
         });
         request.on('error', () => {
-            resolve(crypto_1.default.randomBytes(32).toString('hex'));
+            resolve(crypto.randomBytes(32).toString('hex'));
         });
     });
 }
@@ -142,7 +172,7 @@ class WarEngine extends GameEngine_1.GameEngine {
     }
     shuffleDeck(deck) {
         const shuffled = [...deck];
-        const combinedHash = crypto_1.default
+        const combinedHash = crypto
             .createHash('sha256')
             .update(this.playerSeed + this.serverSeed)
             .digest();
@@ -161,7 +191,7 @@ class WarEngine extends GameEngine_1.GameEngine {
         this.serverSeed = await fetchQRNGEntropy();
         this.deck = this.createDeck();
         this.events.emit('qrng_initialized', {
-            playerSeedHash: crypto_1.default.createHash('sha256').update(playerSeed).digest('hex').substring(0, 8)
+            playerSeedHash: crypto.createHash('sha256').update(playerSeed).digest('hex').substring(0, 8)
         });
     }
     getDualSeeds() {
@@ -522,11 +552,11 @@ class WarEngine extends GameEngine_1.GameEngine {
     async executeBatchedPayouts() {
         if (this.pendingPayouts.size === 0)
             return;
-        const sessionId = crypto_1.default.randomUUID();
+        const sessionId = crypto.randomUUID();
         this.events.emit('payout_batch_started', { playerCount: this.pendingPayouts.size });
         try {
             await this.prisma.$transaction(async (tx) => {
-                for (const [userId, payout] of this.pendingPayouts.entries()) {
+                for (const [userId, payout] of Array.from(this.pendingPayouts.entries())) {
                     const player = this.playerInfo.get(userId);
                     if (!player)
                         continue;

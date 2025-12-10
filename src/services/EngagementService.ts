@@ -11,7 +11,7 @@
  */
 
 import { PrismaClient, TransactionType } from '@prisma/client';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 // import { Redis } from 'ioredis';
 
 // Use any for Redis to support both node-redis and upstash/redis without strict type dependency

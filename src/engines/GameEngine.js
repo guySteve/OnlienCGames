@@ -102,7 +102,7 @@ class GameEngine {
      * Called at end of each hand
      */
     async persistChipChanges(sessionId) {
-        for (const player of this.players.values()) {
+        for (const player of Array.from(this.players.values())) {
             const user = await this.prisma.user.findUnique({ where: { id: player.userId } });
             if (!user)
                 continue;
