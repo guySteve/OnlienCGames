@@ -1,4 +1,5 @@
 // server.js
+console.log('Starting server.js...');
 require('dotenv').config();
 const http = require('http');
 const { Server } = require('socket.io');
@@ -23,6 +24,7 @@ initializeSocket(io, sessionMiddleware);
 
 async function startServer() {
     try {
+        console.log('Attempting to start HTTP server...');
         await new Promise((resolve, reject) => {
             serverHttp.listen(PORT, () => {
                 console.log(`✅ Server listening on port ${PORT}`);

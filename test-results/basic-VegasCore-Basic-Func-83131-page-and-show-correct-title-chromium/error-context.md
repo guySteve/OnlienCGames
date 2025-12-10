@@ -1,0 +1,48 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]: OnlineCGames
+    - text: 🪙
+    - link "Login" [ref=e5] [cursor=pointer]:
+      - /url: /auth/google
+  - main [ref=e6]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]:
+          - heading "🎰 Open a New Table" [level=2] [ref=e11]
+          - generic [ref=e12]:
+            - button "🃏 Start War Table" [ref=e13] [cursor=pointer]
+            - separator [ref=e14]
+            - button "🎁 Claim Daily Chips" [ref=e15] [cursor=pointer]
+        - heading "🃏 Casino Floor" [level=2] [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]:
+            - heading "👥 Friends" [level=3] [ref=e21]
+            - button "+ Add" [ref=e22] [cursor=pointer]
+          - generic [ref=e24]: No friends yet
+        - generic [ref=e25]:
+          - heading "Lobby Chat 🔒" [level=3] [ref=e26]
+          - generic [ref=e28]:
+            - textbox "Say hi..." [ref=e29]
+            - button "Send" [ref=e30] [cursor=pointer]
+  - contentinfo [ref=e31]:
+    - generic [ref=e32]:
+      - paragraph [ref=e33]: ✓ 100% FREE • NO REAL MONEY • NO GAMBLING • ENTERTAINMENT ONLY
+      - paragraph [ref=e34]: Moe's Card Room is a free social gaming platform. All chips are play-money with zero cash value. You cannot purchase chips or cash out winnings. For entertainment purposes only. Players must be 18+.
+      - generic [ref=e35]:
+        - link "Legal Terms" [ref=e36] [cursor=pointer]:
+          - /url: /legal
+        - text: "|"
+        - link "Privacy Policy" [ref=e37] [cursor=pointer]:
+          - /url: /privacy
+        - text: "|"
+        - link "Responsible Gaming" [ref=e38] [cursor=pointer]:
+          - /url: /responsible-gaming
+        - text: "|"
+        - link "How It Works" [ref=e39] [cursor=pointer]:
+          - /url: /how-it-works
+      - paragraph [ref=e40]: "© 2024 Moe's Card Room. Operating Hours: 10 PM - 2 AM Eastern Time."
+```

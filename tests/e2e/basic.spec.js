@@ -2,9 +2,14 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('VegasCore Basic Functionality', () => {
   
+  test.beforeEach(async ({ context }) => {
+    await context.clearCookies();
+    await context.clearPermissions();
+  });
+
   test('should load the homepage and show correct title', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Moe's Card Room/i);
+    await expect(page).toHaveTitle(/Welcome to Moe's Card Room/i);
   });
 
   test('should have login button', async ({ page }) => {
