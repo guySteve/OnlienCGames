@@ -13,10 +13,7 @@ import { CasinoClosedView } from './components/CasinoClosedView';
 import BiometricSetupPrompt from './components/BiometricSetupPrompt';
 
 // --- Legacy Components (to be phased out or integrated) ---
-import GameTable from './components/GameTable';
 import WarTableZones from './components/WarTableZones';
-import BingoGame from './components/BingoGame';
-import LetItRideTable from './components/LetItRideTable';
 import BettingControls from './components/BettingControls';
 import SyndicateHUD from './components/SyndicateHUD';
 import HappyHourBanner from './components/HappyHourBanner';
@@ -58,7 +55,6 @@ function App() {
 
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [mySeats, setMySeats] = useState([]);
-  const [bingoCards, setBingoCards] = useState([]);
 
 
   // Casino operating hours status
@@ -157,17 +153,10 @@ function App() {
     if (!lastEvent) return;
 
     switch (lastEvent.type) {
-      case 'bingo_card_purchased':
-        if (lastEvent.data?.cards) setBingoCards(lastEvent.data.cards);
-        break;
       case 'room_created':
       case 'private_war_created':
         setCurrentRoomId(lastEvent.data.roomId);
         setView('game');
-        break;
-      case 'bingo_room_created':
-        setCurrentRoomId(lastEvent.data.roomId);
-        setView('bingo');
         break;
       // Add other game events as needed
     }
@@ -193,20 +182,11 @@ function App() {
     console.log(`Joining game or creating room for game type: ${gameId}`);
 
     // For now, we just create a generic room based on a mock mapping.
-    const gameTypeMap = { '1': 'BLACKJACK', '2': 'WAR', '3': 'BINGO', '4': 'LET_IT_RIDE' };
-    const gameType = gameTypeMap[gameId] || 'WAR';
+    const gameType = 'WAR';
 
     setCurrentGameType(gameType);
 
-    if (gameType === 'BINGO') {
-        emit('create_bingo_room', {});
-    } else if (gameType === 'BLACKJACK') {
-        emit('create_blackjack_room', {});
-    } else if (gameType === 'LET_IT_RIDE') {
-        emit('create_let_it_ride_room', {});
-    } else {
-        emit('create_room', {});
-    }
+    emit('create_room', {});
   };
 
   const handleExitGame = () => {
@@ -214,7 +194,6 @@ function App() {
     setCurrentRoomId(null);
     setCurrentGameType(null);
     setMySeats([]);
-    setBingoCards([]);
     setView('lobby');
   };
 
@@ -292,17 +271,6 @@ function App() {
                           />
                        </motion.div>
                   )}
-                  {view === 'bingo' && (
-                       <motion.div key="bingo" variants={pageVariants} initial="initial" animate="in" exit="exit">
-                          <BingoGame
-                              gameState={gameState}
-                              playerCard={bingoCards}
-                              onBuyCard={() => emit('buy_bingo_card', {})}
-                              onClaimBingo={(cardId) => emit('claim_bingo', { cardId })}
-                              onExit={handleExitGame}
-                          />
-                       </motion.div>
-                  )}
               </AnimatePresence>
             )}
         </div>
@@ -344,30 +312,6 @@ const GameTableWrapper = ({ gameState, gameType, mySeats, onExit, user, currentR
     const [showProvablyFair, setShowProvablyFair] = useState(false);
 
     // For WAR games, use WarTableZones component
-    if (gameType === 'WAR') {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900 overflow-hidden flex flex-col">
-                <ProvablyFairVerifier
-                    gameState={gameState}
-                    gameSessionId={currentRoomId}
-                    isOpen={showProvablyFair}
-                    onClose={() => setShowProvablyFair(false)}
-                />
-                <WarTableZones
-                    socket={socket}
-                    roomId={currentRoomId}
-                    user={user}
-                    onExit={onExit}
-                />
-            </div>
-        );
-    }
-
-    if (gameType === 'LET_IT_RIDE') {
-        return <LetItRideTable socket={socket} gameState={gameState} user={user} />;
-    }
-
-    // For other games (Blackjack, Let It Ride), use the legacy GameTable
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900/10 to-slate-900 overflow-hidden flex flex-col">
             <ProvablyFairVerifier
@@ -376,39 +320,14 @@ const GameTableWrapper = ({ gameState, gameType, mySeats, onExit, user, currentR
                 isOpen={showProvablyFair}
                 onClose={() => setShowProvablyFair(false)}
             />
-            {/* Using a simplified header for in-game view */}
-            <header className="flex-shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-white/5 px-4 py-3 sm:px-6 sm:py-4 z-10 safe-area-top">
-                <div className="max-w-4xl mx-auto flex items-center justify-between">
-                <button onClick={onExit} className="text-slate-400 hover:text-white flex items-center gap-1 text-sm">
-                    <span>←</span> Lobby
-                </button>
-                <div className="bg-black/30 px-3 py-1.5 rounded-full border border-yellow-500/20 text-yellow-400 font-mono text-sm">
-                    $<AnimatedCounter value={user?.chipBalance || 0} />
-                </div>
-                </div>
-            </header>
-            <main className="flex-1 overflow-y-auto py-4 sm:py-8">
-                <GameTable
-                gameState={gameState}
-                mySeats={mySeats}
-                onSit={(seatIndex) => emit('sit_at_seat', { seatIndex, chips: 1000 })}
-                onLeave={(seatIndex) => emit('leave_seat', { seatIndex })}
-                />
-            </main>
-            <AnimatePresence>
-                {gameState?.bettingPhase && mySeats.length > 0 && (
-                <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }}>
-                    <BettingControls
-                        onBet={(amount) => mySeats.forEach(seatIdx => emit('place_bet', { seatIndex: seatIdx, betAmount: amount }))}
-                        minBet={gameState?.minBet || 10}
-                        balance={user?.chipBalance || 0}
-                        disabled={!isConnected}
-                    />
-                </motion.div>
-                )}
-            </AnimatePresence>
+            <WarTableZones
+                socket={socket}
+                roomId={currentRoomId}
+                user={user}
+                onExit={onExit}
+            />
         </div>
-    )
+    );
 }
 
 

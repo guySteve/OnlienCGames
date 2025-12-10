@@ -77,50 +77,6 @@ function initSocket() {
   socket.on('player_disconnected', (data) => { gameState = data.gameState; updateMySeats(); renderTable(); addRoomMessage({from:'System', msg:'A player disconnected', at:Date.now()}); });
   socket.on('error', (e) => alert(e.message));
   
-  // Bingo events
-  socket.on('bingo_room_created', (data) => {
-    roomId = data.roomId;
-    bingoGameState = data.gameState;
-    bingoCards = [];
-    showBingoGame();
-  });
-  socket.on('bingo_room_joined', (data) => {
-    roomId = data.roomId;
-    bingoGameState = data.gameState;
-    bingoCards = data.cards || [];
-    showBingoGame();
-    renderBingoCards();
-  });
-  socket.on('bingo_card_purchased', (data) => {
-    bingoCards = data.cards;
-    bingoGameState = data.gameState;
-    renderBingoCards();
-    auth.user.chipBalance -= 1; // Optimistic update
-    renderAuth();
-  });
-  socket.on('bingo_ball_called', handleBingoBallCalled);
-  socket.on('bingo_game_started', (data) => {
-    bingoGameState = data.gameState;
-    alert('Bingo game starting! Get ready!');
-  });
-  socket.on('bingo_winner', (data) => {
-    bingoGameState = data.gameState;
-    if (data.winner) {
-      showNotification(`🎉 BINGO! ${data.winner.name} wins with ${data.winner.pattern}! Pot: ${data.pot} chips`);
-    }
-  });
-  socket.on('bingo_pot_updated', (data) => {
-    bingoGameState = data.gameState;
-    if (bingoGameState) renderBingoUI();
-  });
-  socket.on('bingo_round_reset', (data) => {
-    bingoGameState = data.gameState;
-    bingoCards = [];
-    selectedBingoCard = null;
-    showNotification(data.message || '🎱 New round starting!');
-    renderBingoUI();
-  });
-  
   // Admin events
   socket.on('banned', (data) => {
     alert(`You have been banned. Reason: ${data.reason}`);
@@ -318,8 +274,6 @@ function renderRooms(list) {
     
     let icon = '🃏';
     let name = 'War';
-    if (r.gameType === 'BINGO') { icon = '🎱'; name = 'Bingo'; }
-    if (r.gameType === 'BLACKJACK') { icon = '♠️'; name = 'Blackjack'; }
     
     div.innerHTML = `<div><div class="room-id">${icon} ${name} Table ${r.roomId.substring(0,6)}</div><div style="font-size:.9em;opacity:.8">${r.seatedCount} Players | ${r.observerCount} Watching</div></div><button class="btn btn-success">Join Table</button>`;
     div.querySelector('button').onclick = () => joinRoom(r.roomId);
@@ -342,10 +296,6 @@ function addLobbyMessage(m) {
 function createRoom() {
   initSocket();
   socket.emit('create_room', { startingChips: 1000 });
-}
-function createBlackjackRoom() {
-  initSocket();
-  socket.emit('create_blackjack_room');
 }
 function joinRoom(id) {
   initSocket();
@@ -472,24 +422,8 @@ function renderHouse() {
   
   let cardsHtml = '';
   
-  // Handle Blackjack dealer hand
-  if (gameState.dealerHand && gameState.dealerHand.length > 0) {
-    cardsHtml = gameState.dealerHand.map((card, i) => {
-      // First card might be hidden if game state says so, but usually server sends what should be seen
-      // If card has no rank/suit, it's hidden
-      if (!card.rank) {
-        return '<div class="card card-back" style="margin-left: -30px;"><span class="dealer-icon">D</span></div>';
-      }
-      const isRed = card.suit === '♥' || card.suit === '♦';
-      const style = i > 0 ? 'margin-left: -30px;' : '';
-      return `<div class="card dealt ${isRed ? 'red' : 'black'}" style="${style}">
-        <span class="card-rank">${card.rank}</span>
-        <span class="card-suit">${card.suit}</span>
-      </div>`;
-    }).join('');
-  } 
   // Handle War house card
-  else if (gameState.houseCard) {
+  if (gameState.houseCard) {
     const houseCard = gameState.houseCard;
     const isRed = houseCard.suit === '♥' || houseCard.suit === '♦';
     cardsHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
@@ -578,24 +512,8 @@ function renderSeat(seatIndex) {
     // Occupied seat - show player info with chip stack
     let cardsHtml = '';
     
-    // Handle Blackjack hands
-    if (seat.hands && seat.hands.length > 0) {
-      cardsHtml = seat.hands.map((hand, hIndex) => {
-        return `<div class="hand-container" style="display:flex; margin-right:10px;">
-          ${hand.cards.map((card, cIndex) => {
-            const isRed = card.suit === '♥' || card.suit === '♦';
-            const style = cIndex > 0 ? 'margin-left: -25px;' : '';
-            return `<div class="card dealt ${isRed ? 'red' : 'black'}" style="${style}">
-              <span class="card-rank">${card.rank}</span>
-              <span class="card-suit">${card.suit}</span>
-            </div>`;
-          }).join('')}
-          ${hand.value ? `<div class="hand-value">${hand.value}</div>` : ''}
-        </div>`;
-      }).join('');
-    }
     // Handle War card
-    else if (seat.card) {
+    if (seat.card) {
       const isRed = seat.card.suit === '♥' || seat.card.suit === '♦';
       cardsHtml = `<div class="card dealt ${isRed ? 'red' : 'black'}">
         <span class="card-rank">${seat.card.rank}</span>
@@ -666,21 +584,8 @@ function renderDealerModern() {
 
   let cardsHtml = '';
 
-  // Handle Blackjack dealer hand
-  if (gameState.dealerHand && gameState.dealerHand.length > 0) {
-    cardsHtml = gameState.dealerHand.map((card, i) => {
-      if (!card.rank) {
-        return '<div class="card card-back card-3d"><span class="dealer-icon">🎴</span></div>';
-      }
-      const isRed = card.suit === '♥' || card.suit === '♦';
-      return `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
-        <span class="card-rank">${card.rank}</span>
-        <span class="card-suit">${card.suit}</span>
-      </div>`;
-    }).join('');
-  }
   // Handle War house card
-  else if (gameState.houseCard) {
+  if (gameState.houseCard) {
     const houseCard = gameState.houseCard;
     const isRed = houseCard.suit === '♥' || houseCard.suit === '♦';
     cardsHtml = `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
@@ -718,20 +623,7 @@ function renderPlayerSpot(spotIndex) {
     let cardsHtml = '';
 
     // Handle cards
-    if (seat.hands && seat.hands.length > 0) {
-      // Blackjack hands
-      cardsHtml = seat.hands.map((hand) => {
-        return `<div class="hand-container" style="display:flex; gap:5px;">
-          ${hand.cards.map((card) => {
-            const isRed = card.suit === '♥' || card.suit === '♦';
-            return `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
-              <span class="card-rank">${card.rank}</span>
-              <span class="card-suit">${card.suit}</span>
-            </div>`;
-          }).join('')}
-        </div>`;
-      }).join('');
-    } else if (seat.card) {
+    if (seat.card) {
       // War card
       const isRed = seat.card.suit === '♥' || seat.card.suit === '♦';
       cardsHtml = `<div class="card card-3d dealt ${isRed ? 'red' : 'black'}">
@@ -889,7 +781,6 @@ function showLobby() {
   }
   
   document.getElementById('gameScreen').style.display = 'none';
-  document.getElementById('bingoScreen').style.display = 'none';
   mySeats = [];
   gameState = null;
   roomId = null;
@@ -1227,259 +1118,6 @@ function handleChipsReceived(data) {
   fetchMe();
 }
 
-// ========== BINGO FUNCTIONALITY ==========
-
-let bingoCards = [];
-let bingoGameState = null;
-let bingoVoice = null;
-
-// Initialize speech synthesis for Bingo caller
-function initBingoVoice() {
-  if (!window.speechSynthesis) {
-    console.warn('Speech synthesis not supported');
-    return;
-  }
-  
-  // Wait for voices to load
-  speechSynthesis.onvoiceschanged = () => {
-    const voices = speechSynthesis.getVoices();
-    // Try to find a female voice
-    bingoVoice = voices.find(v => v.name.includes('Female') || v.name.includes('female') || v.lang.startsWith('en'));
-    if (!bingoVoice) bingoVoice = voices[0];
-  };
-}
-
-// Announce ball with smoky voice
-function announceBall(ball, letter) {
-  if (!bingoVoice || !window.speechSynthesis) return;
-  
-  const utterance = new SpeechSynthesisUtterance(`${letter} ${ball}`);
-  utterance.voice = bingoVoice;
-  utterance.pitch = 0.7; // Lower pitch for "smoky" sound
-  utterance.rate = 0.8; // Slower, deliberate pace
-  utterance.volume = 1.0;
-  
-  speechSynthesis.speak(utterance);
-}
-
-// Render Bingo card
-function renderBingoCard(card, container) {
-  const cardEl = document.createElement('div');
-  cardEl.className = 'bingo-card';
-  cardEl.dataset.cardId = card.id;
-  cardEl.onclick = () => selectBingoCard(card.id);
-  
-  // Header with BINGO letters
-  const header = document.createElement('div');
-  header.className = 'bingo-header';
-  ['B', 'I', 'N', 'G', 'O'].forEach(letter => {
-    const letterEl = document.createElement('div');
-    letterEl.className = 'bingo-letter';
-    letterEl.textContent = letter;
-    header.appendChild(letterEl);
-  });
-  cardEl.appendChild(header);
-  
-  // Grid
-  const grid = document.createElement('div');
-  grid.className = 'bingo-grid';
-  
-  for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 5; col++) {
-      const cell = document.createElement('div');
-      cell.className = 'bingo-cell';
-      
-      const num = card.grid[col][row];
-      if (num === 0) {
-        cell.classList.add('free-space');
-        cell.textContent = 'FREE';
-      } else {
-        cell.textContent = num;
-      }
-      
-      if (card.marked[col][row]) {
-        cell.classList.add('marked');
-      }
-      
-      grid.appendChild(cell);
-    }
-  }
-  cardEl.appendChild(grid);
-  
-  container.appendChild(cardEl);
-}
-
-let selectedBingoCard = null;
-
-// Select a Bingo card for claiming
-function selectBingoCard(cardId) {
-  selectedBingoCard = cardId;
-  // Highlight selected card
-  document.querySelectorAll('.bingo-card').forEach(card => {
-    if (card.dataset.cardId === cardId) {
-      card.classList.add('selected');
-    } else {
-      card.classList.remove('selected');
-    }
-  });
-}
-
-// Handle Bingo ball called
-function handleBingoBallCalled(data) {
-  bingoGameState = data.gameState;
-  announceBall(data.ball, data.letter);
-  
-  // Update big ball display
-  const bigBall = document.getElementById('bingoBigBall');
-  if (bigBall) {
-    bigBall.textContent = `${data.letter}-${data.ball}`;
-    bigBall.classList.add('animate-ball');
-    setTimeout(() => bigBall.classList.remove('animate-ball'), 1000);
-  }
-  
-  // Re-render cards to show marked numbers
-  renderBingoCards();
-}
-
-// Render all player's Bingo cards
-function renderBingoCards() {
-  const container = document.getElementById('bingoCardsContainer');
-  if (!container) return;
-  
-  container.innerHTML = '';
-  bingoCards.forEach(card => renderBingoCard(card, container));
-}
-
-// Claim BINGO
-function claimBingo() {
-  if (!socket || !roomId) return;
-  if (!selectedBingoCard) {
-    alert('Please select a card first by clicking on it!');
-    return;
-  }
-  socket.emit('claim_bingo', { cardId: selectedBingoCard });
-}
-
-// Buy Bingo card
-function buyBingoCard() {
-  if (!socket || !roomId) return;
-  if (bingoGameState && bingoGameState.phase !== 'BUYING') {
-    alert('Can only buy cards during buying phase');
-    return;
-  }
-  socket.emit('buy_bingo_card', {});
-}
-
-// Create Bingo room
-function createBingoRoom() {
-  if (!auth.authenticated) {
-    alert('Please log in to play Bingo');
-    return;
-  }
-  socket.emit('create_bingo_room', {});
-}
-
-// Show Bingo game screen
-function showBingoGame() {
-  document.getElementById('lobbyScreen').style.display = 'none';
-  document.getElementById('gameScreen').style.display = 'none';
-  document.getElementById('bingoScreen').style.display = 'block';
-  renderBingoUI();
-}
-
-// Leave Bingo room
-function leaveBingoRoom() {
-  if (roomId) {
-    socket.emit('leave_room', { roomId });
-  }
-  roomId = null;
-  bingoCards = [];
-  bingoGameState = null;
-  showLobby();
-}
-
-// Render Bingo UI
-function renderBingoUI() {
-  if (!bingoGameState) return;
-  
-  // Update pot and phase
-  document.getElementById('bingoPot').textContent = `Pot: ${bingoGameState.pot} chips`;
-  
-  // Show phase with helpful messages
-  let phaseText = bingoGameState.phase;
-  if (bingoGameState.phase === 'BUYING') {
-    phaseText = '🛒 BUYING PHASE - Buy your cards now!';
-  } else if (bingoGameState.phase === 'PLAYING') {
-    if (bingoCards.length === 0) {
-      phaseText = '👀 WATCHING - Next round you can play!';
-    } else {
-      phaseText = '🎱 GAME IN PROGRESS';
-    }
-  } else if (bingoGameState.phase === 'COMPLETE') {
-    phaseText = '🎉 GAME OVER - New round starting soon!';
-  }
-  document.getElementById('bingoPhase').textContent = phaseText;
-  
-  // Update called numbers display with rolling animation
-  const calledNumbersEl = document.getElementById('bingoCalledNumbers');
-  if (calledNumbersEl && bingoGameState.drawnNumbers) {
-    // Clear and rebuild
-    calledNumbersEl.innerHTML = '';
-    calledNumbersEl.className = 'bingo-rolling-area';
-    
-    // Show all numbers in reverse order (newest first)
-    [...bingoGameState.drawnNumbers].reverse().forEach((n, index) => {
-      const ball = document.createElement('div');
-      ball.className = `bingo-ball-display ${index === 0 ? 'latest' : ''}`;
-      ball.textContent = n;
-      
-      // Add letter above number
-      const letter = getBingoLetterFromNum(n);
-      ball.innerHTML = `<div style="font-size:0.6em;margin-bottom:-5px">${letter}</div><div>${n}</div>`;
-      
-      calledNumbersEl.appendChild(ball);
-    });
-  }
-  
-  // Enable/disable BINGO button
-  const bingoBtn = document.getElementById('bingoButton');
-  if (bingoBtn) {
-    bingoBtn.disabled = bingoGameState.phase !== 'PLAYING' || bingoCards.length === 0;
-    if (bingoCards.length === 0) {
-      bingoBtn.textContent = 'Buy cards to play!';
-    } else {
-      bingoBtn.textContent = 'BINGO!';
-    }
-  }
-  
-  // Show/hide buy button based on phase
-  const buyBtn = document.querySelector('.bingo-controls .btn-gold');
-  if (buyBtn) {
-    if (bingoGameState.phase === 'BUYING') {
-      buyBtn.style.display = 'block';
-      buyBtn.textContent = `Buy Card (1 chip) - ${bingoCards.length}/5`;
-    } else if (bingoGameState.phase === 'PLAYING') {
-      buyBtn.style.display = 'none';
-    } else {
-      buyBtn.style.display = 'block';
-      buyBtn.textContent = 'Next round starting soon...';
-      buyBtn.disabled = true;
-    }
-  }
-  
-  renderBingoCards();
-}
-
-// Helper to get Bingo letter from number
-function getBingoLetterFromNum(num) {
-  if (num >= 1 && num <= 15) return 'B';
-  if (num >= 16 && num <= 30) return 'I';
-  if (num >= 31 && num <= 45) return 'N';
-  if (num >= 46 && num <= 60) return 'G';
-  if (num >= 61 && num <= 75) return 'O';
-  return '';
-}
-
 // ========== INFO MODAL FUNCTIONALITY ==========
 
 let currentInfoTab = 'rules';
@@ -1577,7 +1215,6 @@ window.addEventListener('load', async () => {
   await checkCasinoStatus();
   showLobby();
   initSocket();
-  initBingoVoice();
   initChipClickHandlers(); // Initialize chip betting system
 
   if (auth.authenticated) {

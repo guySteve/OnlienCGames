@@ -315,9 +315,6 @@ model UserAchievement {
 
 enum GameType {
   WAR
-  BLACKJACK
-  BINGO
-  LET_IT_RIDE
 }
 
 enum HandResult {

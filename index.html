@@ -7,9 +7,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   
   <!-- SEO Meta Tags -->
-  <title>Free Online Card Games with Friends | Moe's Card Room</title>
-  <meta name="description" content="Play free poker, blackjack, casino war & bingo with friends online. No downloads, no real money, 100% free play-money gaming. Open 10 PM - 2 AM ET.">
-  <meta name="keywords" content="free online poker, play blackjack free, casino war online, play money poker, social card games, free card games with friends">
+  <title>Free Online Casino War Game with Friends | Moe's Card Room</title>
+  <meta name="description" content="Play the classic card game Casino War with friends online for free. No downloads, no real money, 100% free play-money gaming. Open 10 PM - 2 AM ET.">
+  <meta name="keywords" content="free online casino war, play casino war free, casino war online, play money casino war, social card games, free card games with friends">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://playwar.games/">
   
@@ -128,8 +128,6 @@
             <h2>🎰 Open a New Table</h2>
             <div class="new-table-controls">
               <button class="btn btn-gold btn-large" onclick="createRoom()">🃏 Start War Table</button>
-              <button class="btn btn-gold btn-large" onclick="createBlackjackRoom()" style="margin-top: 10px;">♠️ Start Blackjack</button>
-              <button class="btn btn-gold btn-large" onclick="createBingoRoom()" style="margin-top: 10px;">🎱 Start Bingo Hall</button>
               <hr style="border-color: #1e6048; margin: 15px 0;">
               <button id="dailyRewardBtn" class="btn btn-success btn-large" onclick="claimDailyReward()">🎁 Claim Daily Chips</button>
             </div>
@@ -349,96 +347,7 @@
     </div>
   </div>
 
-  <!-- Info Modal -->
-  <div id="infoModal" class="modal" style="display:none;">
-    <div class="modal-content info-modal">
-      <h2>ℹ️ Information Hub</h2>
-      <div class="info-tabs">
-        <button class="info-tab-btn active" data-tab="rules" onclick="showInfoTab('rules')">Rules</button>
-        <button class="info-tab-btn" data-tab="encryption" onclick="showInfoTab('encryption')">🔒 Encryption</button>
-        <button class="info-tab-btn" data-tab="chips" onclick="showInfoTab('chips')">💰 Chips</button>
-        <button class="info-tab-btn" data-tab="tip" onclick="showInfoTab('tip')">🎩 Tip Moe</button>
-      </div>
-      
-      <div class="info-tab-content" data-tab="rules">
-        <h3>Game Rules</h3>
-        <div class="rules-section">
-          <h4>🃏 Casino War</h4>
-          <p>Each player and the dealer draw one card. Highest card wins! In case of a tie, you can surrender for half your bet or go to war by doubling your bet.</p>
-          
-          <h4>🎴 Blackjack</h4>
-          <p>Get as close to 21 as possible without going over. Face cards are worth 10, Aces are 1 or 11. Beat the dealer's hand to win!</p>
-          
-          <h4>🎱 Bingo</h4>
-          <p>Buy up to 5 cards for 1 chip each. When balls are called, they're auto-marked on your cards. Click the BINGO button when you complete a line (horizontal, vertical, or diagonal). Winner takes the pot!</p>
-        </div>
-      </div>
-      
-      <div class="info-tab-content" data-tab="encryption" style="display:none;">
-        <h3>🔒 End-to-End Encryption</h3>
-        <p>Your room chats are secured with <strong>AES-256 encryption</strong>.</p>
-        <p>Each room has a unique encryption key that only participants know. Even Moe can't read your messages - only you and your friends at the table can!</p>
-        <p>Lobby chat is not encrypted since it's public.</p>
-      </div>
-      
-      <div class="info-tab-content" data-tab="chips" style="display:none;">
-        <h3>💰 About Chips</h3>
-        <p><strong>Daily Refresh:</strong> Your chips refresh to 1,000 every day at Midnight EST.</p>
-        <p><strong>Earning More:</strong> Win games, complete achievements, and maintain login streaks to earn bonus chips!</p>
-        <p><strong>Buying Chips:</strong> <span class="coming-soon-badge">COMING SOON</span></p>
-        <p>Stay tuned for the ability to purchase chips with real money!</p>
-      </div>
-      
-      <div class="info-tab-content" data-tab="tip" style="display:none;">
-        <h3>🎩 Tip the House</h3>
-        <p>Enjoying Moe's Card Room? Show your appreciation by sending a tip!</p>
-        <div class="tip-form">
-          <label>Amount (chips)</label>
-          <input type="number" id="tipAmount" min="1" value="10" />
-          <label>Note (optional)</label>
-          <textarea id="tipNote" maxlength="200" placeholder="Thanks for the great experience!"></textarea>
-          <button class="btn btn-gold" onclick="submitTip()">Send Tip 💝</button>
-        </div>
-      </div>
-      
-      <div class="modal-buttons">
-        <button class="btn" onclick="closeInfoModal()">Close</button>
-      </div>
-    </div>
-  </div>
 
-  <!-- Bingo Game Screen -->
-  <section id="bingoScreen" class="screen" style="display:none;">
-    <div class="bingo-layout">
-      <div class="bingo-header-bar">
-        <h1>🎱 BINGO HALL</h1>
-        <div class="bingo-info">
-          <span id="bingoPot">Pot: 0</span>
-          <span id="bingoPhase">Buying Phase</span>
-        </div>
-        <button class="btn" onclick="leaveBingoRoom()">Leave Room</button>
-      </div>
-      
-      <div class="bingo-main">
-        <div class="bingo-left">
-          <div id="bingoBigBall" class="big-ball">-</div>
-          <div id="bingoCalledNumbers" class="called-numbers"></div>
-          <div class="bingo-controls">
-            <button class="btn btn-gold" onclick="buyBingoCard()">Buy Card (1 chip)</button>
-            <button id="bingoButton" class="bingo-claim-btn" onclick="claimBingo()">BINGO!</button>
-          </div>
-        </div>
-        
-        <div class="bingo-right">
-          <h3>Your Cards</h3>
-          <div id="bingoCardsContainer" class="bingo-cards-container"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Floating Info Button -->
-  <button class="floating-info-btn" onclick="openInfoModal()" title="Information">ℹ️</button>
 
   <!-- SEO Footer -->
   <footer style="background: rgba(0,0,0,0.5); border-top: 1px solid rgba(212,175,55,0.3); padding: 25px 20px; text-align: center; margin-top: 40px;">

@@ -5,10 +5,7 @@ const { sanitizeMessage } = require('../encryption');
 const { getOperatingHoursStatus } = require('../middleware/operatingHours');
 const { AutoModerationService } = require('../services/AutoModerationService');
 const { EngagementService } = require('../services/EngagementService');
-const { LetItRideEngine } = require('../engines/LetItRideEngine');
-const { BlackjackEngine } = require('../engines/BlackjackEngine');
 const { WarEngine } = require('../engines/WarEngine');
-const { BingoEngine } = require('../engines/BingoEngine');
 const {
     encryptDeadDrop,
     decryptDeadDrop,
@@ -19,7 +16,6 @@ const {
 const games = new Map();
 const playerToGame = new Map();
 const privateWarRooms = new Map();
-let globalBingoGame = null;
 
 async function getUserProfile(googleId) {
     try {
@@ -65,21 +61,9 @@ function initializeSocket(io, sessionMiddleware) {
         // Move all socket handlers from server.js here...
         // For brevity, only a few are shown, but all should be moved.
         
-        socket.on('create_let_it_ride_room', async (data = {}) => {
-            // ... implementation
-        });
 
-        socket.on('lir_decision', async (data) => {
-            // ... implementation
-        });
 
-        socket.on('create_blackjack_room', async (data = {}) => {
-            // ... implementation
-        });
 
-        socket.on('create_war_room', async (data = {}) => {
-            // ... this is likely legacy, should be create_private_war
-        });
 
         // =============================================================================
         // SECRET COMMS - Dead Drop Encrypted Messaging
