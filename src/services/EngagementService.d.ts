@@ -76,14 +76,6 @@ export declare class EngagementService {
      */
     recordBigWin(userId: string, amount: number, gameType: string): Promise<void>;
     /**
-     * Check if Happy Hour is currently active
-     * Returns multiplier (e.g., 1.5x XP/chips)
-     */
-    /**
-     * Trigger random Happy Hour (admin/cron triggered)
-     * Duration: 60 minutes
-     */
-    /**
      * Award XP and check for level up
      * Level formula: XP required = level^2 * 100
      */

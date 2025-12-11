@@ -444,35 +444,16 @@ function createApiRouter(prisma, engagement, friendService, chatService) {
     // ADMIN ROUTES (Protected)
     // ==========================================================================
     const requireAdmin = (req, res, next) => {
-        // TODO: Implement proper admin role check
         if (!req.user || !req.user.id) {
             res.status(403).json({ error: 'Forbidden' });
             return;
         }
+        if (!req.user.isAdmin) {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
         next();
     };
-    /**
-     * POST /api/admin/trigger-happy-hour
-     * Manually trigger Happy Hour event
-     */
-    /**
-     * POST /api/admin/trigger-happy-hour
-     * Manually trigger Happy Hour event
-     */
-    // router.post('/admin/trigger-happy-hour', requireAuth, requireAdmin, async (req: Request, res: Response) => {
-    //   try {
-    //     const { multiplier } = req.body;
-    //     await engagement.triggerHappyHour(multiplier || 1.5);
-    //     return res.json({
-    //       success: true,
-    //       message: 'Happy Hour started!',
-    //       multiplier: multiplier || 1.5
-    //     });
-    //   } catch (error) {
-    //     console.error('Happy Hour trigger error:', error);
-    //     return res.status(500).json({ error: 'Internal server error' });
-    //   }
-    // });
     /**
      * POST /api/admin/adjust-chips
      * Admin chip adjustment (with audit trail)
