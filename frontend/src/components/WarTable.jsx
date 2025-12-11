@@ -240,7 +240,7 @@ const WarTable = ({ socket, roomId, userId, playerColor, playerChips, onBet }) =
       <div className="max-w-6xl mx-auto mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <span>⚔️</span> Casino War <span>⚔️</span>
+            <span>⚔️</span> War <span>⚔️</span>
           </h1>
           <p className="text-red-300">Highest card wins. Go to war on ties!</p>
         </div>

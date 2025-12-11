@@ -55,16 +55,7 @@ model Hand {
   @@index([sessionId, handNumber])
 }
 
-model HappyHour {
-  id         String   @id
-  startTime  DateTime
-  endTime    DateTime
-  multiplier Float    @default(1.5)
-  active     Boolean  @default(true)
-  metadata   Json?
-
-  @@index([active, startTime, endTime])
-}
+// HappyHour model removed - feature deprecated
 
 model Transaction {
   id            String          @id @default(cuid())
@@ -316,6 +307,7 @@ model UserAchievement {
 
 enum GameType {
   WAR
+  BLACKJACK
 }
 
 enum HandResult {

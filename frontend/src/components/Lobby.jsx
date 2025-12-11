@@ -4,14 +4,12 @@ import { motion } from 'framer-motion';
 const Lobby = ({ rooms, onJoin, onCreate }) => {
   const gameTypeIcons = {
     BLACKJACK: '🃏',
-    WAR: '⚔️',
-    BINGO: '🎱'
+    WAR: '⚔️'
   };
-  
+
   const gameTypeColors = {
     BLACKJACK: 'from-emerald-500/20 to-emerald-900/20 border-emerald-500/30',
-    WAR: 'from-red-500/20 to-red-900/20 border-red-500/30',
-    BINGO: 'from-purple-500/20 to-purple-900/20 border-purple-500/30'
+    WAR: 'from-red-500/20 to-red-900/20 border-red-500/30'
   };
 
   return (

@@ -2,17 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from '../components/ui/GameCard';
-import SyndicateHUD from '../components/SyndicateHUD';
-import HappyHourBanner from '../components/HappyHourBanner';
 
 const allGames = [
   { id: '1', name: 'Blackjack', type: 'BLACKJACK', category: 'Card Games', description: 'Classic 21. Beat the dealer.', players: 12, minBet: 10 },
   { id: '2', name: 'War', type: 'WAR', category: 'Card Games', description: 'High card wins. Simple & fast.', players: 8, minBet: 5 },
-  { id: '3', name: '75-Ball Bingo', type: 'BINGO', category: 'Community', description: 'Join the party and daub away.', players: 42, minBet: 1 },
-  { id: '4', name: 'Let It Ride', type: 'LET IT RIDE', category: 'Card Games', description: 'Poker-style with a twist.', players: 5, minBet: 25 },
 ];
 
-const filters = ['All Games', 'Card Games', 'Community'];
+const filters = ['All Games', 'Card Games'];
 
 const lobbyVariants = {
   initial: { opacity: 0, scale: 1.1, y: 50 },
@@ -61,7 +57,6 @@ const FilterPill = ({ label, isActive, onClick }) => (
 
 export function GameLobbyView({ onJoinGame, socket, user }) {
   const [activeFilter, setActiveFilter] = useState('All Games');
-  const [syndicateExpanded, setSyndicateExpanded] = useState(false);
 
   const filteredGames = useMemo(() => {
     if (activeFilter === 'All Games') return allGames;
@@ -69,18 +64,6 @@ export function GameLobbyView({ onJoinGame, socket, user }) {
   }, [activeFilter]);
 
   return (
-    <>
-      {/* Happy Hour Banner - Positioned at top */}
-      <HappyHourBanner socket={socket} />
-
-      {/* Syndicate HUD - Positioned top-right */}
-      <SyndicateHUD
-        socket={socket}
-        userId={user?.id}
-        isExpanded={syndicateExpanded}
-        onToggle={() => setSyndicateExpanded(!syndicateExpanded)}
-      />
-
       <motion.div
         variants={lobbyVariants}
         initial="initial"
@@ -136,6 +119,5 @@ export function GameLobbyView({ onJoinGame, socket, user }) {
         </motion.div>
       </div>
     </motion.div>
-    </>
   );
 }

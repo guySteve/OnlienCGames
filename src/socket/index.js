@@ -58,7 +58,7 @@ function initializeSocket(io, sessionMiddleware) {
         if (!isAdminUser) {
             const { isOpen } = getOperatingHoursStatus();
             if (!isOpen) {
-                socket.emit('error', { message: 'Casino is closed.' });
+                socket.emit('error', { message: 'Card room is closed.' });
                 return socket.disconnect(true);
             }
         }
