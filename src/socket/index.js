@@ -16,6 +16,8 @@ const {
 const games = new Map();
 const playerToGame = new Map();
 const privateWarRooms = new Map();
+const viewers = new Map();
+const chat_history = new Map();
 
 async function getUserProfile(googleId) {
     try {
@@ -64,6 +66,65 @@ function initializeSocket(io, sessionMiddleware) {
 
 
 
+
+socket.on('create_room', async (config) => {
+            const roomId = crypto.randomBytes(8).toString('hex');
+            const game = new WarEngine(io, { ...config, roomId });
+            games.set(roomId, game);
+            playerToGame.set(socket.id, roomId);
+            viewers.set(roomId, []);
+            chat_history.set(roomId, []);
+            socket.join(roomId);
+            io.to('lobby').emit('rooms_update', getRoomsSummary());
+            socket.emit('room_created', { roomId, gameState: game.getGameState() });
+        });
+
+        socket.on('join_room', async (data) => {
+            const { roomId } = data;
+            const game = games.get(roomId);
+            if (game) {
+                playerToGame.set(socket.id, roomId);
+                socket.join(roomId);
+                const userProfile = await getUserProfile(user.googleId);
+                const viewersList = viewers.get(roomId);
+                viewersList.push({ id: socket.id, ...userProfile });
+                viewers.set(roomId, viewersList);
+                io.to(roomId).emit('viewers_list', viewersList);
+                socket.emit('room_joined', { roomId, gameState: game.getGameState() });
+                socket.emit('chat_history', chat_history.get(roomId));
+            } else {
+                socket.emit('error', { message: 'Room not found' });
+            }
+        });
+
+        socket.on('leave_room', (data) => {
+            const { roomId } = data;
+            const game = games.get(roomId);
+            if (game) {
+                playerToGame.delete(socket.id);
+                socket.leave(roomId);
+                const viewersList = viewers.get(roomId).filter(v => v.id !== socket.id);
+                viewers.set(roomId, viewersList);
+                io.to(roomId).emit('viewers_list', viewersList);
+            }
+        });
+
+        socket.on('room_chat', async (data) => {
+            const { roomId, msg } = data;
+            const game = games.get(roomId);
+            if (game) {
+                const userProfile = await getUserProfile(user.googleId);
+                const message = { from: userProfile.nickname, msg, photo: userProfile.avatar };
+                const roomChatHistory = chat_history.get(roomId);
+                roomChatHistory.push(message);
+                chat_history.set(roomId, roomChatHistory);
+                io.to(roomId).emit('room_message', message);
+            }
+        });
+
+        socket.on('get_rooms', () => {
+            socket.emit('rooms_list', getRoomsSummary());
+        });
 
         // =============================================================================
         // SECRET COMMS - Dead Drop Encrypted Messaging
@@ -474,6 +535,9 @@ function initializeSocket(io, sessionMiddleware) {
                 if (game) {
                     // This logic should be delegated to the game engine
                     // game.removePlayer(socket.id); 
+                    const viewersList = viewers.get(roomId).filter(v => v.id !== socket.id);
+                    viewers.set(roomId, viewersList);
+                    io.to(roomId).emit('viewers_list', viewersList);
                     io.to(roomId).emit('player_disconnected', { gameState: game.getGameState() });
                     if (game.getPlayerCount() === 0) {
                         games.delete(roomId);

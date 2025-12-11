@@ -29,6 +29,26 @@ function initSocket() {
   socket.on('rooms_list', renderRooms);
   socket.on('rooms_update', renderRooms);
   socket.on('lobby_message', addLobbyMessage);
+  socket.on('viewers_list', (viewers) => {
+    const viewersList = document.getElementById('viewersList');
+    if (viewersList) {
+      viewersList.innerHTML = viewers.map(v => `
+        <div class="viewer-item">
+          <img src="${v.avatar}" class="viewer-avatar">
+          <span class="viewer-name">${v.nickname}</span>
+        </div>
+      `).join('');
+    }
+  });
+
+  socket.on('chat_history', (history) => {
+    const chatBox = document.getElementById('lobbyChatBox');
+    if (chatBox) {
+      chatBox.innerHTML = '';
+      history.forEach(addLobbyMessage);
+    }
+  });
+
   // Friends and invites
   socket.on('friend_request', handleFriendRequest);
   socket.on('table_invite', handleTableInvite);
@@ -288,11 +308,9 @@ function sendLobbyChat() {
 }
 function addLobbyMessage(m) {
   const box = document.getElementById('lobbyChatBox');
-  const row = document.createElement('div');
-  row.className = 'retro-chat-message';
-  row.innerHTML = `<span class="username">${ClientCrypto.sanitize(m.from)}:</span> ${ClientCrypto.sanitize(m.msg)}`;
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
+  const row = document.createElement('div'); row.className='chat-row';
+  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
+  box.appendChild(row); box.scrollTop = box.scrollHeight;
 }
 
 // Game UI
@@ -302,7 +320,7 @@ function createRoom() {
 }
 function joinRoom(id) {
   initSocket();
-  socket.emit('join_room', { roomId: id, startingChips: 1000 });
+  socket.emit('join_room', { roomId: id });
 }
 function sendRoomChat() {
   const input = document.getElementById('roomChatInput'); const msg = input.value.trim(); if (!msg) return;
@@ -310,11 +328,9 @@ function sendRoomChat() {
 }
 function addRoomMessage(m) {
   const box = document.getElementById('roomChatBox');
-  const row = document.createElement('div');
-  row.className = 'retro-chat-message';
-  row.innerHTML = `<span class="username">${ClientCrypto.sanitize(m.from)}:</span> ${ClientCrypto.sanitize(m.msg)}`;
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
+  const row = document.createElement('div'); row.className='chat-row';
+  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
+  box.appendChild(row); box.scrollTop = box.scrollHeight;
 }
 
 async function claimDailyReward() {

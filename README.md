@@ -2,7 +2,7 @@
 
 A real-time multiplayer Card Room War card game with WebSocket support. Up to 5 players compete in real-time with betting using virtual chips.
 
-**Live URL**: https://onlinecgames-212973396288.us-east1.run.app
+**Live URL**: https://your-live-url.com
 
 ## Features
 
@@ -117,7 +117,7 @@ This occurs when Google OAuth callback URL doesn't match the configured redirect
 
 3. **Under "Authorized redirect URIs", add your Cloud Run callback URL**:
    ```
-   https://onlinecgames-212973396288.us-east1.run.app/auth/google/callback
+https://your-cloud-run-service-url/auth/google/callback
    ```
 
 4. **Click SAVE** and wait 1-2 minutes for propagation
@@ -127,11 +127,11 @@ This occurs when Google OAuth callback URL doesn't match the configured redirect
    - Click "onlinecgames" service
    - Click "EDIT & DEPLOY NEW REVISION"
    - Scroll to "Variables & Secrets"
-   - Add: `GOOGLE_CALLBACK_URL = https://onlinecgames-212973396288.us-east1.run.app/auth/google/callback`
+   - Add: `GOOGLE_CALLBACK_URL = https://your-cloud-run-service-url/auth/google/callback`
    - Click DEPLOY
 
 6. **Verify the configuration**:
-   - Visit: https://onlinecgames-212973396288.us-east1.run.app/debug/oauth
+   - Visit: `https://your-cloud-run-service-url/debug/oauth`
    - Check that `expectedCallbackUrl` matches what you added to Google Console
 
 ### Required OAuth Redirect URIs
@@ -140,7 +140,7 @@ For development and production, add these to your Google OAuth client:
 
 | Environment | Redirect URI |
 |-------------|--------------|
-| Production | `https://onlinecgames-212973396288.us-east1.run.app/auth/google/callback` |
+| Production | `https://your-cloud-run-service-url/auth/google/callback` |
 | Local Dev | `http://localhost:3000/auth/google/callback` |
 
 ### Common OAuth Issues

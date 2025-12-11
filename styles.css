@@ -161,6 +161,35 @@ body{
   font-weight:600;
 }
 
+.viewers-list {
+  max-height: 150px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.viewer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg, #0a2920 0%, #062a1f 100%);
+  border: 1px solid #2d7a4f;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.viewer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #d4af37;
+}
+
+.viewer-name {
+  flex: 1;
+  font-weight: 600;
+}
+
 /* ===== Chat ===== */
 .chat{
   background:linear-gradient(180deg, #143d2e 0%, #0f3226 100%);

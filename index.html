@@ -26,7 +26,7 @@
   <meta name="twitter:description" content="Play free poker, blackjack & more with friends online. 100% play money gaming.">
   
   <link rel="stylesheet" href="styles.css?v=4.0">
-  <link rel="stylesheet" href="retro-chat.css?v=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="public/dealer.js?v=1.0"></script>
@@ -150,12 +150,16 @@
             <div id="friendsList" class="friends-list"></div>
             <div id="friendRequests" class="friend-requests"></div>
           </div>
-          <div class="retro-chat-container">
-            <div class="retro-chat-title">Moe's Chat Room</div>
-            <div id="lobbyChatBox" class="retro-chat-box"></div>
-            <div class="retro-chat-input">
+          <div class="card-room-section">
+            <h3>👁️ Online Viewers</h3>
+            <div id="viewersList" class="viewers-list"></div>
+          </div>
+          <div class="chat">
+            <h3>Lobby Chat</h3>
+            <div id="lobbyChatBox" class="chat-box"></div>
+            <div class="chat-input">
               <input id="lobbyChatInput" placeholder="Say hi..." onkeypress="if(event.key==='Enter')sendLobbyChat()" />
-              <button onclick="sendLobbyChat()">Send</button>
+              <button class="btn" onclick="sendLobbyChat()">Send</button>
             </div>
           </div>
         </div>
@@ -234,14 +238,17 @@
         </button>
 
         <!-- Sliding Chat Panel -->
-        <div class="retro-chat-container">
-            <div class="retro-chat-title">Room Chat</div>
-            <div id="roomChatBox" class="retro-chat-box"></div>
-            <div class="retro-chat-input">
-              <input id="roomChatInput" type="text" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendRoomChat()" />
-              <button onclick="sendRoomChat()">Send</button>
-            </div>
+        <div id="chatPanel" class="chat-panel-slide">
+          <div class="chat-header">
+            <h3>Room Chat</h3>
+            <button class="chat-close-btn" onclick="toggleChat()">✕</button>
           </div>
+          <div id="roomChatBox" class="chat-messages"></div>
+          <div class="chat-input-modern">
+            <input id="roomChatInput" type="text" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendRoomChat()" />
+            <button class="btn-send" onclick="sendRoomChat()">→</button>
+          </div>
+        </div>
 
         <!-- Game Log (collapsible bottom) -->
         <div id="gameLogPanel" class="game-log-minimal">
