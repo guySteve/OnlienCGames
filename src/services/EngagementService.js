@@ -10,44 +10,10 @@
  * 3. Social Proof (Global ticker)
  * 4. Time Pressure (Happy Hour)
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.engagementService = exports.EngagementService = void 0;
 exports.initEngagementService = initEngagementService;
 const client_1 = require("@prisma/client");
-const crypto = __importStar(require("crypto"));
 class EngagementService {
     prisma;
     redis;
@@ -288,36 +254,36 @@ class EngagementService {
      * Check if Happy Hour is currently active
      * Returns multiplier (e.g., 1.5x XP/chips)
      */
-    async getActiveMultiplier() {
-        const now = new Date();
-        const activeEvent = await this.prisma.happyHour.findFirst({
-            where: {
-                active: true,
-                startTime: { lte: now },
-                endTime: { gte: now }
-            }
-        });
-        return activeEvent?.multiplier || 1.0;
-    }
+    // async getActiveMultiplier(): Promise<number> {
+    //   const now = new Date();
+    //   const activeEvent = await this.prisma.happyHour.findFirst({
+    //     where: {
+    //       active: true,
+    //       startTime: { lte: now },
+    //       endTime: { gte: now }
+    //     }
+    //   });
+    //   return activeEvent?.multiplier || 1.0;
+    // }
     /**
      * Trigger random Happy Hour (admin/cron triggered)
      * Duration: 60 minutes
      */
-    async triggerHappyHour(multiplier = 1.5) {
-        const now = new Date();
-        const endTime = new Date(now.getTime() + 60 * 60 * 1000);
-        await this.prisma.happyHour.create({
-            data: {
-                id: crypto.randomUUID(),
-                startTime: now,
-                endTime,
-                multiplier,
-                active: true
-            }
-        });
-        // Broadcast to all users
-        await this.redis.publish('happy-hour:start', JSON.stringify({ multiplier, endTime }));
-    }
+    // async triggerHappyHour(multiplier: number = 1.5): Promise<void> {
+    //   const now = new Date();
+    //   const endTime = new Date(now.getTime() + 60 * 60 * 1000);
+    //   await this.prisma.happyHour.create({
+    //     data: {
+    //       id: crypto.randomUUID(),
+    //       startTime: now,
+    //       endTime,
+    //       multiplier,
+    //       active: true
+    //     }
+    //   });
+    //   // Broadcast to all users
+    //   await this.redis.publish('happy-hour:start', JSON.stringify({ multiplier, endTime }));
+    // }
     // ==========================================================================
     // XP & LEVELING SYSTEM
     // ==========================================================================
@@ -326,7 +292,8 @@ class EngagementService {
      * Level formula: XP required = level^2 * 100
      */
     async awardXP(userId, baseXP) {
-        const multiplier = await this.getActiveMultiplier();
+        // const multiplier = await this.getActiveMultiplier();
+        const multiplier = 1;
         const actualXP = Math.floor(baseXP * multiplier);
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user)

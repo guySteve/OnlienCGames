@@ -44,6 +44,7 @@ interface Card {
 
 interface BettingSpot {
   bet: number;
+  tieBet?: number;
   playerId?: string;
   playerName?: string;
   playerColor?: string;
@@ -168,7 +169,7 @@ export class WarEngine extends GameEngine {
     );
 
     // Initialize 25 empty betting spots
-    this.spots = Array(25).fill(null).map(() => ({ bet: 0 }));
+    this.spots = Array(25).fill(null).map(() => ({ bet: 0, tieBet: 0 }));
     this.deck = this.createDeck();
     this.state = GameState.PLACING_BETS;
   }
@@ -224,6 +225,10 @@ export class WarEngine extends GameEngine {
       playerSeed: this.playerSeed,
       serverSeed: this.serverSeed
     };
+  }
+
+  public setDeckForTesting(newDeck: Card[]): void {
+    this.deck = newDeck;
   }
 
   private drawCard(): Card | null {
@@ -305,7 +310,7 @@ export class WarEngine extends GameEngine {
    * Place bet on any spot (0-24)
    * NO database write - all in-memory
    */
-  async placeBet(userId: string, amount: number, spotIndex?: number): Promise<boolean> {
+  async placeBet(userId: string, amount: number, spotIndex: number, betType: 'main' | 'tie' = 'main'): Promise<boolean> {
     if (!this.bettingPhase || this.warPhase) return false;
     if (spotIndex === undefined || spotIndex < 0 || spotIndex >= 25) return false;
     if (!this.validateBet(amount)) return false;
@@ -315,8 +320,8 @@ export class WarEngine extends GameEngine {
 
     const spot = this.spots[spotIndex];
 
-    // Check if spot is already occupied
-    if (spot.bet > 0 && spot.playerId !== userId) {
+    // Allow tie bet on a spot with a main bet, but not a main bet on an already taken spot.
+    if (betType === 'main' && spot.bet > 0 && spot.playerId !== userId) {
       this.events.emit('spot_occupied', { spotIndex, occupiedBy: spot.playerId });
       return false;
     }
@@ -331,12 +336,14 @@ export class WarEngine extends GameEngine {
     player.chipBalance -= amount;
 
     // Place bet
-    if (spot.playerId === userId) {
-      // Add to existing bet
-      spot.bet += amount;
+    if (betType === 'tie') {
+      spot.tieBet = (spot.tieBet || 0) + amount;
     } else {
-      // New bet
-      spot.bet = amount;
+      spot.bet += amount;
+    }
+
+    // If the spot is new, assign player info
+    if (!spot.playerId) {
       spot.playerId = userId;
       spot.playerName = player.name;
       spot.playerColor = player.color;
@@ -348,7 +355,9 @@ export class WarEngine extends GameEngine {
       userId,
       spotIndex,
       amount,
+      betType,
       totalBet: spot.bet,
+      totalTieBet: spot.tieBet,
       color: player.color,
       playerChips: player.chipBalance
     });
@@ -359,7 +368,7 @@ export class WarEngine extends GameEngine {
   /**
    * Remove bet (only during betting phase)
    */
-  public removeBet(userId: string, spotIndex: number): boolean {
+  public removeBet(userId: string, spotIndex: number, betType: 'main' | 'tie'): boolean {
     if (!this.bettingPhase || this.warPhase) return false;
     if (spotIndex < 0 || spotIndex >= 25) return false;
 
@@ -369,22 +378,31 @@ export class WarEngine extends GameEngine {
     const player = this.playerInfo.get(userId);
     if (!player) return false;
 
-    // Return chips in-memory
-    player.chipBalance += spot.bet;
-    this.pot -= spot.bet;
+    let refundAmount = 0;
+    if (betType === 'tie' && spot.tieBet && spot.tieBet > 0) {
+      refundAmount = spot.tieBet;
+      spot.tieBet = 0;
+    } else if (betType === 'main' && spot.bet > 0) {
+      refundAmount = spot.bet;
+      spot.bet = 0;
+    }
 
-    const refundAmount = spot.bet;
+    if (refundAmount > 0) {
+      player.chipBalance += refundAmount;
+      this.pot -= refundAmount;
 
-    // Clear spot
-    spot.bet = 0;
-    spot.playerId = undefined;
-    spot.playerName = undefined;
-    spot.playerColor = undefined;
-    spot.card = undefined;
+      // If both bets are gone, clear the spot completely
+      if (spot.bet === 0 && (!spot.tieBet || spot.tieBet === 0)) {
+        spot.playerId = undefined;
+        spot.playerName = undefined;
+        spot.playerColor = undefined;
+        spot.card = undefined;
+      }
 
-    this.events.emit('bet_removed', { userId, spotIndex, refundAmount, playerChips: player.chipBalance });
-
-    return true;
+      this.events.emit('bet_removed', { userId, spotIndex, refundAmount, betType, playerChips: player.chipBalance });
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -393,7 +411,7 @@ export class WarEngine extends GameEngine {
   private getActiveSpots(): Array<{ index: number; spot: BettingSpot }> {
     return this.spots
       .map((spot, index) => ({ index, spot }))
-      .filter(({ spot }) => spot.bet > 0 && spot.playerId);
+      .filter(({ spot }) => (spot.bet > 0 || (spot.tieBet && spot.tieBet > 0)) && spot.playerId);
   }
 
   // ==========================================================================
@@ -515,81 +533,80 @@ export class WarEngine extends GameEngine {
     const activeSpots = this.getActiveSpots();
 
     for (const { index, spot } of activeSpots) {
-      if (!spot.card || !spot.playerId) continue;
+        if (!spot.card || !spot.playerId) continue;
 
-      const player = this.playerInfo.get(spot.playerId);
-      if (!player) continue;
+        const player = this.playerInfo.get(spot.playerId);
+        if (!player) continue;
 
-      const playerValue = spot.card.value;
-      let outcome: 'win' | 'lose' | 'war_win' | 'war_tie' | 'surrender' = 'lose';
-      let payout = 0;
+        const playerValue = spot.card.value;
+        let outcome: 'win' | 'lose' | 'war_win' | 'war_tie' | 'surrender' | 'tie_win' = 'lose';
+        let mainPayout = 0;
+        let tiePayout = 0;
 
-      // Handle surrender
-      if (spot.decision === 'surrender') {
-        outcome = 'surrender';
-        payout = 0; // Already refunded 50%
-      }
-      // Handle war resolution
-      else if (spot.decision === 'war' && spot.warBet) {
-        if (playerValue > dealerValue) {
-          // War Win: +1 unit on war bet
-          outcome = 'war_win';
-          payout = spot.warBet * 2; // Return war bet + winnings
-          player.chipBalance += payout;
-        } else if (playerValue === dealerValue) {
-          // War Tie: +2 units total (original bet + war bet)
-          outcome = 'war_tie';
-          payout = (spot.bet + spot.warBet) * 2;
-          player.chipBalance += payout;
-        } else {
-          // War Lose
-          outcome = 'lose';
-          payout = 0; // Lose both bets
+        // 1. Resolve Tie Bets
+        if (spot.tieBet && spot.tieBet > 0) {
+            if (playerValue === dealerValue) {
+                outcome = 'tie_win';
+                tiePayout = spot.tieBet * 11; // 10:1 payout + bet back
+                player.chipBalance += tiePayout;
+                this.events.emit('tie_bet_win', { spotIndex: index, userId: spot.playerId, payout: tiePayout });
+            }
         }
-      }
-      // Standard resolution
-      else {
-        if (playerValue > dealerValue) {
-          // Win: +1 unit
-          outcome = 'win';
-          payout = spot.bet * 2;
-          player.chipBalance += payout;
-        } else if (playerValue === dealerValue) {
-          // This shouldn't happen (ties trigger war phase)
-          outcome = 'win'; // Push
-          payout = spot.bet;
-          player.chipBalance += payout;
-        } else {
-          // Lose
-          outcome = 'lose';
-          payout = 0;
+
+        // 2. Resolve Main Bets
+        if (spot.bet > 0) {
+            if (spot.decision === 'surrender') {
+                outcome = 'surrender';
+                mainPayout = 0; // Already refunded
+            } else if (spot.decision === 'war' && spot.warBet) {
+                if (playerValue > dealerValue) {
+                    outcome = 'war_win';
+                    mainPayout = spot.warBet * 2;
+                    player.chipBalance += mainPayout;
+                } else if (playerValue === dealerValue) {
+                    outcome = 'war_tie';
+                    mainPayout = (spot.bet + spot.warBet) * 2;
+                    player.chipBalance += mainPayout;
+                } else {
+                    outcome = 'lose';
+                    mainPayout = 0;
+                }
+            } else { // Standard win/loss
+                if (playerValue > dealerValue) {
+                    outcome = 'win';
+                    mainPayout = spot.bet * 2;
+                    player.chipBalance += mainPayout;
+                } else if (playerValue < dealerValue) {
+                    outcome = 'lose';
+                    mainPayout = 0;
+                }
+                // Tie case for main bet is handled by war phase
+            }
         }
-      }
 
-      // Track payout for batched DB write
-      this.trackPayout(spot.playerId, spot.bet, spot.warBet || 0, payout);
+        // 3. Track combined payout
+        this.trackPayout(spot.playerId, spot.bet, spot.tieBet || 0, mainPayout + tiePayout, spot.warBet || 0);
 
-      this.events.emit('spot_resolved', {
-        spotIndex: index,
-        userId: spot.playerId,
-        outcome,
-        playerCard: spot.card,
-        playerValue,
-        dealerValue,
-        payout,
-        playerChips: player.chipBalance
-      });
+        this.events.emit('spot_resolved', {
+            spotIndex: index,
+            userId: spot.playerId,
+            outcome,
+            playerCard: spot.card,
+            playerValue,
+            dealerValue,
+            payout: mainPayout,
+            tiePayout,
+            playerChips: player.chipBalance
+        });
     }
 
     this.state = GameState.COMPLETE;
-
-    // CRITICAL: Single batched database write
     await this.executeBatchedPayouts();
 
     this.events.emit('hand_complete', {
-      handNumber: this.handNumber,
-      dealerCard: this.houseCard,
-      dealerValue
+        handNumber: this.handNumber,
+        dealerCard: this.houseCard,
+        dealerValue
     });
 
     await this.saveStateToRedis();
@@ -598,8 +615,8 @@ export class WarEngine extends GameEngine {
   /**
    * Track payout for batched write
    */
-  private trackPayout(userId: string, bet: number, warBet: number, payout: number): void {
-    const totalWagered = bet + warBet;
+  private trackPayout(userId: string, bet: number, tieBet: number, payout: number, warBet: number = 0): void {
+    const totalWagered = bet + tieBet + warBet;
     const netWin = payout - totalWagered;
 
     if (!this.pendingPayouts.has(userId)) {
@@ -712,6 +729,7 @@ export class WarEngine extends GameEngine {
     // Clear all spots
     for (const spot of this.spots) {
       spot.bet = 0;
+      spot.tieBet = 0;
       spot.playerId = undefined;
       spot.playerName = undefined;
       spot.playerColor = undefined;
@@ -736,6 +754,7 @@ export class WarEngine extends GameEngine {
       spots: this.spots.map((spot, index) => ({
         index,
         bet: spot.bet,
+        tieBet: spot.tieBet,
         playerId: spot.playerId,
         playerColor: spot.playerColor,
         card: spot.card,

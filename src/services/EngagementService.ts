@@ -11,7 +11,6 @@
  */
 
 import { PrismaClient, TransactionType } from '@prisma/client';
-import * as crypto from 'crypto';
 // import { Redis } from 'ioredis';
 
 // Use any for Redis to support both node-redis and upstash/redis without strict type dependency
@@ -265,7 +264,7 @@ export class EngagementService {
    * Creates FOMO and social envy
    */
   async emitGlobalEvent(event: {
-    type: 'BIG_WIN' | 'MYSTERY_DROP' | 'STREAK_MILESTONE' | 'LEVEL_UP';
+    type: 'BIG_WIN' | 'MYSTERY_DROP' | 'STREAK_MILESTONE' | 'LEVEL_UP' | 'ADMIN_BROADCAST';
     userId: string;
     data: any;
   }): Promise<void> {
@@ -305,49 +304,7 @@ export class EngagementService {
     });
   }
 
-  // ==========================================================================
-  // HAPPY HOUR - Time-Limited Multiplier Events
-  // ==========================================================================
 
-  /**
-   * Check if Happy Hour is currently active
-   * Returns multiplier (e.g., 1.5x XP/chips)
-   */
-  async getActiveMultiplier(): Promise<number> {
-    const now = new Date();
-    
-    const activeEvent = await this.prisma.happyHour.findFirst({
-      where: {
-        active: true,
-        startTime: { lte: now },
-        endTime: { gte: now }
-      }
-    });
-
-    return activeEvent?.multiplier || 1.0;
-  }
-
-  /**
-   * Trigger random Happy Hour (admin/cron triggered)
-   * Duration: 60 minutes
-   */
-  async triggerHappyHour(multiplier: number = 1.5): Promise<void> {
-    const now = new Date();
-    const endTime = new Date(now.getTime() + 60 * 60 * 1000);
-
-    await this.prisma.happyHour.create({
-      data: {
-        id: crypto.randomUUID(),
-        startTime: now,
-        endTime,
-        multiplier,
-        active: true
-      }
-    });
-
-    // Broadcast to all users
-    await this.redis.publish('happy-hour:start', JSON.stringify({ multiplier, endTime }));
-  }
 
   // ==========================================================================
   // XP & LEVELING SYSTEM
@@ -362,7 +319,8 @@ export class EngagementService {
     leveledUp: boolean;
     newLevel?: number;
   }> {
-    const multiplier = await this.getActiveMultiplier();
+    // const multiplier = await this.getActiveMultiplier();
+    const multiplier = 1;
     const actualXP = Math.floor(baseXP * multiplier);
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

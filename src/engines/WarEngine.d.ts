@@ -31,6 +31,11 @@ import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
 import { EventEmitter } from 'events';
 type Redis = any;
+interface Card {
+    rank: string;
+    value: number;
+    suit: string;
+}
 interface PlayerInfo {
     userId: string;
     name: string;
@@ -62,6 +67,7 @@ export declare class WarEngine extends GameEngine {
         playerSeed: string;
         serverSeed: string;
     };
+    setDeckForTesting(newDeck: Card[]): void;
     private drawCard;
     /**
      * Connect player to table and assign persistent neon color
@@ -83,11 +89,11 @@ export declare class WarEngine extends GameEngine {
      * Place bet on any spot (0-24)
      * NO database write - all in-memory
      */
-    placeBet(userId: string, amount: number, spotIndex?: number): Promise<boolean>;
+    placeBet(userId: string, amount: number, spotIndex: number, betType?: 'main' | 'tie'): Promise<boolean>;
     /**
      * Remove bet (only during betting phase)
      */
-    removeBet(userId: string, spotIndex: number): boolean;
+    removeBet(userId: string, spotIndex: number, betType: 'main' | 'tie'): boolean;
     /**
      * Get all active spots
      */

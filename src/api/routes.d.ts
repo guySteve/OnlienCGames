@@ -6,5 +6,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { EngagementService } from '../services/EngagementService';
-export declare function createApiRouter(prisma: PrismaClient, engagement: EngagementService): Router;
+import { FriendService } from '../services/FriendService';
+import { ChatService } from '../services/ChatService';
+export declare function createApiRouter(prisma: PrismaClient, engagement: EngagementService, friendService: FriendService, chatService: ChatService): Router;
 //# sourceMappingURL=routes.d.ts.map

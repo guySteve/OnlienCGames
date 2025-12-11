@@ -55,15 +55,30 @@ app.use(checkOperatingHours);
 
 // --- ROUTES ---
 const authRouter = require('./src/routes/auth');
-const apiRouter = require('./src/routes/api');
-const adminRouter = require('./src/routes/admin');
+const { createApiRouter } = require('./src/api/routes');
+const { createAdminRouter } = require('./src/routes/admin');
+const { EngagementService } = require('./src/services/EngagementService');
+const { FriendService } = require('./src/services/FriendService');
+const { ChatService } = require('./src/services/ChatService');
+const { Redis } = require('@upstash/redis');
 
-// Health check for container
-app.get('/health', (req, res) => {
-  res.status(200).send('ok');
-});
+let redisClient = null;
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  redisClient = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+  console.log('✅ Redis client initialized');
+} else {
+  console.warn('⚠️  Redis not configured');
+}
 
-app.use('/auth', authRouter);
+const engagementService = new EngagementService(prisma, redisClient);
+const friendService = new FriendService(prisma);
+const chatService = new ChatService(prisma);
+const apiRouter = createApiRouter(prisma, engagementService, friendService, chatService);
+const adminRouter = createAdminRouter(prisma, engagementService);
+
 app.use('/api', apiRouter);
 app.use('/api/admin', adminRouter);
 

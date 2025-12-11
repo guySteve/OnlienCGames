@@ -1,0 +1,235 @@
+import { Router, Request, Response } from 'express';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { isAdmin } from '../middleware/auth';
+import { EngagementService } from '../services/EngagementService'; // Assuming EngagementService is needed for broadcasting
+
+export function createAdminRouter(prisma: PrismaClient, engagement: EngagementService): Router {
+  const router = Router();
+
+  const requireAuth = (req: Request, res: Response, next: any): void => {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    next();
+  };
+
+  router.use(requireAuth);
+  router.use(isAdmin);
+
+  // GET /api/admin/dashboard
+  router.get('/dashboard', async (_req: Request, res: Response) => {
+    try {
+      const totalUsers = await prisma.user.count();
+      const bannedUsers = await prisma.user.count({ where: { isBanned: true } });
+      const flaggedMessages = await prisma.chatMessage.count({ where: { isFlagged: true } });
+
+      // Assuming online users and active rooms are handled by another service or in-memory
+      // For now, these will be placeholders or fetched from engagementService if available
+      const onlineUsersCount = 0; // Placeholder
+      const activeRoomsCount = 0; // Placeholder
+
+      // Fetch recent moderation logs
+      const recentModerations = await prisma.moderationLog.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: { User: true, Moderator: true },
+      });
+
+      return res.json({
+        stats: {
+          totalUsers,
+          bannedUsers,
+          flaggedMessages,
+          onlineUsers: onlineUsersCount,
+          activeRooms: activeRoomsCount,
+        },
+        online: {
+          count: onlineUsersCount,
+          users: [], // Placeholder for actual online user data
+        },
+        recentModerations: recentModerations.map(log => ({
+          ...log,
+          createdAt: log.createdAt.toISOString(),
+          User: { displayName: log.User.displayName },
+          Moderator: log.Moderator ? { displayName: log.Moderator.displayName } : null,
+        })),
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Admin dashboard error:', error);
+        return res.status(500).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: String(error) });
+      }
+    }
+  });
+
+  // GET /api/admin/users
+  router.get('/users', async (req: Request, res: Response) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = req.query.search as string || '';
+      const skip = (page - 1) * limit;
+
+      const whereClause = search ? {
+        OR: [
+          { email: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          { displayName: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          { nickname: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        ],
+      } : {};
+
+      const users = await prisma.user.findMany({
+        where: whereClause,
+        take: limit,
+        skip: skip,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          nickname: true,
+          chipBalance: true,
+          lastLogin: true,
+          warnCount: true,
+          isAdmin: true,
+          isBanned: true,
+          avatarUrl: true,
+          customAvatar: true,
+        },
+      });
+
+      const totalUsers = await prisma.user.count({ 
+        where: search ? {
+          OR: [
+            { email: { contains: search, mode: Prisma.QueryMode.insensitive } },
+            { displayName: { contains: search, mode: Prisma.QueryMode.insensitive } },
+            { nickname: { contains: search, mode: Prisma.QueryMode.insensitive } },
+          ],
+        } : {},
+      });
+
+      return res.json({
+        users: users.map(user => ({
+          ...user,
+          chipBalance: Number(user.chipBalance),
+          lastLogin: user.lastLogin?.toISOString(),
+        })),
+        pagination: {
+          total: totalUsers,
+          page,
+          limit,
+          pages: Math.ceil(totalUsers / limit),
+        },
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Admin users error:', error);
+        return res.status(500).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: String(error) });
+      }
+    }
+  });
+
+  // POST /api/admin/ban/:userId
+  router.post('/ban/:userId', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { reason } = req.body;
+      const adminId = req.user!.id; // Assuming admin's ID is available from auth middleware
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          isBanned: true,
+          bannedAt: new Date(),
+          bannedBy: adminId,
+          banReason: reason,
+        },
+      });
+
+      await prisma.moderationLog.create({
+        data: {
+          userId,
+          moderatorId: adminId,
+          action: 'BAN',
+          reason,
+        },
+      });
+
+      return res.json({ ok: true });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Admin ban error:', error);
+        return res.status(500).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: String(error) });
+      }
+    }
+  });
+
+  // POST /api/admin/unban/:userId
+  router.post('/unban/:userId', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const adminId = req.user!.id;
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          isBanned: false,
+          bannedAt: null,
+          bannedBy: null,
+          banReason: null,
+        },
+      });
+
+      await prisma.moderationLog.create({
+        data: {
+          userId,
+          moderatorId: adminId,
+          action: 'UNBAN',
+          reason: 'Unbanned by admin',
+        },
+      });
+
+      return res.json({ ok: true });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Admin unban error:', error);
+        return res.status(500).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: String(error) });
+      }
+    }
+  });
+
+  // POST /api/admin/broadcast
+  router.post('/broadcast', async (req: Request, res: Response) => {
+    try {
+      const { message } = req.body;
+      const adminId = req.user!.id;
+
+      // Assuming engagement service has a method to emit global events
+      await engagement.emitGlobalEvent({
+        type: 'ADMIN_BROADCAST',
+        userId: adminId,
+        data: { message },
+      });
+
+      return res.json({ ok: true });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Admin broadcast error:', error);
+        return res.status(500).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: String(error) });
+      }
+    }
+  });
+
+  return router;
+}

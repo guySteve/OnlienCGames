@@ -67,7 +67,7 @@ export declare class EngagementService {
      * Creates FOMO and social envy
      */
     emitGlobalEvent(event: {
-        type: 'BIG_WIN' | 'MYSTERY_DROP' | 'STREAK_MILESTONE' | 'LEVEL_UP';
+        type: 'BIG_WIN' | 'MYSTERY_DROP' | 'STREAK_MILESTONE' | 'LEVEL_UP' | 'ADMIN_BROADCAST';
         userId: string;
         data: any;
     }): Promise<void>;
@@ -79,12 +79,10 @@ export declare class EngagementService {
      * Check if Happy Hour is currently active
      * Returns multiplier (e.g., 1.5x XP/chips)
      */
-    getActiveMultiplier(): Promise<number>;
     /**
      * Trigger random Happy Hour (admin/cron triggered)
      * Duration: 60 minutes
      */
-    triggerHappyHour(multiplier?: number): Promise<void>;
     /**
      * Award XP and check for level up
      * Level formula: XP required = level^2 * 100

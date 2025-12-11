@@ -7,7 +7,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createApiRouter = createApiRouter;
 const express_1 = require("express");
-function createApiRouter(prisma, engagement) {
+function createApiRouter(prisma, engagement, friendService, chatService) {
     const router = (0, express_1.Router)();
     // ==========================================================================
     // AUTHENTICATION MIDDLEWARE
@@ -44,7 +44,8 @@ function createApiRouter(prisma, engagement) {
             // Get streak status
             const streakStatus = await engagement.getStreakStatus(userId);
             // Get active multiplier
-            const multiplier = await engagement.getActiveMultiplier();
+            // const multiplier = await engagement.getActiveMultiplier();
+            const multiplier = 1;
             // Calculate next level progress
             const xpRequired = user.xpLevel ** 2 * 100;
             const xpProgress = (user.xpPoints / xpRequired) * 100;
@@ -169,6 +170,138 @@ function createApiRouter(prisma, engagement) {
         catch (error) {
             console.error('Streak status error:', error);
             return res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    // ==========================================================================
+    // FRIEND SYSTEM
+    // ==========================================================================
+    router.post('/friends/request', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { friendId } = req.body;
+            await friendService.sendFriendRequest(userId, friendId);
+            res.json({ success: true });
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    router.post('/friends/accept', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { friendId } = req.body;
+            await friendService.acceptFriendRequest(userId, friendId);
+            res.json({ success: true });
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    router.post('/friends/reject', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { friendId } = req.body;
+            await friendService.rejectFriendRequest(userId, friendId);
+            res.json({ success: true });
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    router.delete('/friends/:friendId', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { friendId } = req.params;
+            await friendService.removeFriend(userId, friendId);
+            res.json({ success: true });
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    router.get('/friends', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const friends = await friendService.getFriends(userId);
+            res.json(friends);
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    router.get('/friends/pending', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const pendingRequests = await friendService.getPendingFriendRequests(userId);
+            res.json(pendingRequests);
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    // ==========================================================================
+    // CHAT SYSTEM
+    // ==========================================================================
+    router.post('/chat/send', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { toUserId, message } = req.body;
+            await chatService.sendMessage(userId, toUserId, message);
+            res.json({ success: true });
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
+        }
+    });
+    router.get('/chat/:friendId', requireAuth, async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { friendId } = req.params;
+            const messages = await chatService.getMessages(userId, friendId);
+            res.json(messages);
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                res.status(400).json({ error: error.message });
+            }
+            else {
+                res.status(400).json({ error: String(error) });
+            }
         }
     });
     // ==========================================================================
@@ -322,21 +455,24 @@ function createApiRouter(prisma, engagement) {
      * POST /api/admin/trigger-happy-hour
      * Manually trigger Happy Hour event
      */
-    router.post('/admin/trigger-happy-hour', requireAuth, requireAdmin, async (req, res) => {
-        try {
-            const { multiplier } = req.body;
-            await engagement.triggerHappyHour(multiplier || 1.5);
-            return res.json({
-                success: true,
-                message: 'Happy Hour started!',
-                multiplier: multiplier || 1.5
-            });
-        }
-        catch (error) {
-            console.error('Happy Hour trigger error:', error);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    });
+    /**
+     * POST /api/admin/trigger-happy-hour
+     * Manually trigger Happy Hour event
+     */
+    // router.post('/admin/trigger-happy-hour', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    //   try {
+    //     const { multiplier } = req.body;
+    //     await engagement.triggerHappyHour(multiplier || 1.5);
+    //     return res.json({
+    //       success: true,
+    //       message: 'Happy Hour started!',
+    //       multiplier: multiplier || 1.5
+    //     });
+    //   } catch (error) {
+    //     console.error('Happy Hour trigger error:', error);
+    //     return res.status(500).json({ error: 'Internal server error' });
+    //   }
+    // });
     /**
      * POST /api/admin/adjust-chips
      * Admin chip adjustment (with audit trail)

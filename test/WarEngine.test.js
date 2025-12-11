@@ -177,7 +177,7 @@ describe('WarEngine v5', () => {
             const engine = createWarEngine();
             await engine.connectPlayer('user1', 'Player One');
             await engine.placeBet('user1', 100, 7);
-            const result = engine.removeBet('user1', 7);
+            const result = engine.removeBet('user1', 7, 'main');
             assert.strictEqual(result, true, 'Bet removal should be successful');
             const state = engine.getGameState();
             assert.strictEqual(state.spots[7].bet, 0);
@@ -324,6 +324,69 @@ describe('WarEngine v5', () => {
             assert.ok(spot1.card.rank, 'Card has rank');
             assert.ok(spot1.card.value, 'Card has value');
             assert.ok(spot1.card.suit, 'Card has suit');
+        });
+    });
+    describe('Tie Bets', () => {
+        test('should allow a player to place a tie bet', async () => {
+            const engine = createWarEngine();
+            await engine.connectPlayer('user1', 'Player One');
+            const result = await engine.placeBet('user1', 50, 5, 'tie');
+            assert.strictEqual(result, true, 'Tie bet placement should be successful');
+            const state = engine.getGameState();
+            assert.strictEqual(state.spots[5].tieBet, 50);
+            assert.strictEqual(state.spots[5].bet, 0); // Main bet should be 0
+            assert.strictEqual(state.spots[5].playerId, 'user1');
+            assert.strictEqual(state.pot, 50);
+            const player = engine.getPlayer('user1');
+            assert.strictEqual(player?.chipBalance, 950, 'Chips should be deducted for tie bet');
+        });
+        test('should allow placing both main and tie bets on the same spot', async () => {
+            const engine = createWarEngine();
+            await engine.connectPlayer('user1', 'Player One');
+            await engine.placeBet('user1', 100, 8, 'main');
+            await engine.placeBet('user1', 20, 8, 'tie');
+            const state = engine.getGameState();
+            assert.strictEqual(state.spots[8].bet, 100);
+            assert.strictEqual(state.spots[8].tieBet, 20);
+            assert.strictEqual(state.pot, 120);
+            const player = engine.getPlayer('user1');
+            assert.strictEqual(player?.chipBalance, 880);
+        });
+        test('should payout 10:1 on a winning tie bet', async () => {
+            const engine = createWarEngine();
+            await engine.connectPlayer('user1', 'Tie Bettor');
+            await engine.initializeWithQRNG('test-seed');
+            // Force a tie by controlling the deck
+            const controlledDeck = [
+                { rank: 'K', value: 13, suit: '♠' }, // House card
+                { rank: 'K', value: 13, suit: '♥' }, // Player card
+            ];
+            engine.setDeckForTesting(controlledDeck);
+            await engine.placeBet('user1', 10, 0, 'tie');
+            const playerPreHand = engine.getPlayer('user1');
+            assert.strictEqual(playerPreHand?.chipBalance, 990);
+            await engine.startNewHand(); // This will deal the cards
+            await engine.resolveHand(); // This should resolve the tie bet
+            const playerPostHand = engine.getPlayer('user1');
+            // 10 * 11 = 110 (10:1 win + original bet)
+            // 990 + 110 = 1100
+            assert.strictEqual(playerPostHand?.chipBalance, 1100, 'Player should win 10x the tie bet');
+        });
+        test('should lose the tie bet on a non-tie result', async () => {
+            const engine = createWarEngine();
+            await engine.connectPlayer('user1', 'Tie Bettor');
+            await engine.initializeWithQRNG('test-seed');
+            // Force a non-tie
+            engine.setDeckForTesting([
+                { rank: 'K', value: 13, suit: '♠' }, // House card
+                { rank: 'Q', value: 12, suit: '♥' }, // Player card
+            ]);
+            await engine.placeBet('user1', 10, 0, 'tie'); // 990 chips
+            await engine.startNewHand();
+            await engine.resolveHand();
+            const player = engine.getPlayer('user1');
+            // Tie bet is lost, no refund
+            assert.strictEqual(player?.chipBalance, 990, 'Player should lose the tie bet amount');
         });
     });
 });
