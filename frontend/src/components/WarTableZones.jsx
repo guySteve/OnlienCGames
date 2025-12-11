@@ -7,11 +7,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BettingControls from './BettingControls';
+import { WarDecisionModal } from './WarDecisionModal';
 
 const WarTableZones = ({ socket, roomId, user, onExit }) => {
   const [spots, setSpots] = useState(Array(25).fill(null).map((_, i) => ({
     index: i,
     bet: 0,
+    tieBet: 0,
     playerName: null,
     playerColor: null,
     card: null
@@ -21,6 +23,8 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
   const [phase, setPhase] = useState('BETTING'); // BETTING, DEALING, RESULT
   const [message, setMessage] = useState('Place your bets!');
   const [mySpots, setMySpots] = useState([]);
+  const [showWarDecisionModal, setShowWarDecisionModal] = useState(false);
+  const [currentBetType, setCurrentBetType] = useState('main'); // 'main' or 'tie'
 
   useEffect(() => {
     if (!socket) return;
@@ -28,10 +32,20 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
     // New event listeners based on server.js
     const handleGameState = (data) => {
       if (data.gameState) {
-        setSpots(data.gameState.spots || Array(25).fill(null).map((_, i) => ({ index: i, bet: 0 })));
+        setSpots(data.gameState.spots.map(spot => ({ ...spot, tieBet: spot.tieBet || 0 })) || Array(25).fill(null).map((_, i) => ({ index: i, bet: 0, tieBet: 0 })));
         setDealerCard(data.gameState.houseCard);
         setPhase(data.gameState.bettingPhase ? 'BETTING' : 'RESULT');
         setMessage(data.gameState.status || 'Place your bets!');
+
+        // Check if war decision is needed for any of the user's spots
+        const userTiedSpots = data.gameState.spots.filter(
+          (spot) => spot.playerId === user.id && spot.decision === 'pending'
+        );
+        if (data.gameState.warPhase && userTiedSpots.length > 0) {
+          setShowWarDecisionModal(true);
+        } else {
+          setShowWarDecisionModal(false);
+        }
       }
     };
 
@@ -65,10 +79,19 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
 
   const placeBet = (spotIndex) => {
     if (phase !== 'BETTING') return;
-    // Emit the correct event with the right payload
-    socket.emit('place_war_bet', { spotIndex, betAmount: betAmount });
+    socket.emit('place_war_bet', { spotIndex, betAmount: betAmount, betType: currentBetType });
   };
 
+  const handleGoToWar = (spotIndex) => {
+    socket.emit('make_war_decision', { spotIndex, decision: 'war' });
+    setShowWarDecisionModal(false);
+  };
+
+  const handleSurrender = (spotIndex) => {
+    socket.emit('make_war_decision', { spotIndex, decision: 'surrender' });
+    setShowWarDecisionModal(false);
+  };
+  
   // Group spots into 5 zones (5 spots per zone)
   const zones = [
     spots.slice(0, 5),
@@ -78,8 +101,19 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
     spots.slice(20, 25)
   ];
 
+  // Find the first spot where the current user has a pending war decision
+  const userPendingWarSpot = spots.find(
+    (spot) => spot.playerId === user.id && spot.decision === 'pending'
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-900 to-emerald-950 p-2 md:p-4">
+      <WarDecisionModal
+        isOpen={showWarDecisionModal && !!userPendingWarSpot}
+        betAmount={userPendingWarSpot?.bet || 0}
+        onSurrender={() => handleSurrender(userPendingWarSpot?.index)}
+        onWar={() => handleGoToWar(userPendingWarSpot?.index)}
+      />
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl md:text-2xl font-bold text-yellow-400">War</h1>
@@ -143,10 +177,13 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
                         <div className="text-2xl md:text-3xl">{spot.card.suit}</div>
                         <div className="text-lg md:text-xl font-bold">{spot.card.rank}</div>
                       </div>
-                    ) : spot.bet > 0 ? (
+                    ) : spot.bet > 0 || (spot.tieBet && spot.tieBet > 0) ? (
                       <div className="text-center">
                         <div className="text-xs text-white opacity-75 truncate">{spot.playerName}</div>
                         <div className="text-base md:text-xl font-bold text-yellow-400">${spot.bet}</div>
+                        {spot.tieBet && spot.tieBet > 0 && (
+                          <div className="text-xs text-purple-400">TIE: ${spot.tieBet}</div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-emerald-400 text-xs md:text-sm">
@@ -173,19 +210,24 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
         <BettingControls
           betAmount={betAmount}
           onBetChange={setBetAmount}
-          onBet={() => {
-            // This button might not be needed if clicking spots is the primary action
-          }}
           onClear={() => {
              // Find all spots belonging to the current user and emit remove_war_bet for each
              spots.forEach(spot => {
                if(spot.playerId === user.id) {
-                 socket.emit('remove_war_bet', { spotIndex: spot.index });
+                 if (spot.bet > 0) {
+                   socket.emit('remove_war_bet', { spotIndex: spot.index, betType: 'main' });
+                 }
+                 if (spot.tieBet && spot.tieBet > 0) {
+                   socket.emit('remove_war_bet', { spotIndex: spot.index, betType: 'tie' });
+                 }
                }
              });
           }}
           minBet={10}
           maxBet={1000}
+          gameType="WAR"
+          currentBetType={currentBetType}
+          setCurrentBetType={setCurrentBetType}
         />
       )}
     </div>

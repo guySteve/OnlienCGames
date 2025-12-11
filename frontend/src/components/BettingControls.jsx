@@ -12,59 +12,27 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const BettingControls = ({ 
-  onBet,
-  onClear, // NEW: Callback to clear all player's bets
-  onHit, 
-  onStand, 
-  onDouble, 
-  onFold, 
+const BettingControls = ({
+  onClear, // Callback to clear all player's bets
+  onHit,
+  onStand,
+  onDouble,
+  onFold,
   onSurrender,
-  minBet = 10, 
-  balance = 1000, 
+  minBet = 10,
+  balance = 1000,
   pot = 0,
   disabled = false,
   phase = 'betting', // 'betting' | 'playing' | 'waiting'
   gameType = 'blackjack',
-  armedCursorMode = false, // NEW: Enable "tap on spot to place" mode
-  onCursorValueChange = null // NEW: Callback when cursor value changes
 }) => {
   const [amount, setAmount] = useState(minBet || 10);
   const [showNumpad, setShowNumpad] = useState(false);
-  
+  const [currentBetType, setCurrentBetType] = useState('main'); // 'main' or 'tie'  
   // Notify parent when cursor value changes (for "Armed Cursor" mode)
   const updateCursorValue = useCallback((newValue) => {
     setAmount(newValue);
-    if (armedCursorMode && onCursorValueChange) {
-      onCursorValueChange(newValue);
-    }
-  }, [armedCursorMode, onCursorValueChange]);
-
-  // Quick bet calculations
-  const quickBets = [
-    { label: 'MIN', value: minBet },
-    { label: '½ POT', value: Math.floor(pot / 2) || minBet },
-    { label: 'POT', value: pot || minBet * 2 },
-    { label: 'ALL IN', value: balance }
-  ].filter(bet => bet.value <= balance && bet.value >= minBet);
-
-  const chipValues = [10, 25, 50, 100, 500, 1000];
-  const chipColors = {
-    10: 'bg-gradient-to-br from-red-500 to-red-700',
-    25: 'bg-gradient-to-br from-green-500 to-green-700',
-    50: 'bg-gradient-to-br from-blue-500 to-blue-700',
-    100: 'bg-gradient-to-br from-slate-800 to-slate-900 text-white',
-    500: 'bg-gradient-to-br from-purple-500 to-purple-700',
-    1000: 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black'
-  };
-
-  const handleBet = useCallback(() => {
-    if (amount > balance) {
-      // Could trigger a shake animation instead of alert
-      return;
-    }
-    onBet?.(amount);
-  }, [amount, balance, onBet]);
+  }, []);
 
   const handleNumpadInput = useCallback((digit) => {
     if (digit === 'clear') {
@@ -161,60 +129,7 @@ const BettingControls = ({
         <div className="bg-gradient-to-t from-slate-900 via-slate-900/98 to-slate-900/95 border-t border-white/10 backdrop-blur-md">
           <div className="max-w-2xl mx-auto p-3 sm:p-4">
             
-            {/* ARMED CURSOR MODE: Value Modifiers (NEW) */}
-            {armedCursorMode && (
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <button
-                  onClick={handleHalve}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
-                >
-                  ÷2
-                </button>
-                <button
-                  onClick={handleSubtract5}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
-                >
-                  -5
-                </button>
-                <div className="px-6 py-2 bg-yellow-500/20 border border-yellow-500 rounded-lg">
-                  <div className="text-xs text-yellow-400">Cursor Value</div>
-                  <div className="text-lg font-bold text-yellow-300">${amount}</div>
-                </div>
-                <button
-                  onClick={handleAdd5}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
-                >
-                  +5
-                </button>
-                <button
-                  onClick={handleDouble}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"
-                >
-                  ×2
-                </button>
-              </div>
-            )}
-            
-            {/* Quick Bet Buttons - Top Row (ONLY if NOT in armed cursor mode) */}
-            {!armedCursorMode && (
-              <div className="flex items-center justify-center gap-2 mb-3">
-                {quickBets.map(({ label, value }) => (
-                  <button
-                    key={label}
-                    onClick={() => updateCursorValue(value)}
-                    className={`
-                      px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all
-                      ${amount === value 
-                        ? 'bg-yellow-500 text-black' 
-                        : 'bg-slate-800 text-white hover:bg-slate-700'
-                      }
-                    `}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+
 
             {/* Chip Selector */}
             <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 overflow-x-auto pb-1">
@@ -252,6 +167,21 @@ const BettingControls = ({
                     className="px-3 py-3 rounded-xl bg-red-800/70 text-red-300 hover:bg-red-700 hover:text-white text-sm font-medium transition-all"
                   >
                     Clear All
+                  </button>
+                )}
+                {/* NEW: Bet Type Toggle for Tie Bets */}
+                {gameType === 'WAR' && onBetTie && (
+                  <button
+                    onClick={() => setCurrentBetType(prev => prev === 'main' ? 'tie' : 'main')}
+                    className={`
+                      px-3 py-3 rounded-xl text-sm font-medium transition-all
+                      ${currentBetType === 'tie'
+                        ? 'bg-purple-600 text-white hover:bg-purple-500'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                      }
+                    `}
+                  >
+                    {currentBetType === 'main' ? 'Main Bet' : 'Tie Bet'}
                   </button>
                 )}
               </div>
