@@ -13,6 +13,9 @@ const {
     validateMessage
 } = require('../utils/secretComsEncryption');
 
+// Initialize engagement service for game engines
+const engagementService = new EngagementService(prisma);
+
 const games = new Map();
 const playerToGame = new Map();
 const privateWarRooms = new Map();
@@ -69,14 +72,24 @@ function initializeSocket(io, sessionMiddleware) {
 
 socket.on('create_room', async (config) => {
             const roomId = crypto.randomBytes(8).toString('hex');
-            const game = new WarEngine(io, { ...config, roomId });
+            // Create WarEngine with correct parameters: (roomId, prisma, redis, engagement)
+            const game = new WarEngine(roomId, prisma, null, engagementService);
             games.set(roomId, game);
             playerToGame.set(socket.id, roomId);
             viewers.set(roomId, []);
             chat_history.set(roomId, []);
             socket.join(roomId);
+
+            // Connect the user to the game
+            if (user && user.id) {
+                const userProfile = await getUserProfile(user.googleId);
+                await game.connectPlayer(user.id, userProfile.nickname);
+                socket.emit('room_created', { roomId, gameState: game.getPlayerState(user.id) });
+            } else {
+                socket.emit('room_created', { roomId, gameState: game.getGameState() });
+            }
+
             io.to('lobby').emit('rooms_update', getRoomsSummary());
-            socket.emit('room_created', { roomId, gameState: game.getGameState() });
         });
 
         socket.on('join_room', async (data) => {
@@ -124,6 +137,266 @@ socket.on('create_room', async (config) => {
 
         socket.on('get_rooms', () => {
             socket.emit('rooms_list', getRoomsSummary());
+        });
+
+        // =============================================================================
+        // CASINO WAR GAME HANDLERS
+        // =============================================================================
+
+        /**
+         * Join a war game room (alternative to generic join_room for war-specific setup)
+         */
+        socket.on('join_private_war', async (data) => {
+            const { tableCode } = data;
+            const roomId = tableCode;
+            const game = games.get(roomId);
+
+            if (!game || game.getGameType() !== 'WAR') {
+                return socket.emit('error', { message: 'War room not found' });
+            }
+
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
+            try {
+                // Connect player to war game
+                const userProfile = await getUserProfile(user.googleId);
+                const result = await game.connectPlayer(user.id, userProfile.nickname);
+
+                if (!result.success) {
+                    return socket.emit('error', { message: 'Failed to join game' });
+                }
+
+                // Join socket room
+                playerToGame.set(socket.id, roomId);
+                socket.join(roomId);
+
+                // Add to viewers list
+                const viewersList = viewers.get(roomId) || [];
+                viewersList.push({ id: socket.id, ...userProfile });
+                viewers.set(roomId, viewersList);
+
+                // Notify all players in room
+                io.to(roomId).emit('viewers_list', viewersList);
+                io.to(roomId).emit('opponent_joined', { gameState: game.getGameState() });
+
+                // Send game state to joining player
+                socket.emit('private_war_joined', {
+                    roomId,
+                    gameState: game.getPlayerState(user.id),
+                    playerColor: result.color,
+                    playerChips: result.chips
+                });
+
+                socket.emit('chat_history', chat_history.get(roomId) || []);
+            } catch (error) {
+                console.error('Error joining war game:', error);
+                socket.emit('error', { message: 'Failed to join game' });
+            }
+        });
+
+        /**
+         * Place a bet on a war spot
+         */
+        socket.on('place_war_bet', async (data) => {
+            const { spotIndex, betAmount } = data;
+            const roomId = playerToGame.get(socket.id);
+
+            if (!roomId) {
+                return socket.emit('error', { message: 'Not in a game room' });
+            }
+
+            const game = games.get(roomId);
+            if (!game || game.getGameType() !== 'WAR') {
+                return socket.emit('error', { message: 'Invalid game' });
+            }
+
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
+            try {
+                const success = await game.placeBet(user.id, betAmount, spotIndex);
+
+                if (success) {
+                    // Broadcast updated game state to all players
+                    io.to(roomId).emit('war_bet_placed', {
+                        gameState: game.getGameState(),
+                        spotIndex,
+                        userId: user.id,
+                        betAmount
+                    });
+                } else {
+                    socket.emit('error', { message: 'Failed to place bet - spot may be occupied or insufficient chips' });
+                }
+            } catch (error) {
+                console.error('Error placing war bet:', error);
+                socket.emit('error', { message: 'Failed to place bet' });
+            }
+        });
+
+        /**
+         * Remove a bet from a war spot
+         */
+        socket.on('remove_war_bet', async (data) => {
+            const { spotIndex } = data;
+            const roomId = playerToGame.get(socket.id);
+
+            if (!roomId) {
+                return socket.emit('error', { message: 'Not in a game room' });
+            }
+
+            const game = games.get(roomId);
+            if (!game || game.getGameType() !== 'WAR') {
+                return socket.emit('error', { message: 'Invalid game' });
+            }
+
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
+            try {
+                const success = game.removeBet(user.id, spotIndex);
+
+                if (success) {
+                    // Broadcast updated game state
+                    io.to(roomId).emit('war_bet_removed', {
+                        gameState: game.getGameState(),
+                        spotIndex,
+                        userId: user.id
+                    });
+                } else {
+                    socket.emit('error', { message: 'Failed to remove bet - not your spot or betting phase ended' });
+                }
+            } catch (error) {
+                console.error('Error removing war bet:', error);
+                socket.emit('error', { message: 'Failed to remove bet' });
+            }
+        });
+
+        /**
+         * Start a new war hand (admin/dealer action)
+         */
+        socket.on('start_war_hand', async () => {
+            const roomId = playerToGame.get(socket.id);
+
+            if (!roomId) {
+                return socket.emit('error', { message: 'Not in a game room' });
+            }
+
+            const game = games.get(roomId);
+            if (!game || game.getGameType() !== 'WAR') {
+                return socket.emit('error', { message: 'Invalid game' });
+            }
+
+            try {
+                await game.startNewHand();
+
+                // Broadcast hand started event
+                io.to(roomId).emit('war_hand_started', {
+                    gameState: game.getGameState()
+                });
+
+                // If hand resolved immediately (no ties), broadcast results
+                if (game.state === 'COMPLETE') {
+                    io.to(roomId).emit('war_hand_resolved', {
+                        gameState: game.getGameState(),
+                        results: game.getActiveSpots().map(({ index, spot }) => ({
+                            spotIndex: index,
+                            userId: spot.playerId,
+                            bet: spot.bet,
+                            card: spot.card,
+                            payout: spot.payout || 0
+                        }))
+                    });
+                }
+            } catch (error) {
+                console.error('Error starting war hand:', error);
+                socket.emit('error', { message: 'Failed to start hand' });
+            }
+        });
+
+        /**
+         * Make war decision (surrender or go to war)
+         */
+        socket.on('make_war_decision', async (data) => {
+            const { spotIndex, decision } = data; // decision: 'surrender' or 'war'
+            const roomId = playerToGame.get(socket.id);
+
+            if (!roomId) {
+                return socket.emit('error', { message: 'Not in a game room' });
+            }
+
+            const game = games.get(roomId);
+            if (!game || game.getGameType() !== 'WAR') {
+                return socket.emit('error', { message: 'Invalid game' });
+            }
+
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
+            try {
+                const success = await game.makeWarDecision(user.id, spotIndex, decision);
+
+                if (success) {
+                    // Broadcast decision
+                    io.to(roomId).emit('war_decision_made', {
+                        gameState: game.getGameState(),
+                        spotIndex,
+                        userId: user.id,
+                        decision
+                    });
+
+                    // Check if all decisions are made and hand is resolved
+                    if (game.state === 'COMPLETE') {
+                        io.to(roomId).emit('war_hand_resolved', {
+                            gameState: game.getGameState(),
+                            results: game.getActiveSpots().map(({ index, spot }) => ({
+                                spotIndex: index,
+                                userId: spot.playerId,
+                                bet: spot.bet,
+                                card: spot.card,
+                                payout: spot.payout || 0
+                            }))
+                        });
+                    }
+                } else {
+                    socket.emit('error', { message: 'Failed to make war decision' });
+                }
+            } catch (error) {
+                console.error('Error making war decision:', error);
+                socket.emit('error', { message: 'Failed to make decision' });
+            }
+        });
+
+        /**
+         * Reset war game for next round
+         */
+        socket.on('reset_war_round', async () => {
+            const roomId = playerToGame.get(socket.id);
+
+            if (!roomId) {
+                return socket.emit('error', { message: 'Not in a game room' });
+            }
+
+            const game = games.get(roomId);
+            if (!game || game.getGameType() !== 'WAR') {
+                return socket.emit('error', { message: 'Invalid game' });
+            }
+
+            try {
+                await game.resetForNextRound();
+
+                // Broadcast reset
+                io.to(roomId).emit('war_round_reset', {
+                    gameState: game.getGameState()
+                });
+            } catch (error) {
+                console.error('Error resetting war round:', error);
+                socket.emit('error', { message: 'Failed to reset round' });
+            }
         });
 
         // =============================================================================

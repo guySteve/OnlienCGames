@@ -93,6 +93,7 @@ model User {
   updatedAt             DateTime
   googleId              String?           @unique
   email                 String?           @unique
+  password              String?           // Hashed password for username/password auth
   displayName           String
   avatarUrl             String?
   nickname              String?           @db.VarChar(30)

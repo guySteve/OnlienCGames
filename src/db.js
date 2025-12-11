@@ -86,27 +86,32 @@ async function checkDailyReset(userId) {
 async function getOrCreateUser(googleProfile) {
   try {
     console.log('📊 Looking up user:', googleProfile.displayName, 'ID:', googleProfile.id);
-    
+
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'smmohamed60@gmail.com';
+    const userEmail = googleProfile.emails?.[0]?.value || null;
+    const isAdminUser = userEmail === ADMIN_EMAIL;
+
     let user = await prisma.user.findUnique({
       where: { googleId: googleProfile.id },
     });
 
     if (!user) {
       console.log('👤 Creating new user:', googleProfile.displayName);
-      
+
       const newUserId = crypto.randomUUID();
-      
+
       user = await prisma.user.create({
         data: {
           id: newUserId,
           googleId: googleProfile.id,
-          email: googleProfile.emails?.[0]?.value || null,
+          email: userEmail,
           displayName: googleProfile.displayName,
           avatarUrl: googleProfile.photos?.[0]?.value || null,
           chipBalance: 100n,
           lastLogin: new Date(),
           updatedAt: new Date(),
           currentStreak: 1,
+          isAdmin: isAdminUser, // Set admin flag based on email
         },
       });
 
@@ -131,7 +136,16 @@ async function getOrCreateUser(googleProfile) {
       }
     } else {
       console.log('✅ Existing user found:', user.displayName, 'Balance:', Number(user.chipBalance));
-      
+
+      // Update admin status if needed (in case it changed)
+      if (user.isAdmin !== isAdminUser) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { isAdmin: isAdminUser }
+        });
+        console.log(`✅ Admin status updated to: ${isAdminUser}`);
+      }
+
       // Check daily reset
       try {
         const resetUser = await checkDailyReset(googleProfile.id);
