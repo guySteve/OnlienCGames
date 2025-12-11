@@ -44,6 +44,7 @@
     "crypto-js": "^4.2.0",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.2.1",
     "express-session": "^1.17.3",
     "memorystore": "^1.6.7",
     "passport": "^0.7.0",

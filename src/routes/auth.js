@@ -5,8 +5,19 @@ const webauthn = require('../webauthn');
 const { prisma } = require('../db');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
+
+// Rate limiter for registration (guest and regular accounts)
+// Prevents abuse: max 5 accounts per IP per 15 minutes
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Max 5 registrations
+  message: { error: 'Too many accounts created. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
@@ -17,8 +28,8 @@ router.get('/google/callback',
   }
 );
 
-// Username/Password Registration
-router.post('/register', async (req, res) => {
+// Username/Password Registration (with rate limiting)
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
