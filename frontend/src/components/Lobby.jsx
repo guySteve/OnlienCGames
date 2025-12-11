@@ -33,7 +33,7 @@ const Lobby = ({ rooms, onJoin, onCreate }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-3xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-600"
               >
-                🎰 Moe's Casino
+                🃏 Moe's Card Room
               </motion.h1>
               <motion.p 
                 initial={{ opacity: 0 }}

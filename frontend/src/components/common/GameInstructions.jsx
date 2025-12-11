@@ -46,7 +46,7 @@ const GAME_INSTRUCTIONS = {
     ]
   },
   WAR: {
-    title: "How to Play Casino War",
+    title: "How to Play War",
     icon: "⚔️",
     sections: [
       {

@@ -82,7 +82,7 @@ const WarTableZones = ({ socket, roomId, user, onExit }) => {
     <div className="min-h-screen bg-gradient-to-b from-emerald-900 to-emerald-950 p-2 md:p-4">
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl md:text-2xl font-bold text-yellow-400">Casino War</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-yellow-400">War</h1>
         <button
           onClick={onExit}
           className="px-3 py-1.5 md:px-4 md:py-2 bg-red-600 hover:bg-red-700 rounded text-white text-sm md:text-base"

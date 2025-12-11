@@ -7,7 +7,7 @@ import HappyHourBanner from '../components/HappyHourBanner';
 
 const allGames = [
   { id: '1', name: 'Blackjack', type: 'BLACKJACK', category: 'Card Games', description: 'Classic 21. Beat the dealer.', players: 12, minBet: 10 },
-  { id: '2', name: 'Casino War', type: 'WAR', category: 'Card Games', description: 'High card wins. Simple & fast.', players: 8, minBet: 5 },
+  { id: '2', name: 'War', type: 'WAR', category: 'Card Games', description: 'High card wins. Simple & fast.', players: 8, minBet: 5 },
   { id: '3', name: '75-Ball Bingo', type: 'BINGO', category: 'Community', description: 'Join the party and daub away.', players: 42, minBet: 1 },
   { id: '4', name: 'Let It Ride', type: 'LET IT RIDE', category: 'Card Games', description: 'Poker-style with a twist.', players: 5, minBet: 25 },
 ];

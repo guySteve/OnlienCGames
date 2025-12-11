@@ -17,8 +17,13 @@ const webauthn = require('./src/webauthn');
 const app = express();
 app.set('trust proxy', 1);
 
-const allowedOrigins = [/* ... */];
-app.use(cors({ /* ... */ }));
+// CORS configuration
+app.use(cors({
+  origin: true, // Allow all origins in development (use specific domains in production)
+  credentials: true, // Allow cookies to be sent
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
