@@ -244,7 +244,24 @@
         </div>
       </div>
       
-      <a href="/auth/google" class="login-btn">ENTER THE ROOM</a>
+      <!-- Login/Register Form -->
+      <div id="auth-form">
+        <div id="login-form" style="display: block;">
+          <input type="email" id="login-email" placeholder="Email" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 2px solid #d4af37; background: rgba(255,255,255,0.9); font-size: 1em;">
+          <input type="password" id="login-password" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 2px solid #d4af37; background: rgba(255,255,255,0.9); font-size: 1em;">
+          <button onclick="handleLogin()" class="login-btn" style="width: 100%; margin-bottom: 10px;">SIGN IN</button>
+          <button onclick="showRegisterForm()" style="background: transparent; color: #d4af37; border: 2px solid #d4af37; padding: 12px; width: 100%; border-radius: 8px; font-size: 1em; cursor: pointer; font-family: 'Cinzel', serif; letter-spacing: 2px;">CREATE ACCOUNT</button>
+          <button onclick="handleGuestLogin()" style="background: rgba(255,255,255,0.1); color: #fff; border: 2px solid rgba(255,255,255,0.3); padding: 12px; width: 100%; border-radius: 8px; font-size: 1em; cursor: pointer; margin-top: 10px; font-family: 'Cinzel', serif;">PLAY AS GUEST</button>
+        </div>
+        
+        <div id="register-form" style="display: none;">
+          <input type="text" id="register-username" placeholder="Username" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 2px solid #d4af37; background: rgba(255,255,255,0.9); font-size: 1em;">
+          <input type="email" id="register-email" placeholder="Email" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 2px solid #d4af37; background: rgba(255,255,255,0.9); font-size: 1em;">
+          <input type="password" id="register-password" placeholder="Password (6+ chars)" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 2px solid #d4af37; background: rgba(255,255,255,0.9); font-size: 1em;">
+          <button onclick="handleRegister()" class="login-btn" style="width: 100%; margin-bottom: 10px;">CREATE ACCOUNT</button>
+          <button onclick="showLoginForm()" style="background: transparent; color: #d4af37; border: 2px solid #d4af37; padding: 12px; width: 100%; border-radius: 8px; font-size: 1em; cursor: pointer; font-family: 'Cinzel', serif; letter-spacing: 2px;">BACK TO SIGN IN</button>
+        </div>
+      </div>
     </div>
     
     <div class="disclaimer">
@@ -257,6 +274,103 @@
     </div>
   </div>
   <script>
+    // Auth form toggling
+    function showLoginForm() {
+      document.getElementById('login-form').style.display = 'block';
+      document.getElementById('register-form').style.display = 'none';
+    }
+    
+    function showRegisterForm() {
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('register-form').style.display = 'block';
+    }
+    
+    // Handle login
+    async function handleLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      
+      if (!email || !password) {
+        alert('Please enter both email and password');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          window.location.href = '/';
+        } else {
+          alert(data.error || 'Login failed');
+        }
+      } catch (error) {
+        alert('Connection error. Please try again.');
+      }
+    }
+    
+    // Handle registration
+    async function handleRegister() {
+      const username = document.getElementById('register-username').value;
+      const email = document.getElementById('register-email').value;
+      const password = document.getElementById('register-password').value;
+      
+      if (!username || !email || !password) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      if (password.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          alert('Account created! You can now sign in.');
+          showLoginForm();
+          document.getElementById('login-email').value = email;
+        } else {
+          alert(data.error || 'Registration failed');
+        }
+      } catch (error) {
+        alert('Connection error. Please try again.');
+      }
+    }
+    
+    // Handle guest login
+    async function handleGuestLogin() {
+      try {
+        const response = await fetch('/auth/guest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          window.location.href = '/';
+        } else {
+          alert(data.error || 'Guest login failed');
+        }
+      } catch (error) {
+        alert('Connection error. Please try again.');
+      }
+    }
+    
     // Check casino operating hours status
     async function checkCardRoomStatus() {
       try {
