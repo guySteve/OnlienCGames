@@ -266,7 +266,7 @@ npm install --save \
 
 ```bash
 # .env (production)
-REDIS_URL=redis://your-redis.io:6379
+REDIS_URL=redis://<your-redis-host>:6379
 DATABASE_URL=postgresql://host:6543/db?pgbouncer=true
 DIRECT_URL=postgresql://host:5432/db
 
@@ -481,7 +481,7 @@ app.get('/health', createHealthCheckHandler({ redis, prisma, io }));
 
 ```bash
 # Add Redis URL
-REDIS_URL=redis://your-redis.io:6379
+REDIS_URL=redis://<your-redis-host>:6379
 
 # Update database URLs
 DATABASE_URL=postgresql://...?pgbouncer=true

@@ -70,4 +70,4 @@ Write-Host "     --cpu 1 \"
 Write-Host "     --timeout 300 \"
 Write-Host "     --set-env-vars NODE_ENV=production" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "   (Add your other --set-env-vars for DATABASE_URL, REDIS, etc.)" -ForegroundColor Gray
+

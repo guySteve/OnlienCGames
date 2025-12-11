@@ -313,7 +313,7 @@ console.log('');
 # Phase 2: Required Environment Variables
 
 # Redis (for Socket.IO Adapter + Game State)
-REDIS_URL=redis://your-redis-host:6379
+REDIS_URL=redis://<your-redis-host>:6379
 
 # Database URLs
 DATABASE_URL=postgresql://user:pass@host:6543/db?pgbouncer=true
@@ -486,7 +486,7 @@ server.js
 **Solution:**
 ```bash
 # Check Redis connectivity
-redis-cli -h your-redis-host -p 6379 ping
+redis-cli -h <your-redis-host> -p 6379 ping
 # Should return: PONG
 
 # Check environment variable

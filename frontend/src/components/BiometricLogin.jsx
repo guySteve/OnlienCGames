@@ -158,7 +158,7 @@ const BiometricLogin = ({ onSuccess, adminEmail = 'smmohamed60@gmail.com' }) => 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
+                placeholder="email@example.com"
                 required
                 style={styles.input}
                 disabled={isLoading}

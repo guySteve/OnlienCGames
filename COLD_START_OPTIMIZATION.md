@@ -29,13 +29,13 @@ To reduce cold starts, use a **free uptime monitoring service** to ping your `/h
 1. Sign up at https://uptimerobot.com (free tier)
 2. Create a new monitor:
    - Type: HTTP(s)
-   - URL: `https://your-domain.com/health`
+   - URL: `https://<your-domain.com>/health`
    - Interval: **5 minutes** (free tier limit)
 3. This pings every 5 minutes, keeping your instance mostly warm
 
 ### Option 2: Better Uptime (FREE)
 1. Sign up at https://betteruptime.com
-2. Create a monitor for `https://your-domain.com/health`
+2. Create a monitor for `https://<your-domain.com>/health`
 3. Set interval to 3-5 minutes
 
 ### Option 3: Cron-Job.org (FREE)
@@ -58,10 +58,10 @@ To reduce cold starts, use a **free uptime monitoring service** to ping your `/h
 
 ```bash
 # Simulate cold start
-curl https://your-domain.com/health
+curl https://<your-domain.com>/health
 
 # Check OAuth flow timing
-time curl -I https://your-domain.com/auth/google
+time curl -I https://<your-domain.com>/auth/google
 ```
 
 ## When to Upgrade to min-instances=1

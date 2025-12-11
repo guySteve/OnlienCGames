@@ -66,7 +66,7 @@ Added `--startup-cpu-boost` flag for faster cold starts during migrations.
 ### Step 1: Migrate Database First (IMPORTANT!)
 ```bash
 # Set your production DATABASE_URL
-export DATABASE_URL="your-production-database-url"
+export DATABASE_URL="<your-production-database-url>"
 
 # Run migration
 npx prisma db push --skip-generate --accept-data-loss
@@ -131,7 +131,7 @@ gcloud run services describe onlinecgames \
 
 ### 3. Test Health Endpoint
 ```bash
-curl https://your-app-url.run.app/health
+curl https://<your-app-url>.run.app/health
 ```
 
 ## Troubleshooting
@@ -153,7 +153,7 @@ gcloud run services describe onlinecgames \
 **Manual migration (if needed):**
 ```bash
 # SSH into Cloud SQL
-gcloud sql connect your-instance --user=postgres
+gcloud sql connect <your-instance> --user=postgres
 
 # Check if tables exist
 \dt
@@ -232,7 +232,7 @@ ALTER TABLE "User"
 After successful deployment:
 
 - [ ] Service is running: `gcloud run services describe onlinecgames`
-- [ ] Health check passes: `curl https://your-url/health`
+- [ ] Health check passes: `curl https://<your-url>/health`
 - [ ] Login works
 - [ ] Chat moderation works (try sending profanity)
 - [ ] Admin dashboard accessible at `/admin`
@@ -265,7 +265,7 @@ If you want to avoid migration on every deployment:
 ### 1. Run Migration Once Manually
 ```bash
 # Connect to Cloud SQL
-gcloud sql connect your-instance
+gcloud sql connect <your-instance>
 
 # Run Prisma migration
 npx prisma db push

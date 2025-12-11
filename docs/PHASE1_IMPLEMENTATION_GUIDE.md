@@ -395,7 +395,7 @@ describe('LockManager', () => {
 
 ```yaml
 config:
-  target: 'https://your-api.com'
+  target: 'https://<your-api-url>'
   phases:
     - duration: 60
       arrivalRate: 100  # 100 requests/second

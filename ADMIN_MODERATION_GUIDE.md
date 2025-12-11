@@ -150,7 +150,7 @@ When you log in with this email:
 
 1. **Login** with admin email
 2. Click **"👑 Admin"** button in top-right
-3. Or navigate to: `https://yoursite.com/admin`
+3. Or navigate to: `https://<your-site>.com/admin`
 
 ---
 
