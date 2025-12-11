@@ -22,6 +22,7 @@ function getOperatingHoursStatus() {
 }
 
 function checkOperatingHours(req, res, next) {
+    // ALWAYS OPEN - No time restrictions
     const allowedPaths = [
         '/health', '/auth', '/me', '/api/card-room-status', '/logout', '/', '/index.html',
         '/assets', '/vite', '/@vite', '/node_modules', '/src', '/socket.io'
@@ -32,20 +33,8 @@ function checkOperatingHours(req, res, next) {
         return next();
     }
 
-    if (req.user && req.user.isAdmin) {
-        return next();
-    }
-
-    const { isOpen, nextOpenTime } = getOperatingHoursStatus();
-    if (isOpen) {
-        return next();
-    }
-
-    res.status(503).json({
-        error: 'Card room is currently closed.',
-        message: "Moe's Card Room is only open from 10 PM to 2 AM Eastern Time.",
-        nextOpenTime: nextOpenTime.toISOString(),
-    });
+    // Always allow access - casino is always open
+    return next();
 }
 
 module.exports = {

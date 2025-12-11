@@ -215,33 +215,11 @@
       <div class="error-banner-text" id="error-message"></div>
     </div>
     
-    <div id="card-room-status" class="card-room-status" style="display: none;">
-      <div class="status-icon" id="status-icon"></div>
-      <div class="status-title" id="status-title"></div>
-      <div class="status-hours">🕙 Operating Hours: 10 PM - 2 AM ET</div>
-      <div class="status-next-open" id="status-next-open"></div>
-    </div>
-    
     <div class="welcome-card">
       <div class="welcome-text">
-        Welcome to Moe's Card Room, the classiest joint in town! 
-        Pull up a chair at our exclusive tables and experience 
-        the thrill of Card Room War with friends around the globe.
-      </div>
-      
-      <div class="features">
-        <div class="feature">
-          <div class="feature-icon">🎰</div>
-          <div class="feature-text">Daily Chips</div>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">🃏</div>
-          <div class="feature-text">Fair Play</div>
-        </div>
-        <div class="feature">
-          <div class="feature-icon">💬</div>
-          <div class="feature-text">Live Chat</div>
-        </div>
+        🎰 <strong>Play Casino War Online - Free!</strong> 🎰<br><br>
+        No downloads. No real money. Just pure fun.<br>
+        Chat with players, watch the animated dealer, and test your luck!
       </div>
       
       <!-- Login/Register Form -->
@@ -268,8 +246,7 @@
       <div class="disclaimer-title">🎲 House Rules 🎲</div>
       <div class="disclaimer-text">
         <strong>For Entertainment Only.</strong> Moe's Card Room is a free social gaming experience. 
-        No real money, no gambling, just pure fun. Play responsibly—each player gets daily chips 
-        that reset at midnight EST. Once you're all-in, you're done for the day. Good luck, champ!
+        No real money, no gambling, just pure fun with play-money chips!
       </div>
     </div>
   </div>
@@ -310,6 +287,7 @@
           alert(data.error || 'Login failed');
         }
       } catch (error) {
+        console.error('Login error:', error);
         alert('Connection error. Please try again.');
       }
     }
@@ -347,6 +325,7 @@
           alert(data.error || 'Registration failed');
         }
       } catch (error) {
+        console.error('Register error:', error);
         alert('Connection error. Please try again.');
       }
     }
@@ -367,11 +346,25 @@
           alert(data.error || 'Guest login failed');
         }
       } catch (error) {
+        console.error('Guest login error:', error);
         alert('Connection error. Please try again.');
       }
     }
     
-    // Check casino operating hours status
+    // Allow enter key to submit
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginEmail = document.getElementById('login-email');
+      const loginPassword = document.getElementById('login-password');
+      
+      if (loginEmail && loginPassword) {
+        loginEmail.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') handleLogin();
+        });
+        loginPassword.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') handleLogin();
+        });
+      }
+    });
     async function checkCardRoomStatus() {
       try {
         const response = await fetch('/api/card-room-status');
