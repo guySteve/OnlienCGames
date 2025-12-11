@@ -50,6 +50,7 @@ function initSocket() {
     mySeats = []; // Start as observer
     showGame();
     renderTable();
+    playAnimation('newuser.001');
   });
   socket.on('observer_joined', (data) => { 
     gameState = data.gameState;
@@ -68,7 +69,7 @@ function initSocket() {
   socket.on('game_state', (data) => { gameState = data.gameState; updateMySeats(); renderTable(); });
   socket.on('bet_placed', (data) => { gameState = data.gameState; renderTable(); });
   socket.on('bets_locked', (data) => { gameState = data.gameState; log("Bets locked"); renderTable(); });
-  socket.on('cards_dealt', (data) => { gameState = data.gameState; renderTable(); });
+  socket.on('cards_dealt', (data) => { gameState = data.gameState; renderTable(); playAnimation('Deal'); });
   socket.on('house_reveal', (data) => { gameState = data.gameState; log("House reveals card"); renderTable(); });
   socket.on('round_result', (data) => { gameState = data.gameState; showRoundResult(data.result); renderTable(); });
   socket.on('round_reset', (data) => { gameState = data.gameState; resetRoundUI(); renderTable(); });
@@ -557,6 +558,7 @@ function showRoundResult(res) {
     const winner = res.winners[0];
     if (winner.isHouse) {
       div.innerHTML = `<span class="result-loss">House wins! Pot lost: $${res.pot}</span>`;
+      playAnimation('Loser');
     } else {
       div.innerHTML = `<span class="result-win">${ClientCrypto.sanitize(winner.name)} wins $${res.pot}!</span>`;
     }
