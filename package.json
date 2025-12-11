@@ -1,7 +1,7 @@
 {
-  "name": "moes-casino",
+  "name": "moes-card-room",
   "version": "1.1.0",
-  "description": "Multiplayer War card game with lobby, chat, Google login, and casino automation.",
+  "description": "Multiplayer War card game with lobby, chat, Google login, and card room automation.",
   "main": "server.js",
   "engines": {
     "node": ">=20.0.0"

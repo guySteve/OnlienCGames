@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Welcome to Moe's Card Room | Free Online Card Games</title>
-  <meta name="description" content="Join Moe's Card Room - play free poker, blackjack, and casino war with friends. No downloads, no real money, 100% free social gaming.">
+  <meta name="description" content="Join Moe's Card Room - play free poker, blackjack, and card room war with friends. No downloads, no real money, 100% free social gaming.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://playwar.games/welcome.html">
   <link rel="stylesheet" href="styles.css?v=4.0">
@@ -102,7 +102,7 @@
     .disclaimer-text {
       font-size: clamp(0.85em, 2.2vw, 0.95em);
     }
-    .casino-status {
+    .card-room-status {
       background: rgba(0,0,0,0.4);
       border: 2px solid #d4af37;
       border-radius: 12px;
@@ -215,7 +215,7 @@
       <div class="error-banner-text" id="error-message"></div>
     </div>
     
-    <div id="casino-status" class="casino-status" style="display: none;">
+    <div id="card-room-status" class="card-room-status" style="display: none;">
       <div class="status-icon" id="status-icon"></div>
       <div class="status-title" id="status-title"></div>
       <div class="status-hours">🕙 Operating Hours: 10 PM - 2 AM ET</div>
@@ -226,7 +226,7 @@
       <div class="welcome-text">
         Welcome to Moe's Card Room, the classiest joint in town! 
         Pull up a chair at our exclusive tables and experience 
-        the thrill of Casino War with friends around the globe.
+        the thrill of Card Room War with friends around the globe.
       </div>
       
       <div class="features">
@@ -258,12 +258,12 @@
   </div>
   <script>
     // Check casino operating hours status
-    async function checkCasinoStatus() {
+    async function checkCardRoomStatus() {
       try {
-        const response = await fetch('/api/casino-status');
+        const response = await fetch('/api/card-room-status');
         const data = await response.json();
         
-        const statusDiv = document.getElementById('casino-status');
+        const statusDiv = document.getElementById('card-room-status');
         const statusIcon = document.getElementById('status-icon');
         const statusTitle = document.getElementById('status-title');
         const statusNextOpen = document.getElementById('status-next-open');
@@ -294,7 +294,7 @@
         
         statusDiv.style.display = 'block';
       } catch (error) {
-        console.error('Error checking casino status:', error);
+        console.error('Error checking card room status:', error);
       }
     }
     
@@ -328,8 +328,8 @@
         window.history.replaceState({}, document.title, window.location.pathname);
       }
       
-      // Check casino status on page load
-      checkCasinoStatus();
+      // Check card room status on page load
+      checkCardRoomStatus();
     })();
   </script>
 </body>

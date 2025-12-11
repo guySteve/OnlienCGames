@@ -1,4 +1,4 @@
-/* === Casino War - Modern Sophisticated Vibe === */
+/* === Card Room War - Modern Sophisticated Vibe === */
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Montserrat:wght@300;400;600&display=swap');
 
 *{box-sizing:border-box}
@@ -79,7 +79,7 @@ body{
 
 /* ===== Lobby ===== */
 .lobby{display:grid;grid-template-columns:1fr 400px;gap:30px}
-.casino-section{
+.card-room-section{
   background: rgba(20, 40, 30, 0.6);
   border: 1px solid rgba(255,255,255,0.05);
   border-radius:16px;
@@ -87,7 +87,7 @@ body{
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
 }
-.casino-section h2{
+.card-room-section h2{
   margin:0 0 25px 0;
   color:#d4af37;
   font-family:'Cinzel', serif;
@@ -118,7 +118,7 @@ body{
   .topbar { padding: 10px 15px; }
   .brand { font-size: 1.2em; }
   
-  .casino-table {
+  .card-room-table {
     width: 95% !important;
     height: 350px !important; /* Scale down height */
     border-radius: 150px / 100px !important; /* Adjust oval shape */
@@ -207,7 +207,7 @@ body{
 #gameLog{max-height:140px;overflow:auto;display:flex;flex-direction:column-reverse;font-size:0.85em}
 .log-entry{padding:5px 0;border-bottom:1px solid rgba(30,96,72,0.5);opacity:0.9}
 
-/* ===== CASINO TABLE - Immersive Visual ===== */
+/* ===== CARD ROOM TABLE - Immersive Visual ===== */
 .table-container{
   display:flex;
   flex-direction:column;
@@ -215,7 +215,7 @@ body{
   gap:20px;
 }
 
-.casino-table{
+.card-room-table{
   position:relative;
   width:100%;
   max-width:950px;
@@ -240,7 +240,7 @@ body{
 }
 
 /* Felt texture overlay */
-.casino-table::before{
+.card-room-table::before{
   content:'';
   position:absolute;
   inset:0;
@@ -250,7 +250,7 @@ body{
   pointer-events:none;
 }
 
-/* Table Text - "CASINO WAR" */
+/* Table Text - "CARD ROOM WAR" */
 .table-title{
   position:absolute;
   top:45%;
@@ -1221,7 +1221,7 @@ body{
 /* ===== Responsive Design ===== */
 @media(max-width:1100px){
   .game-layout{grid-template-columns:1fr}
-  .casino-table{height:450px;max-width:100%}
+  .card-room-table{height:450px;max-width:100%}
   .seats-container{height:200px}
   .seat{width:130px;min-height:170px}
   .seat:nth-child(1),.seat:nth-child(5){transform:translateY(-35px)}
@@ -1236,7 +1236,7 @@ body{
   .brand{font-size:1.4em;letter-spacing:3px}
   .auth{flex-wrap:wrap;gap:8px}
   .profile-name,.chip-balance{font-size:0.85em}
-  .casino-table{
+  .card-room-table{
     height:400px;
     border-radius:40% 40% 8px 8px / 30% 30% 3% 3%;
     box-shadow:
@@ -1275,7 +1275,7 @@ body{
   .brand{font-size:1.2em;letter-spacing:2px;width:100%;text-align:center}
   .auth{width:100%;justify-content:center}
   .container{padding:12px}
-  .casino-table{height:380px;padding:16px}
+  .card-room-table{height:380px;padding:16px}
   .seat{width:95px;min-height:135px}
   .player-avatar,.player-avatar-placeholder{width:38px;height:38px}
   .player-name{font-size:0.85em;max-width:85px}
@@ -1295,7 +1295,7 @@ body{
     touch-action:manipulation;
   }
   .table-container{gap:14px}
-  .casino-table{
+  .card-room-table{
     height:420px;
     padding:16px;
     /* More breathing room */
@@ -1339,7 +1339,7 @@ body{
 }
 
 @media(max-width:380px){
-  .casino-table{
+  .card-room-table{
     height:400px;
     /* Maintain table feel even on small screens */
   }
@@ -1545,7 +1545,7 @@ body{
 
 /* Mobile Portrait Fix for Oval Table */
 @media (max-width: 768px) and (orientation: portrait) {
-  .casino-table {
+  .card-room-table {
     width: 95% !important;
     height: 350px !important; /* Scale down height */
     border-radius: 150px / 100px !important; /* Adjust oval shape */

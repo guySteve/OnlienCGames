@@ -23,7 +23,7 @@ function getOperatingHoursStatus() {
 
 function checkOperatingHours(req, res, next) {
     const allowedPaths = [
-        '/health', '/auth', '/me', '/api/casino-status', '/logout', '/', '/index.html',
+        '/health', '/auth', '/me', '/api/card-room-status', '/logout', '/', '/index.html',
         '/assets', '/vite', '/@vite', '/node_modules', '/src', '/socket.io'
     ];
 

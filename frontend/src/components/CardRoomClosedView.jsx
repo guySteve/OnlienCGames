@@ -1,4 +1,4 @@
-// @/components/CasinoClosedView.jsx
+// @/components/CardRoomClosedView.jsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import BiometricLogin from './BiometricLogin';
@@ -21,7 +21,7 @@ const pulseVariants = {
   }
 };
 
-export function CasinoClosedView({ nextOpenTime, msUntilOpen, onLoginSuccess }) {
+export function CardRoomClosedView({ nextOpenTime, msUntilOpen, onLoginSuccess }) {
   const [timeUntilOpen, setTimeUntilOpen] = useState('');
   const [showBiometricLogin, setShowBiometricLogin] = useState(false);
   const [localTargetTime, setLocalTargetTime] = useState(null);
@@ -38,7 +38,7 @@ export function CasinoClosedView({ nextOpenTime, msUntilOpen, onLoginSuccess }) 
   useEffect(() => {
     const syncWithServer = async () => {
       try {
-        const response = await fetch('/api/casino-status');
+        const response = await fetch('/api/card-room-status');
         if (response.ok) {
           const data = await response.json();
           if (data.msUntilOpen !== undefined) {
@@ -99,7 +99,7 @@ export function CasinoClosedView({ nextOpenTime, msUntilOpen, onLoginSuccess }) 
       </div>
 
       <div className="relative z-10 text-center px-4 max-w-2xl">
-        {/* Casino Closed Icon */}
+        {/* Card Room Closed Icon */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}

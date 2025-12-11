@@ -287,9 +287,11 @@ function sendLobbyChat() {
 }
 function addLobbyMessage(m) {
   const box = document.getElementById('lobbyChatBox');
-  const row = document.createElement('div'); row.className='chat-row';
-  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
-  box.appendChild(row); box.scrollTop = box.scrollHeight;
+  const row = document.createElement('div');
+  row.className = 'retro-chat-message';
+  row.innerHTML = `<span class="username">${ClientCrypto.sanitize(m.from)}:</span> ${ClientCrypto.sanitize(m.msg)}`;
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
 }
 
 // Game UI
@@ -307,9 +309,11 @@ function sendRoomChat() {
 }
 function addRoomMessage(m) {
   const box = document.getElementById('roomChatBox');
-  const row = document.createElement('div'); row.className='chat-row';
-  row.innerHTML = `${m.photo?`<img class="avatar" src="${m.photo}">`:''}<b>${ClientCrypto.sanitize(m.from)}:</b> ${ClientCrypto.sanitize(m.msg)}`;
-  box.appendChild(row); box.scrollTop = box.scrollHeight;
+  const row = document.createElement('div');
+  row.className = 'retro-chat-message';
+  row.innerHTML = `<span class="username">${ClientCrypto.sanitize(m.from)}:</span> ${ClientCrypto.sanitize(m.msg)}`;
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
 }
 
 async function claimDailyReward() {
@@ -775,8 +779,8 @@ function showLobby() {
     socket.emit('leave_room', { roomId });
   }
 
-  const casinoClosed = document.getElementById('casinoClosed');
-  if (casinoClosed.style.display !== 'block') {
+  const cardRoomClosed = document.getElementById('cardRoomClosed');
+  if (cardRoomClosed.style.display !== 'block') {
     document.getElementById('lobbyScreen').style.display = 'block';
   }
   
@@ -1194,25 +1198,25 @@ async function submitTip() {
   }
 }
 
-async function checkCasinoStatus() {
+async function checkCardRoomStatus() {
   try {
-    const response = await fetch('/api/casino-status');
+    const response = await fetch('/api/card-room-status');
     const status = await response.json();
 
     if (!status.isOpen && (!auth.authenticated || !auth.user.isAdmin)) {
       const lobbyScreen = document.getElementById('lobbyScreen');
-      const casinoClosed = document.getElementById('casinoClosed');
+      const cardRoomClosed = document.getElementById('cardRoomClosed');
       if (lobbyScreen) lobbyScreen.style.display = 'none';
-      if (casinoClosed) casinoClosed.style.display = 'block';
+      if (cardRoomClosed) cardRoomClosed.style.display = 'block';
     }
   } catch (error) {
-    console.error('Error checking casino status:', error);
+    console.error('Error checking card room status:', error);
   }
 }
 
 window.addEventListener('load', async () => {
   await fetchMe();
-  await checkCasinoStatus();
+  await checkCardRoomStatus();
   showLobby();
   initSocket();
   initChipClickHandlers(); // Initialize chip betting system

@@ -1,6 +1,6 @@
-# Moe's Card Room - Casino War
+# Moe's Card Room - Card Room War
 
-A real-time multiplayer Casino War card game with WebSocket support. Up to 5 players compete in real-time with betting using virtual chips.
+A real-time multiplayer Card Room War card game with WebSocket support. Up to 5 players compete in real-time with betting using virtual chips.
 
 **Live URL**: https://onlinecgames-212973396288.us-east1.run.app
 

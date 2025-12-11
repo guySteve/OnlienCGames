@@ -9,7 +9,7 @@ import { GameLobbyView } from './views/GameLobbyView';
 import { SettingsView } from './views/SettingsView';
 import { Navbar } from './components/ui/Navbar';
 import { AnimatedCounter } from './components/ui/AnimatedCounter';
-import { CasinoClosedView } from './components/CasinoClosedView';
+import { CardRoomClosedView } from './components/CardRoomClosedView';
 import BiometricSetupPrompt from './components/BiometricSetupPrompt';
 
 // --- Legacy Components (to be phased out or integrated) ---
@@ -58,7 +58,7 @@ function App() {
 
 
   // Casino operating hours status
-  const [casinoStatus, setCasinoStatus] = useState({ isOpen: true, nextOpenTime: null });
+  const [cardRoomStatus, setCardRoomStatus] = useState({ isOpen: true, nextOpenTime: null });
 
   // Biometric setup prompt
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
@@ -91,13 +91,13 @@ function App() {
   useEffect(() => {
     const checkOperatingHours = async () => {
       try {
-        const response = await fetch('/api/casino-status');
+        const response = await fetch('/api/card-room-status');
         if (response.ok) {
           const data = await response.json();
-          setCasinoStatus(data);
+          setCardRoomStatus(data);
         }
       } catch (err) {
-        console.error('Failed to check casino status:', err);
+        console.error('Failed to check card room status:', err);
       }
     };
 
@@ -221,7 +221,7 @@ function App() {
       return (
         <div className="min-h-screen bg-slate-900">
             {/* Only show navbar if casino is open or user is admin */}
-            {(casinoStatus.isOpen || user.isAdmin) && (
+            {(cardRoomStatus.isOpen || user.isAdmin) && (
               <Navbar
                 user={user}
                 onLogout={handleLogout}
@@ -232,10 +232,10 @@ function App() {
             )}
 
             {/* Show casino closed view for non-admins when closed */}
-            {!casinoStatus.isOpen && !user.isAdmin ? (
-              <CasinoClosedView
-                nextOpenTime={casinoStatus.nextOpenTime}
-                msUntilOpen={casinoStatus.msUntilOpen}
+            {!cardRoomStatus.isOpen && !user.isAdmin ? (
+              <CardRoomClosedView
+                nextOpenTime={cardRoomStatus.nextOpenTime}
+                msUntilOpen={cardRoomStatus.msUntilOpen}
                 onLoginSuccess={(adminUser) => {
                   setUser(adminUser);
                   window.location.reload();

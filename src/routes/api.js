@@ -7,7 +7,7 @@ const { getSyndicateService, getReferralService, getGenerosityService, getEngage
 
 const router = express.Router();
 
-router.get('/casino-status', (req, res) => {
+router.get('/card-room-status', (req, res) => {
     const { isOpen, nextOpenTime } = getOperatingHoursStatus();
     const now = Date.now();
     const msUntilOpen = isOpen ? 0 : Math.max(0, nextOpenTime.getTime() - now);
