@@ -45,21 +45,30 @@ function initDealer() {
     animate();
 }
 
+const clock = new THREE.Clock();
+
 function animate() {
     requestAnimationFrame(animate);
+    const delta = clock.getDelta();
     if (mixer) {
-        mixer.update(0.016);
+        mixer.update(delta);
     }
     renderer.render(scene, camera);
 }
+
+let currentAction;
 
 function playAnimation(animationName) {
     if (!mixer || !model) return;
     const animations = model.animations;
     const clip = THREE.AnimationClip.findByName(animations, animationName);
     if (clip) {
-        const action = mixer.clipAction(clip);
-        action.reset().play();
+        const newAction = mixer.clipAction(clip);
+        if (currentAction && currentAction !== newAction) {
+            currentAction.fadeOut(0.5);
+        }
+        newAction.reset().fadeIn(0.5).play();
+        currentAction = newAction;
     }
 }
 
