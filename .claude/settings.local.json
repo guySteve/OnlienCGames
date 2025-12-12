@@ -20,7 +20,9 @@
       "Bash(bash:*)",
       "Bash(node -c:*)",
       "Bash(npm run build:ts:*)",
-      "Bash(gcloud config get-value:*)"
+      "Bash(gcloud config get-value:*)",
+      "Bash(test:*)",
+      "Bash(npm start)"
     ],
     "deny": [],
     "ask": []
