@@ -259,7 +259,15 @@ router.post('/reset-password-request', async (req, res) => {
     });
   } catch (error) {
     console.error('Password reset request error:', error);
-    res.status(500).json({ error: 'Failed to process reset request' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({
+      error: 'Failed to process reset request',
+      details: process.env.NODE_ENV !== 'production' ? error.message : undefined
+    });
   }
 });
 
