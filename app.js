@@ -55,6 +55,7 @@ app.use(checkOperatingHours);
 
 // --- ROUTES ---
 const authRouter = require('./src/routes/auth');
+const profileRouter = require('./src/routes/profile');
 const { createApiRouter } = require('./src/api/routes');
 const { createAdminRouter } = require('./src/routes/admin');
 const { EngagementService } = require('./src/services/EngagementService');
@@ -79,8 +80,10 @@ const chatService = new ChatService(prisma);
 const apiRouter = createApiRouter(prisma, engagementService, friendService, chatService);
 const adminRouter = createAdminRouter(prisma, engagementService);
 
+app.use('/auth', authRouter);
 app.use('/api', apiRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/profile', profileRouter);
 
 // Static files
 app.use(express.static(path.join(__dirname, '.')));
