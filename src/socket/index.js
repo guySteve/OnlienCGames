@@ -22,10 +22,10 @@ const privateWarRooms = new Map();
 const viewers = new Map();
 const chat_history = new Map();
 
-async function getUserProfile(googleId) {
+async function getUserProfile(userId) {
     try {
         const user = await prisma.user.findUnique({
-            where: { googleId },
+            where: { id: userId },
             select: { nickname: true, customAvatar: true, displayName: true }
         });
         return {
@@ -71,6 +71,10 @@ function initializeSocket(io, sessionMiddleware) {
 
 
 socket.on('create_room', async (config) => {
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
             const roomId = crypto.randomBytes(8).toString('hex');
             // Create WarEngine with correct parameters: (roomId, prisma, redis, engagement)
             const game = new WarEngine(roomId, prisma, null, engagementService);
@@ -82,7 +86,7 @@ socket.on('create_room', async (config) => {
 
             // Connect the user to the game
             if (user && user.id) {
-                const userProfile = await getUserProfile(user.googleId);
+                const userProfile = await getUserProfile(user.id);
                 await game.connectPlayer(user.id, userProfile.nickname);
                 socket.emit('room_created', { roomId, gameState: game.getPlayerState(user.id) });
             } else {
@@ -95,10 +99,15 @@ socket.on('create_room', async (config) => {
         socket.on('join_room', async (data) => {
             const { roomId } = data;
             const game = games.get(roomId);
+
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
             if (game) {
                 playerToGame.set(socket.id, roomId);
                 socket.join(roomId);
-                const userProfile = await getUserProfile(user.googleId);
+                const userProfile = await getUserProfile(user.id);
                 const viewersList = viewers.get(roomId);
                 viewersList.push({ id: socket.id, ...userProfile });
                 viewers.set(roomId, viewersList);
@@ -125,8 +134,13 @@ socket.on('create_room', async (config) => {
         socket.on('room_chat', async (data) => {
             const { roomId, msg } = data;
             const game = games.get(roomId);
+
+            if (!user || !user.id) {
+                return socket.emit('error', { message: 'Authentication required' });
+            }
+
             if (game) {
-                const userProfile = await getUserProfile(user.googleId);
+                const userProfile = await getUserProfile(user.id);
                 const message = { from: userProfile.nickname, msg, photo: userProfile.avatar };
                 const roomChatHistory = chat_history.get(roomId);
                 roomChatHistory.push(message);
@@ -161,7 +175,7 @@ socket.on('create_room', async (config) => {
 
             try {
                 // Connect player to war game
-                const userProfile = await getUserProfile(user.googleId);
+                const userProfile = await getUserProfile(user.id);
                 const result = await game.connectPlayer(user.id, userProfile.nickname);
 
                 if (!result.success) {

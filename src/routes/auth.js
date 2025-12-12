@@ -164,66 +164,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Guest Login (quick play without account)
-router.post('/guest', registerLimiter, async (req, res) => {
-  try {
-    // Generate a random guest username
-    const guestNumber = Math.floor(Math.random() * 100000);
-    const guestUsername = `Guest${guestNumber}`;
-    const guestEmail = `guest${guestNumber}@moescardroom.local`;
-    
-    // Create guest user (no password)
-    const newUserId = crypto.randomUUID();
-    const user = await prisma.user.create({
-      data: {
-        id: newUserId,
-        email: guestEmail,
-        displayName: guestUsername,
-        chipBalance: 100n,
-        lastLogin: new Date(),
-        updatedAt: new Date(),
-        currentStreak: 1,
-        isAdmin: false,
-      },
-    });
-
-    // Create welcome transaction
-    try {
-      await prisma.transaction.create({
-        data: {
-          userId: user.id,
-          amount: 1000,
-          type: 'ADMIN_CREDIT',
-          balanceBefore: 0n,
-          balanceAfter: 100n,
-          description: 'Welcome bonus for guest player',
-        },
-      });
-    } catch (txError) {
-      console.error('⚠️ Warning: Failed to create welcome transaction:', txError.message);
-    }
-
-    // Log user in
-    req.login(user, (err) => {
-      if (err) {
-        return res.status(500).json({ error: 'Guest login failed' });
-      }
-      res.json({
-        success: true,
-        guest: true,
-        user: {
-          id: user.id,
-          displayName: user.displayName,
-          chipBalance: Number(user.chipBalance),
-        }
-      });
-    });
-  } catch (error) {
-    console.error('Guest login error:', error);
-    res.status(500).json({ error: 'Guest login failed' });
-  }
-});
-
 router.post('/logout', (req, res) => {
   req.logout(() => {
     req.session.destroy(() => res.clearCookie('sid').status(200).json({ ok: true }));
