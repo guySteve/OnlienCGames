@@ -94,18 +94,20 @@ app.get('/me', async (req, res) => {
         if (!dbUser) {
             return res.status(200).json({ authenticated: false });
         }
+        // Convert BigInt fields to Number before serialization
+        const { chipBalance, ...restDbUser } = dbUser;
         res.json({
             authenticated: true,
             user: {
                 ...req.user,
-                ...dbUser,
-                chipBalance: Number(dbUser.chipBalance),
+                ...restDbUser,
+                chipBalance: Number(chipBalance),
                 isAdmin: dbUser.isAdmin
             }
         });
     } catch (error) {
         console.error('Error fetching user:', error);
-        res.json({ authenticated: true, user: req.user });
+        res.status(500).json({ authenticated: false, error: 'Failed to fetch user' });
     }
 });
 
