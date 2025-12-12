@@ -80,34 +80,55 @@ const chatService = new ChatService(prisma);
 const apiRouter = createApiRouter(prisma, engagementService, friendService, chatService);
 const adminRouter = createAdminRouter(prisma, engagementService);
 
+// Mount auth routes (but keep /me at root level)
 app.use('/auth', authRouter);
 app.use('/api', apiRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/profile', profileRouter);
 
-// Static files
-app.use(express.static(path.join(__dirname, '.')));
-app.use(express.static(path.join(__dirname, 'public')));
+// /me endpoint (needs to be at root for React app compatibility)
+app.get('/me', async (req, res) => {
+    if (!req.user) return res.status(200).json({ authenticated: false });
+    try {
+        const dbUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (!dbUser) {
+            return res.status(200).json({ authenticated: false });
+        }
+        res.json({
+            authenticated: true,
+            user: {
+                ...req.user,
+                ...dbUser,
+                chipBalance: Number(dbUser.chipBalance),
+                isAdmin: dbUser.isAdmin
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        res.json({ authenticated: true, user: req.user });
+    }
+});
+
+// Static files - Serve React app from frontend/dist
 const frontendDistPath = path.join(__dirname, 'frontend', 'dist');
 app.use(express.static(frontendDistPath));
 
-app.get('/', (req, res) => {
-  if (!req.user) {
-    return res.sendFile(path.join(__dirname, 'welcome.html'));
-  }
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+// Legacy static files (for old client.js, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
 
-// SPA Fallback
+// SPA Fallback - Serve React app for all non-API routes
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path.startsWith('/auth')) {
+  // Skip API routes, socket.io, and auth routes
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path.startsWith('/auth') || req.path.startsWith('/me')) {
     return next();
   }
+
+  // Serve React app
   const indexPath = path.join(__dirname, 'frontend', 'dist', 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.status(500).send('Frontend not built. Run: cd frontend && npm run build');
   }
 });
 
