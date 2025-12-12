@@ -237,7 +237,15 @@ router.post('/reset-password-request', async (req, res) => {
     const emailResult = await sendPasswordResetEmail(email, resetToken);
 
     if (!emailResult.success) {
-      // Email failed but still return success to user for security
+      // Email not configured - for development, return the code directly
+      if (process.env.NODE_ENV === 'development') {
+        return res.json({
+          success: true,
+          resetToken: resetToken,
+          message: 'Reset code generated (valid for 15 minutes). Email not configured - code shown for development.'
+        });
+      }
+      // Production: don't reveal if email exists
       console.error('Failed to send reset email:', emailResult.error);
     }
 

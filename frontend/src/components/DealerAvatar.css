@@ -9,38 +9,6 @@
   position: relative;
 }
 
-/* Speech Bubble */
-.dealer-speech-bubble {
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.95);
-  color: #1a1a1a;
-  padding: 12px 18px;
-  border-radius: 18px;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  white-space: nowrap;
-  z-index: 10;
-  max-width: 250px;
-  text-align: center;
-}
-
-.dealer-speech-bubble::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 10px solid rgba(255, 255, 255, 0.95);
-}
-
 .dealer-avatar {
   position: relative;
   width: 120px;
@@ -50,10 +18,6 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease;
-}
-
-.dealer-avatar.dealer-hover {
-  filter: brightness(1.1);
 }
 
 .dealer-face {
@@ -132,20 +96,9 @@
   letter-spacing: 0.5px;
 }
 
-.dealer-status {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  font-style: italic;
-  text-align: center;
-  padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 12px;
-  min-width: 150px;
-}
-
 /* State-specific styles */
-.dealer-thinking .dealer-suit::before {
-  animation: tipHat 1.5s ease-in-out infinite;
+.dealer-salute .dealer-suit::before {
+  animation: tipHat 1.5s ease-in-out 2;
 }
 
 @keyframes tipHat {
@@ -162,13 +115,13 @@
   50% { transform: translateY(-10px); }
 }
 
-.dealer-celebrating .dealer-avatar {
-  filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.6));
+.dealer-loser .dealer-hands {
+  animation: lGesture 1s ease-in-out 1;
 }
 
-.dealer-sympathetic {
-  opacity: 0.9;
-  filter: grayscale(0.2);
+@keyframes lGesture {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-20deg) scale(1.1); }
 }
 
 /* Responsive */

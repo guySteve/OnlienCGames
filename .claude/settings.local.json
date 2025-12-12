@@ -25,7 +25,10 @@
       "Bash(npm start)",
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(xargs:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

@@ -493,7 +493,7 @@ export function HomeView({ onPlayNow }) {
                   )}
 
                   {success && (
-                    <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/20 rounded-lg p-3 whitespace-pre-line">
+                    <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/20 rounded-lg p-3 whitespace-pre-line font-mono">
                       {success}
                     </div>
                   )}

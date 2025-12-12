@@ -1,24 +1,21 @@
-// Email service using Resend
+// Email service using Resend only
 const { Resend } = require('resend');
-
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@playwar.games';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://playwar.games';
 
-async function sendPasswordResetEmail(email, resetToken) {
-  if (!resend) {
-    console.warn('⚠️  Resend not configured. Password reset email not sent.');
-    console.log(`Reset code for ${email}: ${resetToken}`);
-    return { success: false, error: 'Email service not configured' };
-  }
+// Initialize Resend (check both RESEND_API_KEY and MAILKEY for Cloud Run compatibility)
+const resendKey = process.env.RESEND_API_KEY || process.env.MAILKEY;
+const resend = resendKey ? new Resend(resendKey) : null;
 
-  try {
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: email,
-      subject: 'Reset your Moe\'s Card Room password',
-      html: `
+if (resend) {
+  console.log('✅ Resend email configured');
+} else {
+  console.warn('⚠️  Resend not configured - password reset codes will be shown in console');
+}
+
+function getEmailHTML(resetToken) {
+  return `
         <!DOCTYPE html>
         <html>
         <head>
@@ -56,20 +53,39 @@ async function sendPasswordResetEmail(email, resetToken) {
           </div>
         </body>
         </html>
-      `,
-    });
+  `;
+}
 
-    if (error) {
-      console.error('❌ Failed to send email:', error);
+async function sendPasswordResetEmail(email, resetToken) {
+  const emailHTML = getEmailHTML(resetToken);
+
+  // Send via Resend
+  if (resend) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from: FROM_EMAIL,
+        to: email,
+        subject: 'Reset your Moe\'s Card Room password',
+        html: emailHTML,
+      });
+
+      if (error) {
+        console.error('❌ Resend send failed:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Password reset email sent via Resend to:', email);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Resend error:', error);
       return { success: false, error: error.message };
     }
-
-    console.log('✅ Password reset email sent to:', email);
-    return { success: true, data };
-  } catch (error) {
-    console.error('❌ Email service error:', error);
-    return { success: false, error: error.message };
   }
+
+  // No email service configured - log to console
+  console.warn('⚠️  Resend not configured. Password reset email not sent.');
+  console.log(`📧 Reset code for ${email}: ${resetToken}`);
+  return { success: false, error: 'Email service not configured' };
 }
 
 module.exports = {
