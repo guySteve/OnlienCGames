@@ -6,6 +6,7 @@ const { prisma } = require('../db');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -215,8 +216,7 @@ router.post('/reset-password-request', async (req, res) => {
       // Don't reveal if email exists or not for security
       return res.json({
         success: true,
-        message: 'If this email is registered, a reset code has been generated',
-        resetToken: 'EMAIL_NOT_FOUND'
+        message: 'If this email is registered, you will receive a reset code via email'
       });
     }
 
@@ -233,12 +233,17 @@ router.post('/reset-password-request', async (req, res) => {
       }
     });
 
-    // In production, you would send this via email
-    // For now, we'll return it directly
+    // Send reset email
+    const emailResult = await sendPasswordResetEmail(email, resetToken);
+
+    if (!emailResult.success) {
+      // Email failed but still return success to user for security
+      console.error('Failed to send reset email:', emailResult.error);
+    }
+
     res.json({
       success: true,
-      resetToken: resetToken,
-      message: 'Reset code generated (valid for 15 minutes)'
+      message: 'If this email is registered, you will receive a reset code via email'
     });
   } catch (error) {
     console.error('Password reset request error:', error);

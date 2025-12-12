@@ -432,6 +432,15 @@ export function HomeView({ onPlayNow }) {
                   {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
                 </button>
 
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordReset(true)}
+                    className="w-full text-cyan-400 hover:text-cyan-300 text-sm transition-colors mt-2"
+                  >
+                    Forgot Password?
+                  </button>
+                )}
 
                 {rememberDevice && window.PublicKeyCredential && (
                   <p className="text-xs text-white/40 text-center">

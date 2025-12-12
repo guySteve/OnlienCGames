@@ -119,6 +119,11 @@ model User {
   lastWarningAt         DateTime?
   ipAddress             String?
   userAgent             String?
+
+  // Password Reset
+  passwordResetToken    String?
+  passwordResetExpiry   DateTime?
+
   GameSession           GameSession[]
   Transaction           Transaction[]
   UserAchievement       UserAchievement[]
