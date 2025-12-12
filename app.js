@@ -12,9 +12,12 @@ let RedisStore, redisSessionClient;
 
 if (process.env.REDIS_URL) {
   try {
-    const ConnectRedis = require('connect-redis');
+    // connect-redis v9 uses default export and requires session to be passed
+    const createRedisStore = require('connect-redis').default;
     const { createClient } = require('redis');
-    RedisStore = ConnectRedis.default || ConnectRedis;
+
+    // Create RedisStore class first (needs session module)
+    RedisStore = createRedisStore(session);
 
     redisSessionClient = createClient({
       url: process.env.REDIS_URL,
