@@ -329,7 +329,12 @@ export function HomeView({ onPlayNow }) {
           style={{ textShadow: '0 5px 25px rgba(0,0,0,0.3)'}}
         >
           <AnimatedWord>Moe's</AnimatedWord> <br />
-          <span className="bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-red-500 bg-clip-text text-transparent" style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <span style={{
+            background: 'linear-gradient(to right, rgb(34, 211, 238), rgb(217, 70, 239), rgb(239, 68, 68))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}>
             <AnimatedWord>Card</AnimatedWord> <AnimatedWord>Room</AnimatedWord>
           </span>
         </motion.h1>

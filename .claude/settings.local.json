@@ -22,7 +22,10 @@
       "Bash(npm run build:ts:*)",
       "Bash(gcloud config get-value:*)",
       "Bash(test:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
