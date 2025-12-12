@@ -164,8 +164,9 @@ function App() {
 
   // --- Actions ---
   const handleLogin = () => {
-    // Redirect to Google OAuth flow
-    window.location.href = '/auth/google';
+    // Login is now handled by HomeView component with username/password
+    // No action needed here - HomeView has its own form
+    console.log('Login handled by HomeView');
   };
 
   const handleLogout = async () => {
