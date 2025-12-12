@@ -67,9 +67,10 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': 'http://localhost:8080',
+      '/auth': 'http://localhost:8080',
       '/socket.io': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:8080',
         ws: true
       }
     }

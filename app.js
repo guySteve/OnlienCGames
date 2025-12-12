@@ -7,6 +7,33 @@ const session = require('express-session');
 const fs = require('fs');
 const { prisma } = require('./src/db');
 
+// Redis session store (optional - gracefully degrades to memory store)
+let RedisStore, redisSessionClient;
+try {
+  const ConnectRedis = require('connect-redis');
+  const { createClient } = require('redis');
+  RedisStore = ConnectRedis.default || ConnectRedis;
+  redisSessionClient = createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    socket: {
+      reconnectStrategy: (retries) => {
+        if (retries > 3) {
+          console.log('⚠️  Redis unavailable - using memory store for sessions');
+          return false;
+        }
+        return Math.min(retries * 100, 3000);
+      }
+    }
+  });
+  redisSessionClient.connect().catch(err => {
+    console.log('⚠️  Redis unavailable - using memory store for sessions');
+    redisSessionClient = null;
+  });
+  redisSessionClient?.on('error', (err) => console.log('Redis Client Error', err));
+} catch (err) {
+  console.log('⚠️  connect-redis not installed - using memory store for sessions');
+}
+
 // Initialize Passport BEFORE using it
 require('./src/config/passport');
 const passport = require('passport');
@@ -29,7 +56,7 @@ app.use(express.json());
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_secret_change_me';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-const sessionMiddleware = session({
+const sessionConfig = {
     name: 'sid',
     secret: SESSION_SECRET,
     resave: false,
@@ -40,7 +67,17 @@ const sessionMiddleware = session({
         sameSite: 'lax'
     },
     rolling: true
-});
+};
+
+// Add Redis store if available
+if (redisSessionClient && RedisStore) {
+    sessionConfig.store = new RedisStore({ client: redisSessionClient });
+    console.log('✅ Using Redis for session storage');
+} else {
+    console.log('⚠️  Using memory store for sessions (sessions will not persist across restarts)');
+}
+
+const sessionMiddleware = session(sessionConfig);
 
 app.use(sessionMiddleware);
 app.use(passport.initialize());

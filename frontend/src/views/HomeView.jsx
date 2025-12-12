@@ -316,141 +316,135 @@ export function HomeView({ onPlayNow }) {
       initial="initial"
       animate="in"
       exit="exit"
-      className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-slate-900"
+      className="min-h-screen w-full flex flex-col items-center justify-center relative overflow-hidden bg-slate-950"
     >
-      <div className="absolute inset-0 z-0">
-        <div className="animate-breathing-gradient absolute inset-0 bg-gradient-to-br from-cyan-900/50 via-purple-900/50 to-red-900/50" />
-      </div>
+      {/* BACKGROUND: Gritty Texture & Spotlight */}
+      <div className="absolute inset-0 z-0 opacity-40 mix-blend-overlay"
+           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
 
-      <div className="relative z-10 text-center px-4 max-w-md w-full">
-        <motion.h1
-          variants={titleContainerVariants}
-          className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-8"
-          style={{ textShadow: '0 5px 25px rgba(0,0,0,0.3)'}}
-        >
-          <AnimatedWord>Moe's</AnimatedWord> <br />
-          <span style={{
-            background: 'linear-gradient(to right, rgb(34, 211, 238), rgb(217, 70, 239), rgb(239, 68, 68))',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
-            <AnimatedWord>Card</AnimatedWord> <AnimatedWord>Room</AnimatedWord>
-          </span>
-        </motion.h1>
+      {/* Spotlight Effect */}
+      <div className="absolute inset-0 z-0 bg-gradient-radial from-slate-800/20 via-slate-950/80 to-black"></div>
 
-        {showForm && (
-          <motion.div variants={buttonVariants} className="space-y-4">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 shadow-2xl">
-              <h2 className="text-white font-bold text-xl mb-2 text-center">
-                {isLogin ? 'Welcome Back' : 'Join Moe\'s'}
-              </h2>
-              <p className="text-white/60 text-sm mb-6 text-center">
-                {isLogin ? 'Sign in to continue' : 'Create your account'}
-              </p>
+      <div className="relative z-10 w-full max-w-md px-6">
+        {/* LOGO: Neon Sign Aesthetic */}
+        <motion.div variants={titleContainerVariants} className="mb-12 text-center">
+          <h1 className="font-black text-6xl tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-slate-200 to-slate-600 drop-shadow-2xl"
+              style={{ textShadow: '0 0 20px rgba(255,255,255,0.1)' }}>
+            MOE'S
+          </h1>
+          <div className="flex items-center justify-center gap-3 mt-2">
+            <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-emerald-500/50"></div>
+            <span className="text-emerald-500 font-mono tracking-[0.3em] text-sm uppercase text-shadow-glow-green">
+              Private Card Room
+            </span>
+            <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-emerald-500/50"></div>
+          </div>
+        </motion.div>
 
-              <div className="flex mb-6 bg-white/5 rounded-lg p-1">
+        {/* FORM CONTAINER: Frosted Glass Panel */}
+        <AnimatePresence mode="wait">
+          {showForm && (
+            <motion.div
+              variants={buttonVariants}
+              className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl shadow-2xl overflow-hidden ring-1 ring-white/10"
+            >
+              {/* Tab Switcher */}
+              <div className="flex border-b border-white/5">
                 <button
-                  type="button"
                   onClick={() => { setIsLogin(true); setError(''); setSuccess(''); }}
-                  className={`flex-1 py-2 rounded-md transition-all ${
-                    isLogin ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
+                  className={`flex-1 py-4 text-sm font-bold tracking-wide transition-all ${
+                    isLogin ? 'bg-white/5 text-emerald-400 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  Login
+                  MEMBER LOGIN
                 </button>
                 <button
-                  type="button"
                   onClick={() => { setIsLogin(false); setError(''); setSuccess(''); }}
-                  className={`flex-1 py-2 rounded-md transition-all ${
-                    !isLogin ? 'bg-white/20 text-white font-semibold' : 'text-white/60 hover:text-white'
+                  className={`flex-1 py-4 text-sm font-bold tracking-wide transition-all ${
+                    !isLogin ? 'bg-white/5 text-emerald-400 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  Register
+                  APPLY FOR ENTRY
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-cyan-400"
-                />
+              <div className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {!isLogin && (
+                    <div className="group">
+                      <input
+                        type="text"
+                        placeholder="CODENAME"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        required
+                        maxLength={30}
+                        className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all font-mono text-sm"
+                      />
+                    </div>
+                  )}
 
-                {!isLogin && (
-                  <input
-                    type="text"
-                    placeholder="Display Name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    required
-                    maxLength={30}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-cyan-400"
-                  />
-                )}
-
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-cyan-400"
-                />
-
-                <label className="flex items-center gap-2 text-white/80 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberDevice}
-                    onChange={(e) => setRememberDevice(e.target.checked)}
-                    className="w-4 h-4 accent-cyan-500"
-                  />
-                  <span className="text-sm">Remember this device</span>
-                </label>
-
-                {error && (
-                  <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                    {error}
+                  <div className="group">
+                    <input
+                      type="email"
+                      placeholder="EMAIL ADDRESS"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all font-mono text-sm"
+                    />
                   </div>
-                )}
 
-                {success && (
-                  <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                    {success}
+                  <div className="group">
+                    <input
+                      type="password"
+                      placeholder="PASSPHRASE"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all font-mono text-sm"
+                    />
                   </div>
-                )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-bold rounded-lg hover:from-cyan-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                >
-                  {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
-                </button>
+                  {error && <div className="text-red-400 text-xs text-center bg-red-900/20 p-2 rounded border border-red-900/30">{error}</div>}
+                  {success && <div className="text-emerald-400 text-xs text-center bg-emerald-900/20 p-2 rounded border border-emerald-900/30">{success}</div>}
 
-                {isLogin && (
                   <button
-                    type="button"
-                    onClick={() => setShowPasswordReset(true)}
-                    className="w-full text-cyan-400 hover:text-cyan-300 text-sm transition-colors mt-2"
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-emerald-900/20 transition-all transform active:scale-[0.98] uppercase tracking-wider text-sm mt-2"
                   >
-                    Forgot Password?
+                    {loading ? 'AUTHENTICATING...' : (isLogin ? 'ENTER ROOM' : 'SUBMIT APPLICATION')}
                   </button>
-                )}
 
-                {rememberDevice && window.PublicKeyCredential && (
-                  <p className="text-xs text-white/40 text-center">
-                    Biometric login will be set up for faster access
-                  </p>
-                )}
-              </form>
-            </div>
-          </motion.div>
-        )}
+                  {isLogin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordReset(true)}
+                      className="w-full text-emerald-500 hover:text-emerald-400 text-xs transition-colors mt-2 font-mono"
+                    >
+                      Forgot Passphrase?
+                    </button>
+                  )}
+
+                  {rememberDevice && window.PublicKeyCredential && (
+                    <p className="text-xs text-slate-600 text-center mt-2">
+                      Biometric access will be configured
+                    </p>
+                  )}
+                </form>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Footer / Disclaimer */}
+      <div className="absolute bottom-6 text-center w-full px-4">
+        <p className="text-slate-600 text-[10px] uppercase tracking-widest opacity-50">
+          Restricted Access • Members Only • 21+
+        </p>
       </div>
 
       {/* Password Reset Modal */}

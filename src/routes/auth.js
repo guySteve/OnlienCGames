@@ -237,18 +237,22 @@ router.post('/reset-password-request', async (req, res) => {
     const emailResult = await sendPasswordResetEmail(email, resetToken);
 
     if (!emailResult.success) {
-      // Email not configured - for development, return the code directly
-      if (process.env.NODE_ENV === 'development') {
+      console.log(`🟨 DEV MODE: Reset Token for ${email} is ${resetToken}`);
+
+      // In development, always return token if email fails
+      if (process.env.NODE_ENV !== 'production') {
         return res.json({
           success: true,
           resetToken: resetToken,
-          message: 'Reset code generated (valid for 15 minutes). Email not configured - code shown for development.'
+          message: 'Development Mode: Code sent to server console (and auto-filled).'
         });
       }
+
       // Production: don't reveal if email exists
       console.error('Failed to send reset email:', emailResult.error);
     }
 
+    // If email succeeded, return success message
     res.json({
       success: true,
       message: 'If this email is registered, you will receive a reset code via email'
