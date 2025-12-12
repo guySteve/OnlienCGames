@@ -7,31 +7,43 @@ const session = require('express-session');
 const fs = require('fs');
 const { prisma } = require('./src/db');
 
-// Redis session store (optional - gracefully degrades to memory store)
+// Redis session store - uses REDIS_URL if available, falls back to memory store
 let RedisStore, redisSessionClient;
-try {
-  const ConnectRedis = require('connect-redis');
-  const { createClient } = require('redis');
-  RedisStore = ConnectRedis.default || ConnectRedis;
-  redisSessionClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
-    socket: {
-      reconnectStrategy: (retries) => {
-        if (retries > 3) {
-          console.log('⚠️  Redis unavailable - using memory store for sessions');
-          return false;
+
+if (process.env.REDIS_URL) {
+  try {
+    const ConnectRedis = require('connect-redis');
+    const { createClient } = require('redis');
+    RedisStore = ConnectRedis.default || ConnectRedis;
+
+    redisSessionClient = createClient({
+      url: process.env.REDIS_URL,
+      socket: {
+        connectTimeout: 5000,
+        reconnectStrategy: (retries) => {
+          if (retries > 2) return false;
+          return Math.min(retries * 500, 2000);
         }
-        return Math.min(retries * 100, 3000);
       }
-    }
-  });
-  redisSessionClient.connect().catch(err => {
-    console.log('⚠️  Redis unavailable - using memory store for sessions');
+    });
+
+    // Connect asynchronously - don't block server startup
+    redisSessionClient.connect()
+      .then(() => console.log('✅ Redis session store connected'))
+      .catch(err => {
+        console.log('⚠️  Redis connection failed, using memory store:', err.message);
+        redisSessionClient = null;
+      });
+
+    redisSessionClient.on('error', (err) => {
+      console.log('Redis error:', err.message);
+    });
+  } catch (err) {
+    console.log('⚠️  Redis setup failed, using memory store:', err.message);
     redisSessionClient = null;
-  });
-  redisSessionClient?.on('error', (err) => console.log('Redis Client Error', err));
-} catch (err) {
-  console.log('⚠️  connect-redis not installed - using memory store for sessions');
+  }
+} else {
+  console.log('ℹ️  No REDIS_URL - using memory store for sessions');
 }
 
 // Initialize Passport BEFORE using it
@@ -69,12 +81,14 @@ const sessionConfig = {
     rolling: true
 };
 
-// Add Redis store if available
+// Use Redis store if client is initialized, otherwise use memory store
 if (redisSessionClient && RedisStore) {
-    sessionConfig.store = new RedisStore({ client: redisSessionClient });
-    console.log('✅ Using Redis for session storage');
-} else {
-    console.log('⚠️  Using memory store for sessions (sessions will not persist across restarts)');
+    try {
+        sessionConfig.store = new RedisStore({ client: redisSessionClient });
+        console.log('✅ Redis session store configured');
+    } catch (err) {
+        console.log('⚠️  Redis store setup failed - using memory store:', err.message);
+    }
 }
 
 const sessionMiddleware = session(sessionConfig);
@@ -116,6 +130,15 @@ const friendService = new FriendService(prisma);
 const chatService = new ChatService(prisma);
 const apiRouter = createApiRouter(prisma, engagementService, friendService, chatService);
 const adminRouter = createAdminRouter(prisma, engagementService);
+
+// Health check endpoint (required for Cloud Run)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 // Mount auth routes (but keep /me at root level)
 app.use('/auth', authRouter);
