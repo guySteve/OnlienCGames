@@ -1,33 +1,60 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import UserDetailSheet from './UserDetailSheet';
 import './MobileAdminDashboard.css';
 
-// Mock data generator
-const generateMockUsers = (count = 50) => {
-  const statuses = ['online', 'offline'];
-  const locations = ['New York, US', 'London, UK', 'Tokyo, JP', 'Sydney, AU', 'Toronto, CA'];
-  const devices = ['iPhone 15', 'Galaxy S24', 'Pixel 8', 'MacBook Pro', 'iPad Pro'];
-  
-  return Array.from({ length: count }, (_, i) => ({
-    id: `user-${i + 1}`,
-    username: `Player${i + 1}`,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`,
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    ip: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-    walletBalance: Math.floor(Math.random() * 10000),
-    location: locations[Math.floor(Math.random() * locations.length)],
-    device: devices[Math.floor(Math.random() * devices.length)],
-    joinDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-    warningCount: Math.floor(Math.random() * 5),
-    lastBanDate: Math.random() > 0.8 ? new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toLocaleDateString() : null,
-    lastActive: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString()
-  }));
-};
-
-const MobileAdminDashboard = () => {
-  const [users] = useState(() => generateMockUsers(50));
+const MobileAdminDashboard = ({ onBack }) => {
+  const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [filter, setFilter] = useState('all'); // 'online', 'offline', 'all'
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch users from API
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/admin/users?limit=100', {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch users');
+        }
+
+        const data = await response.json();
+
+        // Transform API data to match our UI format
+        const transformedUsers = data.users.map(user => ({
+          id: user.id,
+          username: user.displayName || user.nickname || user.email,
+          avatar: user.customAvatar || user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+          status: 'offline', // We'll update this when we have online status tracking
+          ip: 'N/A', // Add IP tracking if needed
+          walletBalance: user.chipBalance || 0,
+          location: 'N/A', // Add location tracking if needed
+          device: 'N/A', // Add device tracking if needed
+          joinDate: user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A',
+          warningCount: user.warnCount || 0,
+          lastBanDate: user.isBanned ? 'Currently Banned' : null,
+          lastActive: user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never',
+          email: user.email,
+          isAdmin: user.isAdmin,
+          isBanned: user.isBanned
+        }));
+
+        setUsers(transformedUsers);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch users:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   // Filter users based on selected tab
   const filteredUsers = useMemo(() => {
@@ -54,7 +81,14 @@ const MobileAdminDashboard = () => {
     <div className="mobile-admin-dashboard">
       {/* Fixed Header */}
       <header className="dashboard-header">
-        <h1 className="dashboard-title">Admin Console</h1>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button onClick={onBack} className="text-slate-400 hover:text-white">
+              ← Back
+            </button>
+          )}
+          <h1 className="dashboard-title">Admin Console</h1>
+        </div>
         <div className="dashboard-stats">
           <span className="stat-badge online">
             <span className="stat-dot"></span>
@@ -92,8 +126,17 @@ const MobileAdminDashboard = () => {
 
       {/* Scrollable User List */}
       <div className="user-list-container">
-        <div className="user-list">
-          {filteredUsers.map((user) => (
+        {loading ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="text-slate-400">Loading users...</div>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="text-red-400">Error: {error}</div>
+          </div>
+        ) : (
+          <div className="user-list">
+            {filteredUsers.map((user) => (
             <div
               key={user.id}
               className="user-row"
@@ -118,8 +161,9 @@ const MobileAdminDashboard = () => {
                 </span>
               </div>
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* User Detail Sheet */}

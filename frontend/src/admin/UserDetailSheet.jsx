@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import './UserDetailSheet.css';
 
 const UserDetailSheet = ({ user, onClose }) => {
@@ -12,24 +12,63 @@ const UserDetailSheet = ({ user, onClose }) => {
     }
   };
 
-  const handleAction = (action) => {
+  const handleAction = async (action) => {
     console.log(`Action: ${action} on user:`, user.username);
-    // Implement actual admin actions here
-    switch(action) {
-      case 'kick':
-        alert(`Kicking ${user.username}...`);
-        break;
-      case 'ban':
-        alert(`Banning ${user.username}...`);
-        break;
-      case 'message':
-        alert(`Opening message to ${user.username}...`);
-        break;
-      case 'spectate':
-        alert(`Spectating ${user.username}...`);
-        break;
-      default:
-        break;
+
+    try {
+      switch(action) {
+        case 'kick':
+          alert(`Kicking ${user.username}...`);
+          break;
+        case 'ban':
+          if (!window.confirm(`Are you sure you want to ban ${user.username}?`)) return;
+          const banResponse = await fetch(`/api/admin/ban/${user.id}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: 'Banned by admin' })
+          });
+          if (banResponse.ok) {
+            alert(`${user.username} has been banned`);
+            onClose();
+          }
+          break;
+        case 'unban':
+          const unbanResponse = await fetch(`/api/admin/unban/${user.id}`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+          if (unbanResponse.ok) {
+            alert(`${user.username} has been unbanned`);
+            onClose();
+          }
+          break;
+        case 'toggleAdmin':
+          const newAdminStatus = !user.isAdmin;
+          if (!window.confirm(`Are you sure you want to ${newAdminStatus ? 'promote' : 'demote'} ${user.username} ${newAdminStatus ? 'to' : 'from'} admin?`)) return;
+          const adminResponse = await fetch(`/api/admin/set-admin/${user.id}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isAdmin: newAdminStatus })
+          });
+          if (adminResponse.ok) {
+            alert(`${user.username} is now ${newAdminStatus ? 'an admin' : 'no longer an admin'}`);
+            onClose();
+          }
+          break;
+        case 'message':
+          alert(`Opening message to ${user.username}...`);
+          break;
+        case 'spectate':
+          alert(`Spectating ${user.username}...`);
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error('Action failed:', error);
+      alert('Action failed. Please try again.');
     }
   };
 
@@ -134,19 +173,29 @@ const UserDetailSheet = ({ user, onClose }) => {
           {/* Widget D: Actions - Big Buttons Grid */}
           <div className="widget widget-actions">
             <div className="actions-grid">
+              {user.isBanned ? (
+                <button
+                  className="action-btn action-unban"
+                  onClick={() => handleAction('unban')}
+                >
+                  <span className="action-icon">✅</span>
+                  <span className="action-label">Unban</span>
+                </button>
+              ) : (
+                <button
+                  className="action-btn action-ban"
+                  onClick={() => handleAction('ban')}
+                >
+                  <span className="action-icon">🚫</span>
+                  <span className="action-label">Ban</span>
+                </button>
+              )}
               <button
-                className="action-btn action-kick"
-                onClick={() => handleAction('kick')}
+                className={`action-btn ${user.isAdmin ? 'action-demote' : 'action-promote'}`}
+                onClick={() => handleAction('toggleAdmin')}
               >
-                <span className="action-icon">👢</span>
-                <span className="action-label">Kick</span>
-              </button>
-              <button
-                className="action-btn action-ban"
-                onClick={() => handleAction('ban')}
-              >
-                <span className="action-icon">🚫</span>
-                <span className="action-label">Ban</span>
+                <span className="action-icon">{user.isAdmin ? '👤' : '👑'}</span>
+                <span className="action-label">{user.isAdmin ? 'Demote' : 'Make Admin'}</span>
               </button>
               <button
                 className="action-btn action-message"

@@ -11,6 +11,7 @@ import { Navbar } from './components/ui/Navbar';
 import { AnimatedCounter } from './components/ui/AnimatedCounter';
 import { CardRoomClosedView } from './components/CardRoomClosedView';
 import BiometricSetupPrompt from './components/BiometricSetupPrompt';
+import MobileAdminDashboard from './admin/MobileAdminDashboard';
 
 // --- Legacy Components (to be phased out or integrated) ---
 import WarTableZones from './components/WarTableZones';
@@ -177,17 +178,24 @@ function App() {
     setView('settings');
   };
 
+  const handleAdmin = () => {
+    setView('admin');
+  };
+
   const handleJoinGame = (gameId) => {
-    // This is a placeholder. In a real app, you'd use the gameId
-    // to find a specific room or create a new one.
     console.log(`Joining game or creating room for game type: ${gameId}`);
 
-    // For now, we just create a generic room based on a mock mapping.
-    const gameType = 'WAR';
+    // Map gameId to game type
+    const gameTypeMap = {
+      '1': 'BLACKJACK',
+      '2': 'WAR'
+    };
 
+    const gameType = gameTypeMap[gameId] || 'WAR';
     setCurrentGameType(gameType);
 
-    emit('create_room', {});
+    // Create room for the selected game
+    emit('create_room', { gameType });
   };
 
   const handleExitGame = () => {
@@ -227,6 +235,7 @@ function App() {
                 user={user}
                 onLogout={handleLogout}
                 onSettings={handleSettings}
+                onAdmin={handleAdmin}
                 onComs={() => setShowComs(true)}
                 socket={socket}
               />
@@ -256,6 +265,11 @@ function App() {
                   {view === 'settings' && (
                       <motion.div key="settings" variants={pageVariants} initial="initial" animate="in" exit="exit">
                           <SettingsView user={user} onBack={() => setView('lobby')} />
+                      </motion.div>
+                  )}
+                  {view === 'admin' && user?.isAdmin && (
+                      <motion.div key="admin" variants={pageVariants} initial="initial" animate="in" exit="exit">
+                          <MobileAdminDashboard onBack={() => setView('lobby')} />
                       </motion.div>
                   )}
                   {view === 'game' && (

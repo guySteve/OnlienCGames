@@ -9,7 +9,7 @@ const navVariants = {
     exit: { y: -80, opacity: 0, transition: { duration: 0.3, ease: 'easeIn' }}
 }
 
-export function Navbar({ user, onLogout, onSettings, onComs, socket }) {
+export function Navbar({ user, onLogout, onSettings, onComs, onAdmin, socket }) {
   const [lockGlitch, setLockGlitch] = useState(false);
 
   // You might want to listen to a global event or a prop to trigger this
@@ -41,7 +41,7 @@ export function Navbar({ user, onLogout, onSettings, onComs, socket }) {
               </div>
               <div>
                   <p className="font-bold text-white text-sm leading-tight">{user?.displayName || 'Player'}</p>
-                  <p className="text-slate-400 text-xs leading-tight">Welcome Back</p>
+                  <p className="text-slate-400 text-xs leading-tight">{user?.isAdmin ? '👑 Admin' : 'Welcome Back'}</p>
               </div>
             </div>
 
@@ -58,6 +58,12 @@ export function Navbar({ user, onLogout, onSettings, onComs, socket }) {
               >
                 🔒
               </button>
+
+              {user?.isAdmin && onAdmin && (
+                   <button onClick={onAdmin} className="text-red-400 hover:text-red-300 text-xs transition-colors font-semibold">
+                      👑 Admin
+                  </button>
+              )}
 
               {onSettings && (
                    <button onClick={onSettings} className="text-slate-400 hover:text-white text-xs transition-colors">

@@ -108,12 +108,11 @@ async function handleRegistrationStart(req, res) {
       excludeCredentials,
 
       // Prefer platform authenticators (Touch ID, Windows Hello, etc.)
-      // REQUIRE resident key for discoverable credentials (passwordless login)
+      // Prefer resident keys for discoverable credentials, but don't require them
       authenticatorSelection: {
-        residentKey: 'required', // Changed from 'preferred' to 'required'
+        residentKey: 'preferred', // Prefer but don't require for compatibility
         userVerification: 'preferred',
-        authenticatorAttachment: 'platform',
-        requireResidentKey: true // Explicitly require resident key
+        authenticatorAttachment: 'platform'
       },
 
       // Support for older and newer devices

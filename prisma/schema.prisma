@@ -254,6 +254,8 @@ enum ModAction {
   UNBAN
   MESSAGE_DELETED
   AUTO_FILTER
+  PROMOTE_ADMIN
+  DEMOTE_ADMIN
 }
 
 model Friendship {

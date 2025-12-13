@@ -219,6 +219,40 @@ function createAdminRouter(prisma, engagement) {
             }
         }
     });
+    // POST /api/admin/set-admin/:userId
+    router.post('/set-admin/:userId', async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const { isAdmin } = req.body;
+            const adminId = req.user.id;
+            // Prevent admins from removing their own admin status
+            if (userId === adminId && !isAdmin) {
+                return res.status(400).json({ error: 'Cannot remove your own admin status' });
+            }
+            await prisma.user.update({
+                where: { id: userId },
+                data: { isAdmin },
+            });
+            await prisma.moderationLog.create({
+                data: {
+                    userId,
+                    moderatorId: adminId,
+                    action: isAdmin ? 'PROMOTE_ADMIN' : 'DEMOTE_ADMIN',
+                    reason: isAdmin ? 'Promoted to admin' : 'Removed admin privileges',
+                },
+            });
+            return res.json({ ok: true });
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                console.error('Admin set-admin error:', error);
+                return res.status(500).json({ error: error.message });
+            }
+            else {
+                return res.status(500).json({ error: String(error) });
+            }
+        }
+    });
     return router;
 }
 //# sourceMappingURL=admin.js.map

@@ -59,7 +59,7 @@ export function GameCard({ game, onClick }) {
       glareMaxOpacity={0.1}
       glareColor="white"
       glarePosition="all"
-      className="relative aspect-[3/4] max-w-sm"
+      className="relative aspect-[3/4] max-w-[240px]"
     >
       <motion.div
         variants={cardVariants}
@@ -81,7 +81,7 @@ export function GameCard({ game, onClick }) {
         >
           {/* Placeholder for game image */}
           <div className="absolute inset-0 flex items-center justify-center opacity-10">
-            <div className="text-9xl">
+            <div className="text-7xl">
               {game.type === 'WAR' ? '⚔️' : game.type === 'BLACKJACK' ? '🃏' : game.type === 'BINGO' ? '🎱' : '🎲'}
             </div>
           </div>
@@ -98,12 +98,12 @@ export function GameCard({ game, onClick }) {
 
         {/* Text content (remains flat) */}
         <div className="relative z-10" style={{ textShadow: '0px 1px 10px rgba(0,0,0,0.5)'}}>
-          <p className={twMerge("font-black text-4xl", styles.titleColor)}>{game.name}</p>
-          <p className="text-slate-400 text-sm mt-1">{game.description}</p>
+          <p className={twMerge("font-black text-2xl", styles.titleColor)}>{game.name}</p>
+          <p className="text-slate-400 text-xs mt-1">{game.description}</p>
           <div className="mt-4 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 bg-black/30 text-white/60 px-2 py-1 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>{game.players} playing</span>
+            <div className="flex items-center gap-1.5 bg-black/30 text-emerald-400/80 px-2 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Available</span>
             </div>
             <div className="bg-black/30 text-white/60 px-2 py-1 rounded-full">
               Min Bet: ${game.minBet}
