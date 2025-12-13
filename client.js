@@ -22,6 +22,31 @@ async function fetchMe() {
   renderAuth();
 }
 
+async function logout() {
+  try {
+    await fetch('/auth/logout', { method: 'POST' });
+  } catch (err) {
+    console.error('Logout failed:', err);
+  }
+
+  if (roomId && socket) {
+    socket.emit('leave_room', { roomId });
+  }
+
+  auth = { authenticated: false, user: null };
+  gameState = null;
+  mySeats = [];
+  roomId = null;
+
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+
+  renderAuth();
+  showLobby();
+}
+
 function initSocket() {
   if (socket) return;
   socket = io();
@@ -787,7 +812,8 @@ function clearBet() {
 function toggleChat() {
   const chatPanel = document.getElementById('chatPanel');
   if (chatPanel) {
-    chatPanel.classList.toggle('open');
+    const isOpen = chatPanel.classList.toggle('open');
+    document.body.classList.toggle('chat-open', isOpen);
   }
 }
 
@@ -796,6 +822,12 @@ function showLobby() {
   if (roomId && socket) {
     socket.emit('leave_room', { roomId });
   }
+
+  const chatPanel = document.getElementById('chatPanel');
+  if (chatPanel) {
+    chatPanel.classList.remove('open');
+  }
+  document.body.classList.remove('chat-open');
 
   const cardRoomClosed = document.getElementById('cardRoomClosed');
   if (cardRoomClosed.style.display !== 'block') {
@@ -817,6 +849,12 @@ function showLobby() {
 }
 
 function showGame() {
+  const chatPanel = document.getElementById('chatPanel');
+  if (chatPanel) {
+    chatPanel.classList.remove('open');
+  }
+  document.body.classList.remove('chat-open');
+
   document.getElementById('lobbyScreen').style.display = 'none';
   document.getElementById('gameScreen').style.display = 'block';
   renderFriends(); // Update invite buttons

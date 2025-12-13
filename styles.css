@@ -2054,6 +2054,10 @@ img {
   box-shadow: 0 6px 30px rgba(102, 126, 234, 0.7);
 }
 
+body.chat-open .chat-toggle-btn {
+  right: 380px;
+}
+
 .chat-badge {
   position: absolute;
   top: -5px;
@@ -2255,6 +2259,11 @@ img {
   .chat-panel-slide {
     width: 100vw;
     right: -100vw;
+  }
+
+  body.chat-open .chat-toggle-btn {
+    opacity: 0;
+    pointer-events: none;
   }
 
   .exit-floating-btn {
