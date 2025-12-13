@@ -229,8 +229,8 @@ function App() {
       // --- Authenticated Views ---
       return (
         <div className="min-h-screen bg-slate-900">
-            {/* Only show navbar if casino is open or user is admin */}
-            {(cardRoomStatus.isOpen || user.isAdmin) && (
+            {/* Only show navbar if casino is open or user is admin, and not in admin/settings view */}
+            {(cardRoomStatus.isOpen || user.isAdmin) && view !== 'admin' && view !== 'settings' && (
               <Navbar
                 user={user}
                 onLogout={handleLogout}

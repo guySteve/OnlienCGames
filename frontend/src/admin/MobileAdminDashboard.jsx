@@ -81,13 +81,17 @@ const MobileAdminDashboard = ({ onBack }) => {
     <div className="mobile-admin-dashboard">
       {/* Fixed Header */}
       <header className="dashboard-header">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between w-full mb-3">
           {onBack && (
-            <button onClick={onBack} className="text-slate-400 hover:text-white">
+            <button
+              onClick={onBack}
+              className="text-slate-400 hover:text-white text-sm font-semibold transition-colors px-3 py-1 rounded hover:bg-slate-800"
+            >
               ← Back
             </button>
           )}
-          <h1 className="dashboard-title">Admin Console</h1>
+          <h1 className="dashboard-title flex-1 text-center">Admin Console</h1>
+          <div className="w-16"></div> {/* Spacer for centering */}
         </div>
         <div className="dashboard-stats">
           <span className="stat-badge online">
