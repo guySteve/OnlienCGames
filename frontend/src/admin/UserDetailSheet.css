@@ -294,6 +294,38 @@
   background: rgba(156, 39, 176, 0.15);
 }
 
+.action-delete {
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+.action-delete:active {
+  background: rgba(220, 38, 38, 0.2);
+}
+
+.action-unban {
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.action-unban:active {
+  background: rgba(76, 175, 80, 0.15);
+}
+
+.action-promote {
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.action-promote:active {
+  background: rgba(255, 215, 0, 0.15);
+}
+
+.action-demote {
+  border-color: rgba(158, 158, 158, 0.3);
+}
+
+.action-demote:active {
+  background: rgba(158, 158, 158, 0.15);
+}
+
 /* ============================================
    Responsive Adjustments
    ============================================ */

@@ -57,6 +57,28 @@ const UserDetailSheet = ({ user, onClose }) => {
             onClose();
           }
           break;
+        case 'delete':
+          if (!window.confirm(`⚠️ PERMANENT ACTION ⚠️\n\nAre you sure you want to DELETE ${user.username}?\n\nThis will:\n- Remove all their data\n- Delete their transactions\n- Cannot be undone\n\nType "DELETE" to confirm this action.`)) return;
+
+          const confirmText = prompt(`Type "DELETE" to permanently remove ${user.username}:`);
+          if (confirmText !== 'DELETE') {
+            alert('Deletion cancelled - you must type DELETE exactly');
+            return;
+          }
+
+          const deleteResponse = await fetch(`/api/admin/user/${user.id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+          });
+          if (deleteResponse.ok) {
+            alert(`${user.username} has been permanently deleted`);
+            onClose();
+            window.location.reload(); // Refresh to update user list
+          } else {
+            const error = await deleteResponse.json();
+            alert(`Failed to delete user: ${error.error}`);
+          }
+          break;
         case 'message':
           alert(`Opening message to ${user.username}...`);
           break;
@@ -205,11 +227,11 @@ const UserDetailSheet = ({ user, onClose }) => {
                 <span className="action-label">Message</span>
               </button>
               <button
-                className="action-btn action-spectate"
-                onClick={() => handleAction('spectate')}
+                className="action-btn action-delete"
+                onClick={() => handleAction('delete')}
               >
-                <span className="action-icon">👁️</span>
-                <span className="action-label">Spectate</span>
+                <span className="action-icon">🗑️</span>
+                <span className="action-label">Delete User</span>
               </button>
             </div>
           </div>

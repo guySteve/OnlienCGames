@@ -268,5 +268,48 @@ export function createAdminRouter(prisma: PrismaClient, engagement: EngagementSe
     }
   });
 
+  // DELETE /api/admin/user/:userId
+  router.delete('/user/:userId', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const adminId = req.user!.id;
+
+      // Prevent admins from deleting themselves
+      if (userId === adminId) {
+        return res.status(400).json({ error: 'Cannot delete your own account' });
+      }
+
+      // Check if user exists
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Log the deletion before deleting
+      await prisma.moderationLog.create({
+        data: {
+          userId,
+          moderatorId: adminId,
+          action: 'BAN', // Using BAN as closest action type for deletion
+          reason: `User permanently deleted by admin`,
+        },
+      });
+
+      // Delete user (cascade will handle related records)
+      await prisma.user.delete({
+        where: { id: userId },
+      });
+
+      return res.json({ ok: true, message: 'User deleted successfully' });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Admin delete user error:', error);
+        return res.status(500).json({ error: error.message });
+      } else {
+        return res.status(500).json({ error: String(error) });
+      }
+    }
+  });
+
   return router;
 }
