@@ -1,7 +1,7 @@
 // @/views/GameLobbyView.jsx
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GameCard } from '../components/ui/GameCard';
+import { SimpleGameCard } from '../components/ui/SimpleGameCard';
 
 const allGames = [
   { id: '1', name: 'Blackjack', type: 'BLACKJACK', category: 'Card Games', description: 'Coming Soon', players: 0, minBet: 10, disabled: true },
@@ -125,11 +125,11 @@ export function GameLobbyView({ onJoinGame, socket, user }) {
           >
             <span className="text-yellow-400 font-bold text-sm">✨ VIP ACCESS GRANTED ✨</span>
           </motion.div>
-          <h1 className="text-5xl font-black mb-4 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
-            Welcome to Moe's Card Room
+          <h1 className="text-4xl font-black mb-3 bg-gradient-to-r from-emerald-400 to-cyan-400 text-transparent bg-clip-text">
+            Moe's Card Room
           </h1>
-          <p className="text-slate-400 max-w-xl mx-auto">
-            {user?.displayName}, your exclusive gaming experience awaits
+          <p className="text-slate-400 text-sm">
+            Choose your room, {user?.displayName}
           </p>
         </motion.div>
 
@@ -154,18 +154,11 @@ export function GameLobbyView({ onJoinGame, socket, user }) {
         <motion.div
           variants={sectionVariants}
         >
-          <motion.div
-            variants={gridVariants}
-            initial="initial"
-            animate="in"
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 justify-items-center"
-          >
-            <AnimatePresence>
-              {filteredGames.map(game => (
-                <GameCard key={game.id} game={game} onClick={onJoinGame} />
-              ))}
-            </AnimatePresence>
-          </motion.div>
+          <div className="flex flex-wrap justify-center gap-6 max-w-4xl mx-auto">
+            {filteredGames.map(game => (
+              <SimpleGameCard key={game.id} game={game} onClick={onJoinGame} />
+            ))}
+          </div>
         </motion.div>
       </div>
     </motion.div>
