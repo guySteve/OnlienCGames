@@ -207,8 +207,14 @@ export function HomeView({ onPlayNow }) {
         return;
       }
 
-      setSuccess(`Reset code: ${data.resetToken}\n\nCopy this code and use it below to reset your password.`);
-      setResetToken(data.resetToken);
+      // If token returned (dev mode), show it. Otherwise, prompt user to check email
+      if (data.resetToken) {
+        setSuccess(`Reset code: ${data.resetToken}\n\nCopy this code and use it below to reset your password.`);
+        setResetToken(data.resetToken);
+      } else {
+        setSuccess('Check your email for the reset code, then enter it below.');
+        setResetToken(''); // Set to empty string to show form 2
+      }
       setLoading(false);
     } catch (err) {
       setError('Network error. Please try again.');
