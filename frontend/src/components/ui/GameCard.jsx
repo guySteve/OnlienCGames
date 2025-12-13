@@ -48,14 +48,20 @@ export function GameCard({ game, onClick }) {
     exit: { opacity: 0, y: -30, scale: 0.95 },
   };
 
+  const handleClick = () => {
+    if (!game.disabled) {
+      onClick(game.id);
+    }
+  };
+
   return (
     <Tilt
-      tiltMaxAngleX={8}
-      tiltMaxAngleY={8}
-      scale={1.02}
+      tiltMaxAngleX={game.disabled ? 0 : 8}
+      tiltMaxAngleY={game.disabled ? 0 : 8}
+      scale={game.disabled ? 1 : 1.02}
       transitionSpeed={300}
       perspective={1000}
-      glareEnable={true}
+      glareEnable={!game.disabled}
       glareMaxOpacity={0.1}
       glareColor="white"
       glarePosition="all"
@@ -64,9 +70,12 @@ export function GameCard({ game, onClick }) {
       <motion.div
         variants={cardVariants}
         layout
-        className="w-full h-full rounded-squircle-lg border border-white/10 bg-slate-900/50 p-6 flex flex-col justify-end overflow-hidden transition-all duration-300 cursor-pointer"
-        onHoverStart={() => SoundManager.play('UI_HOVER')}
-        onClick={() => onClick(game.id)}
+        className={twMerge(
+          "w-full h-full rounded-squircle-lg border border-white/10 bg-slate-900/50 p-6 flex flex-col justify-end overflow-hidden transition-all duration-300",
+          game.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+        )}
+        onHoverStart={() => !game.disabled && SoundManager.play('UI_HOVER')}
+        onClick={handleClick}
       >
         {/* 3D-transformed content */}
         <motion.div
@@ -101,13 +110,21 @@ export function GameCard({ game, onClick }) {
           <p className={twMerge("font-black text-2xl", styles.titleColor)}>{game.name}</p>
           <p className="text-slate-400 text-xs mt-1">{game.description}</p>
           <div className="mt-4 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 bg-black/30 text-emerald-400/80 px-2 py-1 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Available</span>
-            </div>
-            <div className="bg-black/30 text-white/60 px-2 py-1 rounded-full">
-              Min Bet: ${game.minBet}
-            </div>
+            {!game.disabled ? (
+              <>
+                <div className="flex items-center gap-1.5 bg-black/30 text-emerald-400/80 px-2 py-1 rounded-full">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Available</span>
+                </div>
+                <div className="bg-black/30 text-white/60 px-2 py-1 rounded-full">
+                  Min: ${game.minBet}
+                </div>
+              </>
+            ) : (
+              <div className="bg-black/30 text-amber-400/80 px-2 py-1 rounded-full">
+                Coming Soon
+              </div>
+            )}
           </div>
         </div>
       </motion.div>

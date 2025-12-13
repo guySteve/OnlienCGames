@@ -100,9 +100,9 @@ async function handleRegistrationStart(req, res) {
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
       rpID: RP_ID,
-      userID: isoUint8Array.fromUTF8String(user.id),
-      userName: user.email || user.displayName,
-      userDisplayName: user.displayName,
+      userID: isoUint8Array.fromUTF8String(String(user.id)),
+      userName: user.email || user.displayName || 'user',
+      userDisplayName: user.displayName || user.email || 'User',
 
       // Prevent re-registering existing authenticators
       excludeCredentials,
@@ -201,11 +201,11 @@ async function handleRegistrationFinish(req, res) {
     // Save authenticator to database (efficient single write)
     const newAuthenticator = await prisma.authenticator.create({
       data: {
-        userId: userId,
+        userId: String(userId),
         credentialID: Buffer.from(credentialID),
         credentialPublicKey: Buffer.from(credentialPublicKey),
         counter: BigInt(counter),
-        transports: credential.response.transports
+        transports: credential.response?.transports
           ? JSON.stringify(credential.response.transports)
           : null,
         deviceName: deviceName || `${credentialDeviceType || 'Device'} ${new Date().toLocaleDateString()}`

@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from '../components/ui/GameCard';
 
 const allGames = [
-  { id: '1', name: 'Blackjack', type: 'BLACKJACK', category: 'Card Games', description: 'Classic 21. Beat the dealer.', players: 12, minBet: 10 },
-  { id: '2', name: 'War', type: 'WAR', category: 'Card Games', description: 'High card wins. Simple & fast.', players: 8, minBet: 5 },
+  { id: '1', name: 'Blackjack', type: 'BLACKJACK', category: 'Card Games', description: 'Coming Soon', players: 0, minBet: 10, disabled: true },
+  { id: '2', name: 'War', type: 'WAR', category: 'Card Games', description: 'High card wins. Battle it out!', players: 0, minBet: 5 },
 ];
 
 const filters = ['All Games', 'Card Games'];
