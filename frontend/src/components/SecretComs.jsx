@@ -695,8 +695,8 @@ export default function SecretComs({ socket, currentUser, onClose }) {
           }
         }
 
-        ${animation.pulse.resting.keyframes}
-        ${animation.pulse.excited.keyframes}
+        ${theme.animation.pulse.resting.keyframes}
+        ${theme.animation.pulse.excited.keyframes}
       `}</style>
     </motion.div>
   );
