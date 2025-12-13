@@ -54,7 +54,7 @@ export function HomeView({ onPlayNow }) {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [resetEmail, setResetEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
+  const [resetToken, setResetToken] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
@@ -472,10 +472,10 @@ export function HomeView({ onPlayNow }) {
             >
               <h2 className="text-white font-bold text-2xl mb-2">Reset Password</h2>
               <p className="text-slate-400 text-sm mb-6">
-                {!resetToken ? 'Enter your email to receive a reset code' : 'Enter the code and your new password'}
+                {resetToken === null ? 'Enter your email to receive a reset code' : 'Enter the code and your new password'}
               </p>
 
-              {!resetToken ? (
+              {resetToken === null ? (
                 <form onSubmit={handlePasswordResetRequest} className="space-y-4">
                   <input
                     type="email"
@@ -567,7 +567,7 @@ export function HomeView({ onPlayNow }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setResetToken('');
+                        setResetToken(null);
                         setNewPassword('');
                         setConfirmPassword('');
                         setError('');
