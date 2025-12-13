@@ -48,9 +48,15 @@ export function GameCard({ game, onClick }) {
     exit: { opacity: 0, y: -30, scale: 0.95 },
   };
 
-  const handleClick = () => {
+  const handleClick = (e) => {
+    console.log('🎯 [GameCard] Card clicked!', game.name, game.id);
+    console.log('🎯 [GameCard] Game disabled?', game.disabled);
+    e.stopPropagation();
     if (!game.disabled) {
+      console.log('🎯 [GameCard] Calling onClick with id:', game.id);
       onClick(game.id);
+    } else {
+      console.log('⚠️ [GameCard] Game is disabled, not calling onClick');
     }
   };
 
@@ -76,6 +82,7 @@ export function GameCard({ game, onClick }) {
         )}
         onHoverStart={() => !game.disabled && SoundManager.play('UI_HOVER')}
         onClick={handleClick}
+        style={{ pointerEvents: 'auto' }}
       >
         {/* 3D-transformed content */}
         <motion.div

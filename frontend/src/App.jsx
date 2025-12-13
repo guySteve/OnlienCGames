@@ -153,10 +153,14 @@ function App() {
   useEffect(() => {
     if (!lastEvent) return;
 
+    console.log(`🎯 [lastEvent] Received event:`, lastEvent.type, lastEvent.data);
+
     switch (lastEvent.type) {
       case 'room_created':
       case 'private_war_created':
+        console.log(`🎮 [lastEvent] Room created! RoomId:`, lastEvent.data.roomId);
         setCurrentRoomId(lastEvent.data.roomId);
+        console.log(`🎮 [lastEvent] Setting view to 'game'`);
         setView('game');
         break;
       // Add other game events as needed
@@ -183,7 +187,9 @@ function App() {
   };
 
   const handleJoinGame = (gameId) => {
-    console.log(`Joining game or creating room for game type: ${gameId}`);
+    console.log(`🎮 [handleJoinGame] Called with gameId:`, gameId);
+    console.log(`🔌 [handleJoinGame] Socket connected:`, isConnected);
+    console.log(`🔌 [handleJoinGame] Socket exists:`, !!socket);
 
     // Map gameId to game type
     const gameTypeMap = {
@@ -192,9 +198,12 @@ function App() {
     };
 
     const gameType = gameTypeMap[gameId] || 'WAR';
+    console.log(`🎮 [handleJoinGame] Game type:`, gameType);
+
     setCurrentGameType(gameType);
 
     // Create room for the selected game
+    console.log(`📡 [handleJoinGame] Emitting create_room with gameType:`, gameType);
     emit('create_room', { gameType });
   };
 

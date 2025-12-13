@@ -53,7 +53,7 @@ export function Navbar({ user, onLogout, onSettings, onComs, onAdmin, socket }) 
               {/* SecretComs Lock Icon */}
               <button
                 onClick={onComs}
-                className={`text-slate-400 hover:text-white text-lg transition-colors ${lockGlitch ? 'animate-glitch' : ''}`}
+                className="text-slate-400 hover:text-white text-lg transition-colors"
                 title="SecretComs - Encrypted Chat"
               >
                 🔒
