@@ -1718,6 +1718,11 @@ img {
   align-items: center;
   gap: 15px;
   z-index: 50;
+  pointer-events: none; /* Allow clicks to pass through */
+}
+
+#dealer-canvas-container {
+  pointer-events: none; /* 3D canvas shouldn't block clicks */
 }
 
 .dealer-badge {
@@ -2047,6 +2052,12 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: pulse-subtle 2s ease-in-out infinite; /* Draw attention to chat */
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); box-shadow: 0 6px 30px rgba(102, 126, 234, 0.7); }
 }
 
 .chat-toggle-btn:hover {
