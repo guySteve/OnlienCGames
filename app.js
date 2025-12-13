@@ -157,14 +157,19 @@ app.get('/me', async (req, res) => {
         if (!dbUser) {
             return res.status(200).json({ authenticated: false });
         }
-        // Convert BigInt fields to Number before serialization
-        const { chipBalance, ...restDbUser } = dbUser;
+        // Convert ALL BigInt fields to Number before serialization
+        const { chipBalance, totalWagered, totalWon, totalMysteryChips, biggestWin, totalTipped, ...restDbUser } = dbUser;
         res.json({
             authenticated: true,
             user: {
                 ...req.user,
                 ...restDbUser,
                 chipBalance: Number(chipBalance),
+                totalWagered: Number(totalWagered),
+                totalWon: Number(totalWon),
+                totalMysteryChips: Number(totalMysteryChips),
+                biggestWin: Number(biggestWin),
+                totalTipped: Number(totalTipped),
                 isAdmin: dbUser.isAdmin
             }
         });
